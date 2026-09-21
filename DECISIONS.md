@@ -2812,6 +2812,10 @@ declaration is what dedupes the tree. `npm ls vite` shows a single `vite@8.3.0` 
 
 ## 6. ESLint stays at 9, and that is a decision for the human rather than a limit
 
+> **Superseded.** The question below was put to the human and answered: take ESLint 10 with the
+> override. The measurements here still stand, but the outcome is now the opposite of the one this
+> entry records. See "Taking ESLint to 10 by overriding a peer range" below.
+
 `eslint@10.11.0` is blocked by `eslint-plugin-react@7.37.5`, which is the latest release — the
 only higher `dist-tag` is `next`, an ancient `7.8.0-rc.0` peering ESLint `^3 || ^4`. Its peer
 range stops at `^9.7`, so a plain install fails `ERESOLVE`. `typescript-eslint` and
@@ -2998,3 +3002,101 @@ Neither dependency-edge test asserts the shape of the export list, so adding
 `READOUT_VALUE_FIELD_CHARS` broke nothing; it has no consumer outside `ui-kit`'s own tests, and is
 exported so a future display-unit decision has a number to reason about rather than a magic `8ch`
 buried in a stylesheet.
+
+# Taking ESLint to 10 by overriding a peer range — decisions
+
+The previous section left ESLint at 9 and put the question to the human, because buying `latest`
+with a declaratively unsupported tree is not a worker's call. The answer was **"Take ESLint 10
+(override)."** So `eslint@10.11.0` and `@eslint/js@10.0.1` are the committed state, and what follows
+is the cost that came with them, recorded as cost rather than as a footnote.
+
+All five lanes are green in the committed tree: `build`, `typecheck`, `lint`, `format:check` and
+`test` each exit `0`, with **918 tests passed** — the same 918 as before this change, since nothing
+here touches what runs.
+
+## 1. What holds ESLint 10 up, and why it is load-bearing
+
+`eslint-plugin-react@7.37.5` is the plugin's latest release and peers at
+`^3 || ^4 || ... || ^9.7`. It does not admit ESLint 10, so a plain install fails `ERESOLVE`. The
+root manifest now carries:
+
+```json
+"overrides": {
+  "eslint-plugin-react": { "eslint": "$eslint" }
+}
+```
+
+`$eslint` resolves the plugin's peer against the root's own `eslint` declaration, so the tree keeps
+**one** installed ESLint (`node_modules/eslint` at 10.11.0, and no nested copy) with peer resolution
+otherwise fully intact. This is deliberately not `--legacy-peer-deps`: that flag was measured too,
+and it degrades peer resolution tree-wide, producing 60 spurious "type cannot be resolved" lint
+errors. A control run pinned that damage on the flag rather than on ESLint 10 — ESLint **9** with
+the same flag produced the identical 60.
+
+The override is therefore not decoration. Removing it without simultaneously moving `eslint` back to
+9 breaks `npm install` itself, before any lane runs.
+
+## 2. Accepted cost: the tree is declaratively unsupported
+
+An override is an assertion that the author of `eslint-plugin-react` has not made. Nothing verifies
+it; it is a claim this repo makes on the plugin's behalf, and the plugin's maintainers owe it
+nothing. Concretely accepted:
+
+- `npm install` no longer tells the truth about compatibility here. A future `ERESOLVE` involving
+  this plugin is suppressed by construction, so the signal that would normally warn a maintainer is
+  gone.
+- If the plugin publishes a release that peers `^10`, the override becomes redundant and should be
+  deleted. Nothing will prompt that; it has to be noticed.
+
+## 3. Accepted cost: the React version is now hand-maintained and will drift
+
+`settings.react.version` was `'detect'`. Detection calls `context.getFilename()`, which ESLint 10
+removed, so the lint lane does not merely warn under detection — it dies:
+
+```
+TypeError: Error while loading rule 'react/display-name': contextOrFilename.getFilename is not a function
+    at resolveBasedir (node_modules/eslint-plugin-react/lib/util/version.js:31)
+    at detectReactVersion (node_modules/eslint-plugin-react/lib/util/version.js:85)
+```
+
+So the version is pinned to `19.3.0` in `eslint.config.js`, with a comment at that line saying why,
+because the obvious "cleanup" for a future reader is to restore `'detect'` and that restores a
+crash.
+
+The cost is real and it is a slow one: **when `react` moves, this number does not.** Several
+`eslint-plugin-react` rules are version-gated, so a stale pin means those rules judge the code
+against a React that is no longer installed — and nothing fails. There is no lane that catches it.
+Bumping `react` is now a two-file change: the manifest, and this line.
+
+The pin is not a weakened check. Every React rule still runs, and that was verified rather than
+assumed: a probe component with a conditionally-called hook and a keyed-list violation was linted
+under ESLint 10 with the pin in place, and `react-hooks/rules-of-hooks` and `react/jsx-key` both
+reported. The probe was removed.
+
+## 4. Accepted cost: the residual risk, and the symptom to recognise it by
+
+The plugin already calls one API ESLint 10 removed, on a path this repo's code reaches. That is
+evidence about the plugin's general state, not a single fixed bug: the same class of call can sit on
+paths that only execute for code nobody has written here yet — a `propTypes` shape, a class
+component, a rule this config does not currently trigger.
+
+**What that would look like, so it is not misdiagnosed:** the lint lane exits **2**, not 1, and
+prints a `TypeError` naming a rule — `Error while loading rule 'react/<something>'` — with a stack
+inside `node_modules/eslint-plugin-react/`. There is no file-and-line finding against the source,
+because the rule never got far enough to produce one. Crucially, this will surface *while someone is
+writing unrelated React code*, so the natural reading is "my new component broke the linter." It did
+not. The override came due.
+
+The response is to fix the ESLint version story, not the code that exposed it: upgrade the plugin if
+a supporting release exists, or move ESLint back to 9 and remove the override. Silencing it with
+`eslint-disable` is not available, because a crashed rule loader reports no rule to disable.
+
+## 5. What was not reopened
+
+TypeScript stays at **6.0.3**; nothing in this answer bears on TypeScript 7, which is blocked for an
+unrelated and structural reason (no classic compiler API). The root `engines: node >=22` versus
+`jsdom@30`'s `^22.22.2 || ^24.15.0 || >=26.0.0` mismatch stays recorded and untouched — still the
+human's call.
+
+The lockfile was **deleted and regenerated** from the manifests rather than edited, so the resolution
+committed here is one npm produced from scratch.

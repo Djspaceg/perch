@@ -446,13 +446,22 @@ re-splits those two arrays would re-open the hole.
 - **Do not add `eslint-plugin-prettier`.** `eslint-config-prettier` is last in the chain precisely
   so ESLint has no formatting opinions. Adding the plugin gives you two tools formatting the same
   characters, and the slower one reports through the lint gate.
-- **ESLint stays on 9 unless someone accepts an override.** `eslint-plugin-react@7.37.5` is the
-  latest release and peers at `^9.7`, so a plain `npm install` of ESLint 10 fails `ERESOLVE`. It
-  *is* reachable — an `overrides` entry plus pinning `settings.react.version` lints clean — but
-  that tree is declaratively unsupported, so it is a decision rather than a bump. Leaving
-  `version: 'detect'` in place under ESLint 10 crashes the lint lane outright, because the plugin
-  calls the `context.getFilename()` that ESLint 10 removed. The
-  `npm warn deprecated eslint@9.39.5` notice is known and accepted.
+- **ESLint is 10, and it is held there by an `overrides` entry.** `eslint-plugin-react@7.37.5` is
+  the latest release and peers at `^9.7`, so a plain `npm install` fails `ERESOLVE`. The root
+  manifest carries `overrides: { "eslint-plugin-react": { "eslint": "$eslint" } }`, which points the
+  plugin's peer at the one installed ESLint instead of resolving a second copy. **Do not remove that
+  entry** without moving ESLint back to 9 in the same change; deleting it breaks `npm install`
+  itself, not just the lint lane.
+- **`settings.react.version` is pinned to `19.3.0` on purpose — do not restore `'detect'`.** Under
+  ESLint 10, detection calls the `context.getFilename()` that ESLint 10 removed, and the lint lane
+  *crashes* with `contextOrFilename.getFilename is not a function` rather than reporting a lint
+  error. **This pin must be bumped by hand whenever `react` moves**, in `eslint.config.js`, or the
+  version-gated React rules silently judge against the wrong React.
+- **The React plugin is unsupported on ESLint 10, so recognise its failure shape.** It already
+  called one removed API; if it reaches another on code not yet written, the symptom is the lint
+  lane exiting **2** with a `TypeError` naming a rule (`Error while loading rule 'react/...'`) and a
+  stack inside `node_modules/eslint-plugin-react/`, **not** a lint error against your file. Read
+  that as the override coming due, not as a bug in the code being linted.
 - **Vite is one major again.** The root, `runtime` and `editor` all declare `vite@^8.3.0` and
   resolve to a single installed copy; the root declares it because Vitest 5 has a non-optional
   `vite` peer. This retires the old "two Vite majors" hazard: the Vitest-3-pins-an-older-Vite

@@ -119,7 +119,13 @@ export default tseslint.config(
       reactHooks.configs.flat.recommended,
     ],
     settings: {
-      react: { version: 'detect' },
+      // Pinned, not detected, and it must stay pinned. `version: 'detect'` makes
+      // eslint-plugin-react call `context.getFilename()`, which ESLint 10 removed, and the
+      // whole lint lane dies on the first React file with
+      // `contextOrFilename.getFilename is not a function` rather than reporting a lint error.
+      // The cost is that this number is hand-maintained: it must move when `react` does.
+      // See DECISIONS.md, "Taking ESLint to 10 by overriding a peer range".
+      react: { version: '19.3.0' },
     },
     rules: {
       // TypeScript checks props. `prop-types` is the runtime substitute for a type system
