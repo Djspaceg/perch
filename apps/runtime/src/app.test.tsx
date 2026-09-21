@@ -18,10 +18,11 @@ import { sensorTopic } from '@perch/sensor-contract';
 import { Dashboard, type DashboardSources } from './app.js';
 
 /** Seeded and idle: it publishes only when a test says so. */
-const idleSource = (seed: number): MockSensorSource =>
-  createMockSource({ seed, autoStart: false });
+const idleSource = (seed: number): MockSensorSource => createMockSource({ seed, autoStart: false });
 
-function mount(): { sources: DashboardSources & { live: MockSensorSource; frozen: MockSensorSource } } {
+function mount(): {
+  sources: DashboardSources & { live: MockSensorSource; frozen: MockSensorSource };
+} {
   const live = idleSource(7);
   const frozen = idleSource(1);
 

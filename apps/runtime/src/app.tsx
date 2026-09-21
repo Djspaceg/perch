@@ -68,7 +68,10 @@ interface TileSpec {
 const LIVE_TILES: readonly TileSpec[] = Object.freeze([
   { caption: 'live', topic: sensorTopic('cpu', 'temperature') },
   { caption: 'live · 0 decimals', topic: sensorTopic('gpu', 'fan') },
-  { caption: 'live · indexed topic', topic: sensorTopic('storage', 'temperature', { deviceIndex: 1 }) },
+  {
+    caption: 'live · indexed topic',
+    topic: sensorTopic('storage', 'temperature', { deviceIndex: 1 }),
+  },
   { caption: 'live · dimensionless', topic: sensorTopic('cpu', 'factor') },
   { caption: 'live · 2 decimals', topic: sensorTopic('cpu', 'power'), decimals: 2 },
   { caption: 'null · reports nothing', topic: sensorTopic('cooler', 'fan') },
