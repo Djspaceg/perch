@@ -8,6 +8,18 @@
  *
  * The `/vitest` entry point (not the bare package) is the one that augments Vitest's `Assertion`
  * interface, so `expect(el).toBeVisible()` is typed as well as available.
+ *
+ * It also unmounts React trees between tests, for the reason `apps/runtime/vitest.setup.ts` states:
+ * Testing Library registers that teardown itself only when Vitest's `globals` are on, and they are
+ * deliberately off here — every test imports `describe` and `expect` explicitly — so it has to be
+ * registered by hand. Without it each test inherits the previous test's DOM, and `screen`, which
+ * queries the whole document, starts finding two of everything.
  */
 
+import { afterEach } from 'vitest';
+import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+
+afterEach(() => {
+  cleanup();
+});

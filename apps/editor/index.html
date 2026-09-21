@@ -1,0 +1,31 @@
+<!doctype html>
+<!--
+  The page Vite serves and builds for the editor.
+
+  Same shape as the runtime's, and for the same reasons: no import map, because Vite resolves the
+  workspace packages from source rather than from `dist/`; and no stylesheet link, because every
+  sheet is a string exported next to the component that needs it and React hoists it into the
+  document when that component renders.
+
+  One warning, inherited verbatim from `apps/runtime/index.html` because it cost a confusing hour
+  there: Vite injects its dev client immediately after the first literal occurrence of the document
+  head tag name in this file, and if that occurrence is inside a comment then the injected scripts
+  are commented out too. The page still mounts, but the react-refresh preamble never runs and the
+  React plugin throws. Hence the tag is described in prose here and never written. Do not write it
+  inside this comment.
+
+  The editor writes files, which the page cannot do: saving goes to a small endpoint the dev server
+  adds (`vite.config.ts`), so it works under `npm run dev -w @perch/editor` and nowhere else. The
+  limit is spelled out in README.md.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>perch · editor</title>
+  </head>
+  <body>
+    <div id="perch-editor-root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

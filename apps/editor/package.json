@@ -6,8 +6,10 @@
   "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && vite build",
     "clean": "tsc -b --clean",
+    "dev": "vite",
+    "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -b"
   },
