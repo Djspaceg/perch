@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"],
+  // `*.test-support.ts` is excluded for the same reason as the tests themselves: it is test
+  // scaffolding (it reads the shared LHM fixture off disk with `node:fs`) and must not reach
+  // `dist`, where SPEC rule 1's zero-runtime-dependency claim applies.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test-support.ts"]
+}
