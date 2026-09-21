@@ -1,156 +1,112 @@
 /**
- * THE PAGE, NOT YET THE RUNTIME.
+ * THE RUNTIME: a layout loader and a widget factory.
  *
- * This file **hard-codes its widgets**. The real runtime will read a layout through
- * `@perch/layout-schema` and instantiate widgets from it; the tile list below is not the shape
- * that will take, and nothing here should be mistaken for the runtime's final structure. It
- * exists so the widget work can be looked at as pixels instead of assertions, and it shrinks —
- * to a layout loader and a widget factory — the moment `layout-schema` lands.
+ * This file used to hard-code a list of tiles and say, at the top, that it would shrink "to a layout
+ * loader and a widget factory the moment `layout-schema` lands". It has. There is no tile list here
+ * any more and no topic string either: what appears on screen is entirely `layouts/*.json`, and the
+ * only way a widget reaches the page is by being named in one.
  *
- * What it does hold to, because these are the seams under test:
+ * ## The pipeline, in the order it runs
  *
- * - **The sources are injected.** `Dashboard` takes them as a prop and constructs nothing. The
- *   mock/MQTT swap happens in `main.tsx`, one line, and this file does not change.
- * - **Every state is driven, not waited for.** A second source that publishes once and stops
- *   produces the stale rendering; a topic the mock does not publish at all produces the waiting
- *   rendering; `cooler/fan` reports `null` by design. All four renderings are on screen within a
- *   second of load, which is what makes a screenshot of this page evidence rather than luck.
- * - **Every topic is built with `sensorTopic()`.** There is not a hand-written topic string here.
- * - **Two providers, because one source cannot be both live and dead at once.** The nested
- *   provider also demonstrates the thing the old module-global singleton made impossible: two
- *   independent stores in one page, each feeding its own subtree.
+ * ```text
+ * ?layout=<name>  ->  catalogue.entry(name)        a file, as text
+ *                 ->  loadLayoutJson(text, {…})    migrate, then validate, against WIDGET_REGISTRY
+ *                 ->  fitCanvas(target, viewport)  a scale, or a refusal
+ *                 ->  <LayoutCanvas>               absolute rects on a fixed canvas, scaled once
+ * ```
  *
- * ## Fluid, deliberately — this page does not implement capture mode
+ * Every step can refuse, and each refusal is rendered **on the page** by `LayoutProblem` rather than
+ * logged: the panel has no console attached, and a capture of a failure has to show the failure.
  *
- * The canvas fills the viewport instead of being a fixed 1920×400 box scaled to fit. That is not
- * a shortcut, it is staying out of the runtime's way: windowed-versus-capture mode, `layout.target`
- * and rejecting a target the layout cannot honour are the runtime's job (README.md, "Two modes"),
- * and a page that half-implemented letterboxing would have to be un-implemented later.
+ * `loadLayoutJson`, not `validateLayout`. The document comes from outside — a file somebody edited —
+ * so it is migrated forward first and the steps that ran are reported. `validateLayout` is for a
+ * document already known to be at the current version, which is the editor's case, not this one.
  *
- * It also makes this page a better test surface. Because the layout is fluid, a browser tab and a
- * 1920×400 panel viewport produce genuinely different geometry — narrow tall columns versus wide
- * short ones — rather than the same layout at two scales. A widget whose label could push its
- * column wider shows that at tab width; a widget whose rows could reflow shows it at 400px of
- * height. Both are real checks.
+ * ## What survived the rewrite, deliberately
+ *
+ * - **The source is injected.** `Dashboard` constructs nothing; `main.tsx` picks mock or MQTT. A
+ *   layout renders identically from either, which is the property that makes the mock permanent
+ *   rather than a placeholder.
+ * - **The page says where its numbers came from, in both modes.** `SourceProvenance` and the status
+ *   badge are rendered over the canvas in capture mode as well as in a window — see the note on
+ *   `PageChrome` for why that is not negotiable.
+ * - **The ready signal.** `data-perch-ready` on the root, flipped by a reading actually arriving.
  */
 
-import type { ReactNode } from 'react';
-import { sensorTopic, type SensorSource, type SensorSourceStatus } from '@perch/sensor-contract';
+import { useMemo, type ReactNode } from 'react';
 import {
+  loadLayoutJson,
+  type Layout,
+  type LoadLayoutOptions,
+  type LoadLayoutResult,
+} from '@perch/layout-schema';
+import {
+  normalizeSensorTopic,
+  sensorTopic,
+  type SensorSource,
+  type SensorSourceStatus,
+} from '@perch/sensor-contract';
+import {
+  MEDIA_FRAME_STYLES,
   READOUT_STYLES,
-  Readout,
   SensorProvider,
+  TEXT_BLOCK_STYLES,
   assertNever,
   useSensor,
   useSensorStatus,
 } from '@perch/ui-kit';
+import { LAYOUT_CANVAS_STYLES, LayoutCanvas } from './layout-canvas.js';
+import {
+  LAYOUT_PROBLEM_STYLES,
+  LayoutProblem,
+  invalidLayoutProblem,
+  targetMismatchProblem,
+  unknownLayoutProblem,
+  type LayoutProblemProps,
+} from './layout-problem.js';
+import { WIDGET_REGISTRY } from './widget-catalogue.js';
+import { fitCanvas, useViewport, type PageRequest } from './viewport.js';
+import type { LayoutCatalogue } from './layout-catalogue.js';
 
 /**
- * How stale the frozen tile's reading is allowed to get before it says so.
+ * What every layout on this page is validated against.
  *
- * Short on purpose. The tile exists to *show* the stale rendering, so waiting out the real
- * 5 s default would mean the page spends its first five seconds not demonstrating the thing the
- * tile is for — and a capture taken in that window would silently show a live value instead. This
- * is the page choosing what to demonstrate, through a normal provider prop; the default the real
- * panel runs on is unchanged and lives in `ui-kit`.
+ * `isTopic` accepts the authored shorthand — `sensors/cpu/temperature` as well as
+ * `sensors/cpu/0/temperature/0` — because `<Readout>` accepts exactly that set: it calls
+ * `normalizeSensorTopic` on whatever it is handed. The validator and the renderer therefore agree on
+ * which strings are topics, which is the only property that matters here. A stricter `isSensorTopic`
+ * would refuse layouts the page can in fact render, and a looser one would let a layout validate and
+ * then throw inside a widget.
+ *
+ * No `targetVersion`: production code leaves that alone. `LAYOUT_MIGRATIONS` is empty today, so the
+ * migration half of `loadLayoutJson` is a pass-through — but it is called through the loader anyway,
+ * so the first real migration needs no change here.
  */
-const FROZEN_STALE_AFTER_MS = 1_500;
-
-interface TileSpec {
-  /** What this tile is here to demonstrate, printed above it. */
-  readonly caption: string;
-  readonly topic: string;
-  readonly label?: string | undefined;
-  readonly decimals?: number | undefined;
-}
-
-/**
- * The tiles fed by the running source.
- *
- * ## Captions say which source can fill a tile, because the two sets are not the same
- *
- * The page now runs against either the mock or a real relay, and the topic sets barely overlap.
- * Measured against `fixtures/lhm-data.sample.json` — a verbatim capture of the live machine's
- * `/data.json` — exactly four of the mock's nine topics also exist there: `cpu/load`, `cpu/power`,
- * `cpu/factor` and `gpu/temperature`. That machine's first CPU temperature is sensor index 2
- * ("Core (Tctl/Tdie)"), it has no `gpu/0/fan/0`, no `storage/1`, no `cooler` device and no
- * `memory` device at all — LibreHardwareMonitor indexes what it finds, and what it finds is not
- * the mock's tidy set.
- *
- * So a caption reading `live` on a tile only the mock publishes would be a lie in half the runs.
- * The three `live ·` tiles are the intersection and carry a value either way; `mock only ·` and
- * `hardware only ·` say plainly that the tile is empty because of the source, not because of a
- * fault. That is the same rule the status badge follows: nothing on this page should let mock data
- * be read as hardware.
- */
-const LIVE_TILES: readonly TileSpec[] = Object.freeze([
-  { caption: 'live', topic: sensorTopic('cpu', 'load') },
-  { caption: 'live · 2 decimals', topic: sensorTopic('cpu', 'power'), decimals: 2 },
-  { caption: 'live · dimensionless', topic: sensorTopic('cpu', 'factor') },
-  /**
-   * The tile that tells the two modes apart at a glance.
-   *
-   * The relay reads LibreHardwareMonitor's `RawValue`, so GPU throughput arrives as bytes per
-   * second — `6699008` — where LHM's own display field would say `6.4 MB/s` and lose the unit on
-   * the way. Nothing else on the page produces a seven-digit number, and the mock does not publish
-   * `throughput` at all, so this tile holding a value is proof the MQTT path is the one running.
-   */
-  { caption: 'hardware only · raw bytes/s', topic: sensorTopic('gpu', 'throughput') },
-  { caption: 'mock only · 0 decimals', topic: sensorTopic('gpu', 'fan') },
-  { caption: 'mock only · reports nothing', topic: sensorTopic('cooler', 'fan') },
-  /**
-   * The tile that carries the fixed defect.
-   *
-   * Nothing publishes `psu/voltage`, so it has no metadata and no label, and the readout falls
-   * back to the canonical topic — `sensors/psu/0/voltage/0`, by far the longest string on the
-   * page. Under the old two-`max-content`-column grid that string set the width of the whole
-   * widget, because a grid item spanning both tracks contributes its max-content width to track
-   * sizing. It is kept as a tile rather than fixed by giving it a label precisely so a capture can
-   * show it staying inside its column.
-   */
-  { caption: 'waiting · no metadata label', topic: sensorTopic('psu', 'voltage') },
-]);
-
-/**
- * The tile fed by the source that published once and stopped.
- *
- * Captioned `mock` rather than just `stale`, and that word is load-bearing: `main.tsx` builds this
- * second source from the mock in *both* modes, because a real relay cannot be asked to die on cue
- * for a demonstration. Over MQTT this is therefore the one tile on the page showing invented data,
- * so it says so where it is read, not only in a comment.
- */
-const FROZEN_TILE: TileSpec = Object.freeze({
-  caption: 'stale · mock publisher stopped',
-  topic: sensorTopic('gpu', 'temperature'),
+const LOAD_OPTIONS: LoadLayoutOptions = Object.freeze({
+  widgets: WIDGET_REGISTRY,
+  isTopic: (topic: string) => normalizeSensorTopic(topic) !== null,
 });
 
 /**
- * The topic the footer reports on, so the page has a visible heartbeat.
+ * The topic the chrome reports on, so the page has a visible heartbeat and a ready signal.
  *
- * `cpu/load` because both sources publish it — see the note on `LIVE_TILES`. On `cpu/temperature`,
- * which was the obvious choice and the wrong one, the footer read "last published never" against a
- * relay that was in fact delivering 213 readings a second, because that machine's first CPU
- * temperature is sensor index 2. A heartbeat that can be silent while the link is healthy is worse
- * than no heartbeat.
+ * `cpu/load` because both sources publish it, and because the provider subscribes to the whole
+ * sensor tree rather than to the topics a layout happens to name — so this works whether or not the
+ * rendered layout has a widget bound to it. On `cpu/temperature`, which was the obvious choice and
+ * the wrong one, the line read "last published never" against a relay delivering 213 readings a
+ * second, because that machine's first CPU temperature is sensor index 2.
  */
 const HEARTBEAT_TOPIC = sensorTopic('cpu', 'load');
 
-/** Which topic the footer names, without re-deriving it from the canonical string. */
+/** Which topic the chrome names, without re-deriving it from the canonical string. */
 const HEARTBEAT_LABEL = 'cpu/load';
 
-export interface DashboardSources {
-  /** Publishes on a timer. The tiles that show live values read from this. */
-  readonly live: SensorSource;
-  /** Publishes once and stops, so its topics age out. Feeds exactly one tile. */
-  readonly frozen: SensorSource;
-}
-
 /**
- * Where `sources.live` came from, so the page can say it.
+ * Where `source` came from, so the page can say it.
  *
- * Passed in rather than sniffed from the source: `SensorSource` deliberately exposes no transport,
- * and a page that tried to guess by looking for an MQTT-shaped field would be wrong the first time
- * a third implementation appeared. `main.tsx` knows, because `main.tsx` chose.
+ * Passed in rather than sniffed: `SensorSource` deliberately exposes no transport, and a page that
+ * guessed by looking for an MQTT-shaped field would be wrong the first time a third implementation
+ * appeared. `main.tsx` knows, because `main.tsx` chose.
  */
 export type LiveSourceIdentity =
   | { readonly kind: 'mock' }
@@ -179,133 +135,266 @@ export const SOURCE_STATUS_WORDING: Readonly<Record<SensorSourceStatus, string>>
   error: 'source unreachable - nothing is arriving',
 });
 
-export function Dashboard({
-  sources,
-  liveSource,
-}: {
-  readonly sources: DashboardSources;
+export interface DashboardProps {
+  /** The one sensor source. Built in `main.tsx`; never constructed here. */
+  readonly source: SensorSource;
   readonly liveSource: LiveSourceIdentity;
-}): ReactNode {
+  /** Which layouts exist. Injected for the same reason the source is: so a test can supply two. */
+  readonly catalogue: LayoutCatalogue;
+  /** What the URL asked for. */
+  readonly request: PageRequest;
+}
+
+export function Dashboard({ source, liveSource, catalogue, request }: DashboardProps): ReactNode {
   return (
-    <SensorProvider source={sources.live}>
+    <SensorProvider source={source}>
       {/*
-       * React 19 hoists a `<style>` carrying `href` and `precedence` into `<head>` and dedupes it
-       * by `href`, so the widget's stylesheet arrives with the component that needs it and lands
-       * once however many Dashboards render. `READOUT_STYLES` is a string rather than a `.css`
-       * import because `ui-kit` is consumed both by this bundler and by tests that have none.
+       * React 19 hoists a `<style>` carrying `href` and `precedence` into `<head>` and dedupes it by
+       * `href`, so each sheet arrives with the code that needs it and lands once however many
+       * Dashboards render. They are strings rather than `.css` imports because `ui-kit` is consumed
+       * both by this bundler and by tests that have none.
+       *
+       * All three `ui-kit` sheets are mounted unconditionally rather than per element kind present:
+       * a layout switched by `?layout=` would otherwise add or remove a stylesheet at the moment the
+       * canvas changes, and a sheet arriving one frame after the element it styles is a flash of
+       * unstyled content on a page whose whole contract is that frame one is correct.
        */}
       <style href="perch-readout" precedence="default">
         {READOUT_STYLES}
+      </style>
+      <style href="perch-text-block" precedence="default">
+        {TEXT_BLOCK_STYLES}
+      </style>
+      <style href="perch-media-frame" precedence="default">
+        {MEDIA_FRAME_STYLES}
+      </style>
+      <style href="perch-layout-canvas" precedence="default">
+        {LAYOUT_CANVAS_STYLES}
+      </style>
+      <style href="perch-layout-problem" precedence="default">
+        {LAYOUT_PROBLEM_STYLES}
       </style>
       <style href="perch-page" precedence="default">
         {PAGE_STYLES}
       </style>
 
-      <div id="perch-canvas">
-        <header id="perch-header">
-          <span className="perch-header__title">perch · runtime</span>
-          <span className="perch-header__right">
-            <SourceProvenance identity={liveSource} />
-            <StatusBadge />
-          </span>
-        </header>
-
-        <div id="perch-strip">
-          {LIVE_TILES.map((spec) => (
-            <Tile key={spec.topic} spec={spec} />
-          ))}
-          {/*
-           * Its own provider, and therefore its own store and its own subscription. One source
-           * cannot be both publishing and dead, so the stale rendering needs a second one — and
-           * being able to nest a provider at all is what replaced the installed singleton.
-           */}
-          <SensorProvider source={sources.frozen} staleAfterMs={FROZEN_STALE_AFTER_MS}>
-            <Tile spec={FROZEN_TILE} />
-          </SensorProvider>
-        </div>
-
-        <Footer />
-      </div>
+      <Page catalogue={catalogue} request={request} liveSource={liveSource} />
     </SensorProvider>
   );
 }
 
 /**
- * Which source the numbers came from, stated on the page.
+ * The page body: resolve a layout, then either paint it or say why not.
  *
- * Not a console line and not a build-time constant: the mock and the relay look identical at a
- * glance — plausible values, moving, correctly labelled — and mistaking one for the other means
- * trusting a temperature that was generated by a seeded PRNG. The URL is shown for the MQTT case
- * because on a developer machine the expensive failure is connecting to the *wrong* broker, which
- * accepts the subscription and delivers nothing, and the port is the only thing that tells them
- * apart. `data-perch-source-kind` is the same fact for a capture script.
+ * Separate from `Dashboard` because it uses hooks that need the provider above them, and because
+ * every hook here has to run on every path — including the refusal paths. Hence the resolution
+ * happens in `useMemo` and the branching happens in the returned JSX, rather than the other way
+ * around: an early `return` before `useViewport()` would change the hook order between a valid layout
+ * and an invalid one, which React forbids and which would turn a layout typo into a crash.
  */
-function SourceProvenance({ identity }: { readonly identity: LiveSourceIdentity }): ReactNode {
+function Page({
+  catalogue,
+  request,
+  liveSource,
+}: {
+  readonly catalogue: LayoutCatalogue;
+  readonly request: PageRequest;
+  readonly liveSource: LiveSourceIdentity;
+}): ReactNode {
+  const viewport = useViewport();
+  const heartbeat = useSensor(HEARTBEAT_TOPIC);
+
+  /**
+   * The default is the catalogue's first name, sorted.
+   *
+   * Defaulting at all is a judgement: `?layout=` missing could equally be a refusal listing the
+   * choices. But the overwhelmingly common case is `npm run dev` with no query string, and a page
+   * that showed a menu instead of a dashboard would make the interesting state — a rendered layout —
+   * the one that needs extra typing. The name is printed in the chrome, so a reader always knows
+   * which file they are looking at.
+   */
+  const name = request.layout ?? catalogue.names[0] ?? null;
+  const entry = name === null ? undefined : catalogue.entry(name);
+
+  // Parsing and validating a layout is pure and depends only on its text, so it happens once per
+  // document rather than on every resize — and a resize is the one thing that re-renders this
+  // component continuously.
+  const loaded = useMemo<LoadLayoutResult | null>(
+    () => (entry === undefined ? null : loadLayoutJson(entry.text, LOAD_OPTIONS)),
+    [entry],
+  );
+
+  const resolved = resolvePage(name, entry === undefined ? null : loaded, catalogue.names);
+  const fit = resolved.ok ? fitCanvas(resolved.layout.target, viewport, request.mode) : undefined;
+
+  const problem: LayoutProblemProps | null = !resolved.ok
+    ? resolved.problem
+    : fit?.ok === false
+      ? targetMismatchProblem(resolved.name, fit.mismatch)
+      : null;
+
   return (
-    <span
-      className="perch-header__meta"
-      data-testid="perch-source"
-      data-perch-source-kind={identity.kind}
+    <div
+      id="perch-page"
+      data-perch-mode={request.mode}
+      data-perch-layout={name ?? ''}
+      /**
+       * The ready signal: a reading has actually arrived.
+       *
+       * The wall clock is useless for this — it advances in a screenshot of a dead page — where a
+       * reading's own timestamp can only change if the subscription delivered. A capture harness
+       * waits for `true` and knows the first frame it takes has numbers in it rather than
+       * placeholders.
+       */
+      data-perch-ready={heartbeat.state === 'waiting' ? 'false' : 'true'}
     >
-      {identity.kind === 'mqtt'
-        ? `mqtt · ${identity.url}`
-        : 'mock data · generated here, not hardware'}
-    </span>
-  );
-}
+      {problem === null && resolved.ok && fit?.ok === true ? (
+        <div className="perch-stage" data-perch-fit={fit.fit.kind} data-perch-scale={fit.fit.scale}>
+          <LayoutCanvas
+            layout={resolved.layout}
+            scale={fit.fit.scale}
+            resolveAsset={catalogue.resolveAsset}
+          />
+        </div>
+      ) : problem === null ? null : (
+        <LayoutProblem {...problem} />
+      )}
 
-/**
- * The source's connection state, in words.
- *
- * Reads the status through the provider rather than the source, so this component holds no
- * transport and works the same for either one. The store republishes status on its recheck
- * interval, so a relay that is killed with this page open reaches `error` here within about a
- * second without anything polling from this file.
- */
-function StatusBadge(): ReactNode {
-  const status = useSensorStatus();
-
-  return (
-    <span className="perch-badge" data-testid="perch-status" data-perch-status={status}>
-      {`${status} · ${SOURCE_STATUS_WORDING[status]}`}
-    </span>
-  );
-}
-
-function Tile({ spec }: { readonly spec: TileSpec }): ReactNode {
-  return (
-    <div className="perch-tile">
-      <span className="perch-tile__caption">{spec.caption}</span>
-      <Readout topic={spec.topic} label={spec.label} decimals={spec.decimals} />
+      <PageChrome
+        liveSource={liveSource}
+        layoutName={name}
+        mode={request.mode}
+        fitKind={fit?.ok === true ? fit.fit.kind : null}
+        scale={fit?.ok === true ? fit.fit.scale : null}
+        heartbeatAt={publishedAt(heartbeat)}
+        migrations={resolved.ok ? resolved.migrations : ''}
+      />
     </div>
   );
 }
 
+/** A layout ready to paint, or the refusal to show instead. */
+type ResolvedPage =
+  | {
+      readonly ok: true;
+      readonly name: string;
+      readonly layout: Layout;
+      /** `formatMigrationReport`'s output when anything was rewritten, else `''`. */
+      readonly migrations: string;
+    }
+  | { readonly ok: false; readonly problem: LayoutProblemProps };
+
 /**
- * The heartbeat.
+ * Turn "the name and what loading it produced" into one of the two outcomes.
  *
- * Reports the source's status and the timestamp *carried by the data*, not the wall clock. That
- * distinction is the whole point: a wall clock advances in a screenshot of a dead page, whereas
- * this line can only change if a reading actually arrived. Two captures moments apart showing two
- * different times is therefore evidence that the subscription is delivering.
+ * Pulled out of the component so the branching is testable as a function and so `Page` has one
+ * expression per concern. `loaded === null` means there was no such document — the name was absent or
+ * the catalogue had nothing under it.
  */
-function Footer(): ReactNode {
+function resolvePage(
+  name: string | null,
+  loaded: LoadLayoutResult | null,
+  available: readonly string[],
+): ResolvedPage {
+  if (name === null || loaded === null) {
+    return {
+      ok: false,
+      problem: unknownLayoutProblem(name ?? '(none requested)', available),
+    };
+  }
+
+  if (!loaded.ok) {
+    return { ok: false, problem: invalidLayoutProblem(name, loaded.issues) };
+  }
+
+  return {
+    ok: true,
+    name,
+    layout: loaded.layout,
+    // Empty today — `LAYOUT_MIGRATIONS` has no entries — and reported rather than dropped, because an
+    // author whose file was rewritten under them is owed the list of what changed.
+    migrations:
+      loaded.migrations.length === 0
+        ? ''
+        : `migrated from schemaVersion ${loaded.fromVersion}: ${loaded.migrations
+            .map((step) => step.description)
+            .join('; ')}`,
+  };
+}
+
+/**
+ * The strip that says what you are looking at, over the top of whatever is behind it.
+ *
+ * **Rendered in capture mode too, and that is the point.** The mock and a real relay look identical
+ * at a glance — plausible values, moving, correctly labelled — so a capture with no provenance on it
+ * is a picture that can be mistaken for hardware readings months later by someone who was not here.
+ * The sensor host is off for days at a time and every screenshot in this repo is mock-driven; the
+ * only thing standing between that fact and a misread image is this strip being *in* the image.
+ * `data-perch-source-kind` is the same fact for a script.
+ *
+ * Fixed to the viewport rather than placed on the canvas, so it is not a layout element: it does not
+ * move under the canvas transform, does not scale, and cannot be themed or hidden by a layout file.
+ * A layout that could suppress it would be a layout that could make a mock capture look live.
+ */
+function PageChrome({
+  liveSource,
+  layoutName,
+  mode,
+  fitKind,
+  scale,
+  heartbeatAt,
+  migrations,
+}: {
+  readonly liveSource: LiveSourceIdentity;
+  readonly layoutName: string | null;
+  readonly mode: PageRequest['mode'];
+  readonly fitKind: string | null;
+  readonly scale: number | null;
+  readonly heartbeatAt: string;
+  readonly migrations: string;
+}): ReactNode {
   const status = useSensorStatus();
-  const snapshot = useSensor(HEARTBEAT_TOPIC);
-  const arrived = snapshot.state !== 'waiting';
 
   return (
-    <footer id="perch-footer" data-perch-ready={arrived ? 'true' : 'false'}>
-      {`source ${status} · ${HEARTBEAT_LABEL} last published ${publishedAt(snapshot)}`}
-    </footer>
+    <div id="perch-chrome" data-testid="perch-chrome">
+      <span className="perch-chrome__item" data-testid="perch-layout-name">
+        {layoutName ?? '(no layout)'}
+      </span>
+      <span className="perch-chrome__item">
+        {`${mode}${fitKind === null ? '' : ` · ${fitKind}`}${scale === null ? '' : ` · ${formatScale(scale)}`}`}
+      </span>
+      <span
+        className="perch-chrome__item"
+        data-testid="perch-source"
+        data-perch-source-kind={liveSource.kind}
+      >
+        {liveSource.kind === 'mqtt'
+          ? `mqtt · ${liveSource.url}`
+          : 'mock data · generated here, not hardware'}
+      </span>
+      <span className="perch-badge" data-testid="perch-status" data-perch-status={status}>
+        {`${status} · ${SOURCE_STATUS_WORDING[status]}`}
+      </span>
+      <span className="perch-chrome__item">{`${HEARTBEAT_LABEL} ${heartbeatAt}`}</span>
+      {migrations === '' ? null : (
+        <span className="perch-chrome__item" data-testid="perch-migrations">
+          {migrations}
+        </span>
+      )}
+    </div>
   );
+}
+
+/** The scale, short enough to read at a glance and precise enough to tell 1 from 0.99. */
+function formatScale(scale: number): string {
+  return `${scale === 1 ? '1' : scale.toFixed(3)}x`;
 }
 
 /** When the heartbeat topic last published, or why it has not. */
 function publishedAt(snapshot: ReturnType<typeof useSensor>): string {
   switch (snapshot.state) {
     case 'waiting':
-      return 'never';
+      return 'never published';
     case 'live':
     case 'stale':
       return new Date(snapshot.reading.at).toLocaleTimeString();
@@ -315,48 +404,58 @@ function publishedAt(snapshot: ReturnType<typeof useSensor>): string {
 }
 
 /**
- * Page chrome only. Everything that styles a widget lives in `READOUT_STYLES`, in `ui-kit`,
- * where the widget is — a page that restyled its widgets would make every capture of this page
- * evidence about this page rather than about the widget.
+ * Page chrome only.
  *
- * An explicit `min-width` on the tile is the other half of the label fix: a flex item defaults to
- * `min-width: auto`, which floors it at its content's min-content width, and no amount of
- * `overflow: hidden` inside the widget helps if its container refuses to be narrower than the
- * text. The widget guarantees it will not *demand* width; the tile has to allow it. See the note
- * on `.perch-tile` for why the floor is a measured 13rem rather than 0.
+ * Nothing here styles a widget or an element — those live in `ui-kit` and in
+ * `LAYOUT_CANVAS_STYLES` — and nothing here reads a layout's theme. The strip has to be legible over
+ * a canvas whose colours a layout file chose, including one that chose the same colours as the strip,
+ * so it carries its own background rather than inheriting anything.
+ *
+ * `overflow: hidden` on `html, body` and no scrollbars anywhere: capture mode's "no scrollbars, ever"
+ * is a hard requirement (README.md), and a scrollbar also steals the ~15px that would make an
+ * exactly-sized viewport inexact — turning a legitimate capture into a target mismatch.
  */
 const PAGE_STYLES = `
-html, body { margin: 0; min-height: 100%; background: #07080a; }
-#perch-canvas {
-  box-sizing: border-box;
-  min-height: 100vh;
-  padding: 24px 40px;
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #07080a;
+}
+#perch-page { position: relative; }
+#perch-chrome {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  z-index: 1;
   display: flex;
-  flex-direction: column;
-  background: #101318;
+  align-items: center;
+  gap: 12px;
+  max-width: 100vw;
+  padding: 4px 10px;
+  border-top-right-radius: 6px;
+  background: rgba(7, 8, 10, 0.82);
   font-family: ui-sans-serif, system-ui, sans-serif;
-  color: #f2f4f8;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #9aa4b2;
+  font-variant-numeric: tabular-nums;
 }
-#perch-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  border-bottom: 1px solid #262c36;
-  padding-bottom: 10px;
+.perch-chrome__item {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.perch-header__title { font-size: 1.25rem; font-weight: 650; letter-spacing: 0.01em; }
-.perch-header__right { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
-.perch-header__meta { font-size: 0.875rem; color: #6b7480; }
 /*
- * The status badge is colour *and* words, never colour alone: this page is read on a wall panel
- * from across a room by whoever walks past, and a red dot is not a sentence. The colours only
- * rank urgency — the text is what says what to do about it.
+ * The status badge is colour *and* words, never colour alone: this page is read on a wall panel from
+ * across a room by whoever walks past, and a red dot is not a sentence. The colours only rank
+ * urgency — the text is what says what to do about it.
  */
 .perch-badge {
-  font-size: 0.8125rem;
-  font-weight: 600;
   white-space: nowrap;
-  padding: 3px 10px;
+  font-weight: 600;
+  padding: 1px 8px;
   border-radius: 999px;
   border: 1px solid #262c36;
   color: #9aa4b2;
@@ -366,58 +465,4 @@ html, body { margin: 0; min-height: 100%; background: #07080a; }
 .perch-badge[data-perch-status='connecting'] { color: #8fb7e8; border-color: #23405e; background: #101a26; }
 .perch-badge[data-perch-status='stale'] { color: #e8c98f; border-color: #5e4a23; background: #261e10; }
 .perch-badge[data-perch-status='error'] { color: #ff9b9b; border-color: #6b2626; background: #2a1212; }
-#perch-strip {
-  flex: 1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  align-content: center;
-  column-gap: 16px;
-  row-gap: 28px;
-  min-height: 0;
-}
-/*
- * min-width is a number, not auto, and both halves of that matter.
- *
- * Not auto, because auto on a flex item means max-content: the unpublished tile's label is the raw
- * topic sensors/psu/0/voltage/0, and under auto that one string would set the width of every tile
- * in the row. That is the defect this page exists to disprove, and it is why the widget never
- * demands width either.
- *
- * But not 0 either, which is what it was until a 1440px capture showed eight tiles squeezed to
- * ~160px and the values overflowing into each other. A floor of 13rem is the width at which a
- * five-digit value plus its unit still fits — measured against the 1920x400 row, where tiles land
- * at ~216px and render cleanly. Below the floor the row wraps rather than shrinking further, so
- * every value stays whole at every viewport. The widget clips as a backstop; wrapping is the fix.
- *
- * border-box, because the floor is a floor on the tile, not on its text box: under content-box the
- * 34px of padding and border land on top of 13rem, and eight of those overflow 1920 — which wrapped
- * the panel row that had fitted in one line before the floor existed.
- */
-.perch-tile {
-  box-sizing: border-box;
-  flex: 1 1 13rem;
-  min-width: 13rem;
-  padding: 14px 16px;
-  border-left: 2px solid #262c36;
-}
-.perch-tile__caption {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: #4d5561;
-}
-#perch-footer {
-  border-top: 1px solid #262c36;
-  padding-top: 10px;
-  font-size: 0.8125rem;
-  color: #6b7480;
-  font-variant-numeric: tabular-nums;
-}
 `;

@@ -28,4 +28,6 @@ interface ImportMetaEnv {
 
 interface ImportMeta {
   readonly env: ImportMetaEnv;
+  // `import.meta.glob` is declared in `layout-catalogue.ts`, next to the only place that calls it,
+  // because that module is imported by tests and the tests program does not include this file.
 }
