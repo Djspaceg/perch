@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "target": { "width": 1920, "height": 400, "frameRate": 30 },
+  "theme": {
+    "--perch-canvas-bg": "#0b0e13",
+    "--perch-letterbox-bg": "#050608",
+    "--perch-font": "ui-monospace, SFMono-Regular, Menlo, monospace",
+    "--perch-fg": "#e8f1ff",
+    "--perch-dim": "#7f8da3",
+    "--perch-faint": "#4c586b",
+    "--perch-value-weight": "600",
+    "--perch-value-size-min": "1.25rem",
+    "--perch-value-size-max": "2.5rem",
+    "--perch-unit-size": "1rem",
+    "--perch-label-size": "0.8125rem",
+    "--perch-text-color": "#7f8da3",
+    "--perch-media-opacity": "0.55"
+  },
+  "elements": [
+    {
+      "kind": "media",
+      "src": "desk-1920x400.assets/rails.svg",
+      "rect": { "x": 0, "y": 0, "w": 1920, "h": 400 },
+      "fit": "cover"
+    },
+    {
+      "kind": "text",
+      "text": "perch · desk panel",
+      "rect": { "x": 34, "y": 20, "w": 700, "h": 36 },
+      "style": {
+        "--perch-text-size": "1.125rem",
+        "--perch-text-weight": "700",
+        "--perch-text-tracking": "0.24em",
+        "--perch-text-transform": "uppercase",
+        "--perch-text-color": "#cfe0ff"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "mock source · generated values, not hardware",
+      "rect": { "x": 1100, "y": 20, "w": 786, "h": 36 },
+      "style": {
+        "--perch-text-justify": "flex-end",
+        "--perch-text-size": "0.8125rem",
+        "--perch-text-tracking": "0.18em",
+        "--perch-text-transform": "uppercase",
+        "--perch-text-color": "#6b7a91"
+      }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/cpu/0/temperature/0",
+      "rect": { "x": 34, "y": 96, "w": 214, "h": 176 }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/cpu/0/load/0",
+      "rect": { "x": 268, "y": 96, "w": 214, "h": 176 }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/cpu/0/power/0",
+      "rect": { "x": 502, "y": 96, "w": 214, "h": 176 }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/cpu/0/factor/0",
+      "rect": { "x": 736, "y": 96, "w": 214, "h": 176 }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/gpu/0/temperature/0",
+      "rect": { "x": 970, "y": 96, "w": 214, "h": 176 }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/gpu/0/fan/0",
+      "rect": { "x": 1204, "y": 96, "w": 214, "h": 176 }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/storage/1/temperature/0",
+      "rect": { "x": 1438, "y": 96, "w": 214, "h": 176 }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/psu/0/voltage/0",
+      "rect": { "x": 1672, "y": 96, "w": 214, "h": 176 },
+      "style": {
+        "--perch-faint": "#8a6a3c"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "psu voltage is not published by this source, so its tile waits by design\nevery other tile on this panel is reading",
+      "rect": { "x": 34, "y": 300, "w": 1100, "h": 76 },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-size": "0.8125rem",
+        "--perch-text-line-height": "1.6",
+        "--perch-text-color": "#5b687c"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "1920 × 400 · 30 fps",
+      "rect": { "x": 1400, "y": 300, "w": 486, "h": 76 },
+      "style": {
+        "--perch-text-justify": "flex-end",
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-size": "0.8125rem",
+        "--perch-text-color": "#5b687c"
+      }
+    }
+  ]
+}

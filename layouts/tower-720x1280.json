@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "target": { "width": 720, "height": 1280, "frameRate": 24 },
+  "theme": {
+    "--perch-canvas-bg": "#f4efe6",
+    "--perch-letterbox-bg": "#1c1915",
+    "--perch-font": "ui-serif, Georgia, 'Times New Roman', serif",
+    "--perch-fg": "#1d1a15",
+    "--perch-dim": "#6d6353",
+    "--perch-faint": "#a89d8a",
+    "--perch-stale": "#8a5b3c",
+    "--perch-warn": "#8a6a1f",
+    "--perch-alert": "#9a3b25",
+    "--perch-value-weight": "600",
+    "--perch-value-size-min": "2rem",
+    "--perch-value-size-max": "4rem",
+    "--perch-unit-size": "1.5rem",
+    "--perch-label-size": "1.125rem",
+    "--perch-text-color": "#6d6353",
+    "--perch-media-opacity": "0.5"
+  },
+  "elements": [
+    {
+      "kind": "media",
+      "src": "tower-720x1280.assets/weave.svg",
+      "rect": { "x": 0, "y": 0, "w": 720, "h": 1280 },
+      "fit": "cover"
+    },
+    {
+      "kind": "text",
+      "text": "Tower",
+      "rect": { "x": 40, "y": 40, "w": 640, "h": 84 },
+      "style": {
+        "--perch-text-size": "3.25rem",
+        "--perch-text-weight": "700",
+        "--perch-text-tracking": "0.02em",
+        "--perch-text-color": "#1d1a15"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "workstation · south wall",
+      "rect": { "x": 40, "y": 128, "w": 640, "h": 30 },
+      "style": {
+        "--perch-text-size": "1.125rem",
+        "--perch-text-tracking": "0.08em",
+        "--perch-text-color": "#8a7f6b"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "mock source · generated values, not hardware",
+      "rect": { "x": 40, "y": 162, "w": 640, "h": 28 },
+      "style": {
+        "--perch-text-size": "0.8125rem",
+        "--perch-text-tracking": "0.14em",
+        "--perch-text-transform": "uppercase",
+        "--perch-text-color": "#a89d8a"
+      }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/cpu/0/temperature/0",
+      "rect": { "x": 40, "y": 206, "w": 640, "h": 152 },
+      "style": {
+        "--perch-value-size-max": "5rem",
+        "--perch-value-weight": "700"
+      }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/gpu/0/temperature/0",
+      "rect": { "x": 40, "y": 378, "w": 640, "h": 152 }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/memory/0/level/0",
+      "rect": { "x": 40, "y": 550, "w": 640, "h": 152 }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/storage/1/temperature/0",
+      "rect": { "x": 40, "y": 722, "w": 640, "h": 152 }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/cooler/0/fan/0",
+      "rect": { "x": 40, "y": 894, "w": 640, "h": 152 }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/gpu/1/temperature/0",
+      "rect": { "x": 40, "y": 1066, "w": 640, "h": 152 },
+      "style": {
+        "--perch-faint": "#b08a5c"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "a second gpu is absent from this source · the pump header reports nothing",
+      "rect": { "x": 40, "y": 1224, "w": 640, "h": 36 },
+      "style": {
+        "--perch-text-justify": "flex-end",
+        "--perch-text-anchor": "flex-end",
+        "--perch-text-size": "0.8125rem",
+        "--perch-text-color": "#a89d8a"
+      }
+    }
+  ]
+}

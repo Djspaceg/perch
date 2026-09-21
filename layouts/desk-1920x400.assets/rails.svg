@@ -1,0 +1,17 @@
+<!--
+  Backdrop for desk-1920x400: eight vertical rails on the tile pitch, and a hairline under the
+  header band. Authored to the canvas size so `fit: cover` is a 1:1 paint at target, and kept to a
+  pattern plus three rects so it stays a diffable text file rather than a committed binary.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="400" viewBox="0 0 1920 400">
+  <defs>
+    <pattern id="rail" width="234" height="400" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="214" height="400" fill="#121821" />
+      <rect x="0" y="0" width="1" height="400" fill="#1d2836" />
+    </pattern>
+  </defs>
+  <rect width="1920" height="400" fill="#0b0e13" />
+  <rect x="34" y="76" width="1852" height="216" fill="url(#rail)" />
+  <rect x="34" y="68" width="1852" height="1" fill="#1d2836" />
+  <rect x="34" y="292" width="1852" height="1" fill="#1d2836" />
+</svg>

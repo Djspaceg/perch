@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "target": { "width": 1920, "height": 400, "frameRate": 30 },
+  "theme": {
+    "--perch-canvas-bg": "#0b0e13",
+    "colour": "steelblue"
+  },
+  "elements": [
+    {
+      "kind": "widget",
+      "widget": "sparkline",
+      "topic": "sensors/cpu/0/load/0",
+      "rect": { "x": 34, "y": 96, "w": 214, "h": 176 }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "cpu/load",
+      "rect": { "x": 268, "y": 96, "w": 214, "h": 176 }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/cpu/0/temperature/0",
+      "rect": { "x": 2100, "y": 96, "w": 214, "h": 176 }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/gpu/0/fan/0",
+      "rect": { "x": 736, "y": 96, "w": 214.5, "h": 176 }
+    },
+    {
+      "kind": "text",
+      "rect": { "x": 34, "y": 300, "w": 600, "h": 40 }
+    },
+    {
+      "kind": "media",
+      "src": "../../secrets/wallpaper.png",
+      "rect": { "x": 0, "y": 0, "w": 1920, "h": 400 },
+      "fit": "fill"
+    },
+    {
+      "kind": "gauge",
+      "topic": "sensors/cpu/0/power/0",
+      "rect": { "x": 970, "y": 96, "w": 214, "h": 176 }
+    }
+  ]
+}
