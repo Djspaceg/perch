@@ -1,0 +1,34 @@
+{
+  // Typechecks every test file. Separate from the package projects because tests must
+  // see each other's SOURCE (the path mapping below), while the packages themselves see
+  // only built .d.ts via project references. Emits nothing.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true,
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+    // Matches the three rendering workspaces, so a `.test.tsx` typechecks here the same way
+    // its component does in its own project.
+    "jsx": "react-jsx",
+    "paths": {
+      "@perch/sensor-contract": ["./packages/sensor-contract/src/index.ts"],
+      "@perch/layout-schema": ["./packages/layout-schema/src/index.ts"],
+      "@perch/ui-kit": ["./packages/ui-kit/src/index.ts"],
+      "@perch/sensor-sources": ["./packages/sensor-sources/src/index.ts"]
+    }
+  },
+  // The `vitest.setup.ts` entries are here because they are test infrastructure and belong to
+  // no package project — and because the jest-dom matcher augmentation they import has to be in
+  // *this* program for `expect(el).toBeVisible()` to typecheck in the tests that use it.
+  "include": [
+    "packages/*/src/**/*.test.ts",
+    "packages/*/src/**/*.test.tsx",
+    "apps/*/src/**/*.test.ts",
+    "apps/*/src/**/*.test.tsx",
+    "packages/*/vitest.setup.ts",
+    "apps/*/vitest.setup.ts"
+  ]
+}

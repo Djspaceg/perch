@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    // Empty by default so a hoisted @types/* never leaks ambient globals into a
+    // browser package. The Node apps opt back in.
+    "types": [],
+
+    // `strict: true` is the floor. Everything below it is a check `strict` does NOT
+    // turn on, and each one is here because it catches a class of bug this repo can
+    // actually hit. See DECISIONS.md for the flag-by-flag rationale.
+    "strict": true,
+
+    // A lookup can miss. `parts[1]` is `string | undefined`, and a `Record` read is
+    // `T | undefined` — which is the truth for every table in `lhm.ts` and every
+    // topic segment split.
+    "noUncheckedIndexedAccess": true,
+    // `{ deviceIndex: undefined }` is not the same value as `{}`. Passing an explicit
+    // `undefined` into an optional option is how a default silently stops applying.
+    "exactOptionalPropertyTypes": true,
+    // A function that returns a value on some paths must return one on all of them.
+    "noImplicitReturns": true,
+    // An index-signature read is a lookup, not a known property, so it must be
+    // written as one: `raw['Value']`, never `raw.Value`.
+    "noPropertyAccessFromIndexSignature": true,
+    // Unreachable code and unused labels are errors, not editor greyout.
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    // An `import './thing.css'` that resolves to nothing is an error rather than a
+    // silent no-op.
+    "noUncheckedSideEffectImports": true,
+    // No enums, no parameter properties, no namespaces: only syntax that erases.
+    // Keeps every source file loadable by a type-stripping runtime or esbuild.
+    "erasableSyntaxOnly": true,
+
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "skipLibCheck": true
+  }
+}

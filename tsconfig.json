@@ -1,0 +1,15 @@
+{
+  // Solution file. Holds no sources of its own; `tsc -b` here builds every project in
+  // dependency order.
+  "files": [],
+  "references": [
+    { "path": "packages/sensor-contract" },
+    { "path": "packages/layout-schema" },
+    { "path": "packages/ui-kit" },
+    { "path": "packages/sensor-sources" },
+    { "path": "apps/runtime" },
+    { "path": "apps/editor" },
+    { "path": "apps/agent" },
+    { "path": "apps/caster" }
+  ]
+}

@@ -1,0 +1,24 @@
+# Not ours to format.
+node_modules/
+dist/
+*.tsbuildinfo
+package-lock.json
+
+# Tool-managed local state, not authored source. Claude Code rewrites `settings.local.json`
+# itself, so a formatting gate over it would fail on a file no human edited.
+.claude/
+
+# Captured evidence: logs, screenshots, and a throwaway esbuild demo. Reformatting a log
+# is meaningless and reformatting a capture changes the bytes that are the evidence.
+.evidence/
+
+# A live `GET /data.json` capture from a real LibreHardwareMonitor host. It is an artifact,
+# not source: the test asserts over all 214 sensors in it, and its value is that it is
+# byte-for-byte what the wire produced.
+fixtures/lhm-data.sample.json
+
+# Markdown is authored prose, hand-wrapped, with tables and diagrams laid out on purpose.
+# Prettier would rewrite every one of them, including documents that are explicitly not this
+# change's to touch (`SPEC.md`, `infra/`). If a documentation reformat is ever wanted it
+# should be its own deliberate change, with the churn visible on its own.
+*.md
