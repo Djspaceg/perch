@@ -1,0 +1,34 @@
+{
+  "name": "@perch/sensor-sources",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Where sensor data enters perch: one source interface, several implementations.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "test": "vitest run",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@perch/sensor-contract": "0.0.0",
+    "mqtt": "^5.16.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "aedes": "^1.2.0",
+    "ws": "^8.21.3"
+  }
+}

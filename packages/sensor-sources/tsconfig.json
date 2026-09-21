@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // DOM only, no Node types: the shared path runs in a browser, so a Node built-in
+    // must not typecheck here.
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src/**/*.ts"],
+  // `*.test-support.ts` is excluded for the same reason as the tests: `mqtt-broker.test-support.ts`
+  // stands up a real `aedes` broker over `node:http` + `ws`, which is Node-only scaffolding and
+  // must not reach `dist` or typecheck against this project's deliberately Node-free lib.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test-support.ts"],
+  "references": [{ "path": "../sensor-contract" }]
+}
