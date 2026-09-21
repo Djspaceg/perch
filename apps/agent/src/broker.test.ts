@@ -13,7 +13,14 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import mqtt, { type MqttClient } from 'mqtt';
 import { SENSOR_META_SUFFIX, sensorMetaTopic, sensorTopic } from '@perch/sensor-contract';
-import { startEmbeddedBroker, type EmbeddedBroker } from './broker.js';
+import { portInUseGuidance, startEmbeddedBroker, suggestedListenPort } from './broker.js';
+import type { EmbeddedBroker } from './broker.js';
+import {
+  DASHBOARD_BROKER_URL_ENV_VAR,
+  RELAY_CLI_FLAGS,
+  RELAY_DEFAULTS,
+  RELAY_ENV_VARS,
+} from './config.js';
 
 /** Everything opened during a test, torn down afterwards even when the test fails. */
 const opened: { brokers: EmbeddedBroker[]; clients: MqttClient[] } = { brokers: [], clients: [] };
@@ -107,6 +114,110 @@ describe('listeners', () => {
 
     expect(client.connected).toBe(true);
     expect(broker.clientCount).toBe(1);
+  });
+});
+
+/**
+ * The first failure anyone with Mosquitto installed hits, so the message is part of the product.
+ *
+ * "cannot listen on 0.0.0.0:1883" names the port and stops there, which leaves the reader to
+ * discover on their own that the port is configurable and what the setting is called. Every test
+ * below asserts a *way out* is printed, not merely a diagnosis.
+ */
+describe('a port that is already taken', () => {
+  /** The message from a start that collided, whichever listener collided. */
+  async function failureMessage(address: {
+    readonly mqttPort: number;
+    readonly wsPort: number;
+  }): Promise<string> {
+    try {
+      const broker = await startEmbeddedBroker({ bindHost: '127.0.0.1', ...address });
+      opened.brokers.push(broker);
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+
+    throw new Error('expected the start to fail, but it bound both listeners');
+  }
+
+  it('carries the MQTT guidance when the MQTT listener is the one that collided', async () => {
+    const first = await startOnFreePorts();
+    const message = await failureMessage({ mqttPort: first.mqttPort, wsPort: 0 });
+
+    expect(message).toContain(`cannot listen on 127.0.0.1:${first.mqttPort}`);
+    // Asserted against the guidance for *this* setting: a message that pasted in the WebSocket
+    // advice would name the wrong flag, the wrong variable and the wrong port, and would still
+    // contain the word "port".
+    expect(message).toContain(portInUseGuidance('mqttPort', first.mqttPort));
+  });
+
+  it('carries the WebSocket guidance when the WebSocket listener is the one that collided', async () => {
+    const first = await startOnFreePorts();
+    const message = await failureMessage({ mqttPort: 0, wsPort: first.wsPort });
+
+    expect(message).toContain(`cannot listen on 127.0.0.1:${first.wsPort}`);
+    expect(message).toContain(portInUseGuidance('wsPort', first.wsPort));
+  });
+
+  it('says nothing about ports when the failure was not a collision', async () => {
+    // Binding an address this host does not have fails with EADDRNOTAVAIL. Advice to change the
+    // port would be confidently wrong, and wrong advice costs more than none.
+    await expect(
+      startEmbeddedBroker({ bindHost: '203.0.113.1', mqttPort: 0, wsPort: 0 }),
+    ).rejects.toThrow(/cannot listen on 203\.0\.113\.1:0(?!.*--mqtt-port)/s);
+  });
+});
+
+/**
+ * The guidance text itself, checked at the default ports — the case that actually happens.
+ *
+ * Kept separate from the tests above because those collide on OS-assigned ports, and an
+ * ephemeral port near the top of the range has no `+10000` suggestion to print. The pure
+ * function is where the wording is pinned down.
+ */
+describe('the way out printed with a port collision', () => {
+  it('names the flag, the variable and a port to move to', () => {
+    const guidance = portInUseGuidance('mqttPort', RELAY_DEFAULTS.broker.mqttPort);
+
+    expect(guidance).toContain('1883');
+    // A number to type, not merely the news that the port is configurable.
+    expect(guidance).toContain(`--${RELAY_CLI_FLAGS.mqttPort} 11883`);
+    expect(guidance).toContain(`${RELAY_ENV_VARS.mqttPort}=11883`);
+    expect(guidance).toContain(`--${RELAY_CLI_FLAGS.mqttPort} 0`);
+    // The default stays 1883; the message has to say why it is not the thing being changed.
+    expect(guidance).toMatch(/registered MQTT port/);
+  });
+
+  it('tells a WebSocket collision to move the dashboard with it', () => {
+    const guidance = portInUseGuidance('wsPort', RELAY_DEFAULTS.broker.wsPort);
+
+    expect(guidance).toContain(`--${RELAY_CLI_FLAGS.wsPort} 19001`);
+    expect(guidance).toContain(`${RELAY_ENV_VARS.wsPort}=19001`);
+    // Moving this listener silently breaks the browser, which dials the port it was told to.
+    // A message that omitted this would trade one afternoon of confusion for another.
+    expect(guidance).toContain(`${DASHBOARD_BROKER_URL_ENV_VAR}=ws://localhost:19001`);
+  });
+
+  it('does not tell the MQTT case to change the dashboard URL, which it has nothing to do with', () => {
+    expect(portInUseGuidance('mqttPort', 1883)).not.toContain(DASHBOARD_BROKER_URL_ENV_VAR);
+  });
+
+  it('degrades to port 0 rather than suggesting a port number that cannot exist', () => {
+    // 65535 + 10000 is not a port. The suggestion has to fall back to the one answer that is
+    // always available instead of printing an impossible number.
+    expect(suggestedListenPort(65_535)).toBe(0);
+    expect(suggestedListenPort(1883)).toBe(11_883);
+    expect(suggestedListenPort(9001)).toBe(19_001);
+  });
+
+  it('prints no numeric suggestion at all when there is no valid one to print', () => {
+    const guidance = portInUseGuidance('wsPort', 60_000);
+
+    expect(guidance).toContain(`--${RELAY_CLI_FLAGS.wsPort} 0`);
+    // Not `ws://localhost:0`, which is not an address a browser can dial.
+    expect(guidance).not.toContain('localhost:0');
+    // It still has to say the dashboard follows the port, because it still does.
+    expect(guidance).toContain(DASHBOARD_BROKER_URL_ENV_VAR);
   });
 });
 

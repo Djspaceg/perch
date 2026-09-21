@@ -107,6 +107,19 @@ export const RELAY_ENV_VARS: Readonly<Record<RelaySetting, string>> = Object.fre
   requestTimeoutMs: 'PERCH_REQUEST_TIMEOUT_MS',
 });
 
+/**
+ * The variable the *dashboard* reads its broker URL from.
+ *
+ * Not a relay setting — the relay never reads it — but the relay has to be able to name it,
+ * because the one situation where a human must change it is a situation only the relay detects:
+ * `--ws-port` moved, so the page is now dialling a port nothing is listening on. Restated here
+ * for the same reason `wsPort`'s 9001 is (see `RELAY_DEFAULTS`): ARCHITECTURE.md gives
+ * `apps/agent` a single edge, `sensor-contract`, and `RELAY_BROKER_URL_ENV_VAR` lives in
+ * `sensor-sources`, which is the browser's package. A string that two packages agree on is a
+ * cheaper coupling than a dependency edge that exists only to carry it.
+ */
+export const DASHBOARD_BROKER_URL_ENV_VAR = 'PERCH_BROKER_URL';
+
 /** The CLI switch read for each setting, without its leading `--`. */
 export const RELAY_CLI_FLAGS: Readonly<Record<RelaySetting, string>> = Object.freeze({
   lhmHost: 'lhm-host',

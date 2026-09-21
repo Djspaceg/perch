@@ -37,6 +37,25 @@ So: pass `--ws-port` (and `--mqtt-port`, for the same reason on 1883) on every d
 tests all bind on port 0, which makes the OS pick a free port and makes this class of mistake
 impossible for them.
 
+If you forget, the first failure carries the way out rather than only the diagnosis:
+
+```text
+error: cannot listen on 0.0.0.0:9001: listen EADDRINUSE: address already in use 0.0.0.0:9001
+  port 9001 is already in use -- on a machine with Mosquitto installed, that is usually
+  Mosquitto, which holds it on every interface. Move this relay instead: --ws-port 19001
+  (or PERCH_WS_PORT=19001), or --ws-port 0 to let the OS pick a free one; it is reported at
+  startup. Changing the default was not the fix: the default stays 9001, which is the port the
+  dashboard is built to dial. The dashboard dials this port, so move it too:
+  PERCH_BROKER_URL=ws://localhost:19001.
+```
+
+The flag, the environment variable, a port to type, and — for the WebSocket listener only —
+the variable the *page* has to move with it, because moving this listener and not the page
+trades one afternoon of confusion for another. The defaults do not change: 1883 is the
+registered MQTT port and 9001 is what `relay-endpoint.ts` contracts. Guidance is printed only
+for `EADDRINUSE`; a failure like `EADDRNOTAVAIL` from a bad `--bind-host` says nothing about
+ports, since confident wrong advice costs more than none.
+
 ## Configuration
 
 Every setting can be given three ways. Precedence is **CLI switch, then environment variable,

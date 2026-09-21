@@ -34,7 +34,13 @@ import { createServer as createTcpServer, type Server as TcpServer, type Socket 
 import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
 import { Aedes, type PublishPacket } from 'aedes';
 import { WebSocketServer, createWebSocketStream, type WebSocket } from 'ws';
-import type { BrokerAddress } from './config.js';
+import {
+  DASHBOARD_BROKER_URL_ENV_VAR,
+  RELAY_CLI_FLAGS,
+  RELAY_ENV_VARS,
+  type BrokerAddress,
+  type RelaySetting,
+} from './config.js';
 
 /** What a publisher needs from the broker. Narrower than `EmbeddedBroker` so the poll loop can be tested against a recording stub. */
 export interface BrokerPublisher {
@@ -131,8 +137,8 @@ export async function startEmbeddedBroker(address: BrokerAddress): Promise<Embed
   const parts: BrokerParts = { aedes, wsServer, httpServer, tcpServer, tcpSockets };
 
   try {
-    const mqttPort = await listen(tcpServer, address.bindHost, address.mqttPort);
-    const wsPort = await listen(httpServer, address.bindHost, address.wsPort);
+    const mqttPort = await listen(tcpServer, address.bindHost, address.mqttPort, 'mqttPort');
+    const wsPort = await listen(httpServer, address.bindHost, address.wsPort, 'wsPort');
 
     return {
       mqttPort,
@@ -153,13 +159,88 @@ export async function startEmbeddedBroker(address: BrokerAddress): Promise<Embed
   }
 }
 
+/** Which of the two listeners is being bound, named as the setting that configures it. */
+type BrokerListenerSetting = Extract<RelaySetting, 'mqttPort' | 'wsPort'>;
+
+/**
+ * The port to suggest moving to, or `0` when there is no sensible number to name.
+ *
+ * `+10000` keeps the digits of the port it replaces — 1883 becomes 11883, 9001 becomes 19001 —
+ * so the suggested command line still reads as "the MQTT one" and "the WebSocket one" at a
+ * glance, and lands well clear of both the registered-service range and, on this platform, the
+ * ephemeral range the OS hands out. Above 55535 there is no such port, and the honest answer is
+ * then `0`: printing an out-of-range number would be advice that fails when followed.
+ */
+export function suggestedListenPort(port: number): number {
+  const suggestion = port + 10_000;
+
+  return suggestion > 65_535 ? 0 : suggestion;
+}
+
+/**
+ * What to do about a port that is already in use.
+ *
+ * Exported and pure because it is the part worth asserting: the diagnosis ("EADDRINUSE") is the
+ * OS's, but the way out is the product's, and on any machine with Mosquitto installed this is
+ * the first message perch ever shows. Naming only the port leaves the reader to discover that it
+ * is configurable, what the setting is called, and — for the WebSocket listener — that the page
+ * dials that port too and has to be moved with it.
+ */
+export function portInUseGuidance(setting: BrokerListenerSetting, port: number): string {
+  const flag = `--${RELAY_CLI_FLAGS[setting]}`;
+  const variable = RELAY_ENV_VARS[setting];
+  const suggestion = suggestedListenPort(port);
+
+  const moves =
+    suggestion === 0
+      ? [`${flag} 0 (or ${variable}=0) to let the OS pick a free one; it is reported at startup`]
+      : [
+          `${flag} ${suggestion} (or ${variable}=${suggestion})`,
+          `${flag} 0 to let the OS pick a free one; it is reported at startup`,
+        ];
+
+  // The defaults are not the thing to change: 1883 is the registered MQTT port and 9001 is the
+  // number `sensor-sources`' relay endpoint already contracts for the browser. Saying so stops
+  // the next reader from "fixing" the collision in `RELAY_DEFAULTS`.
+  const why =
+    setting === 'mqttPort'
+      ? 'the default stays 1883, the registered MQTT port, so an ordinary MQTT client can find this broker without being told where to look'
+      : 'the default stays 9001, which is the port the dashboard is built to dial';
+
+  const alsoMoveThePage =
+    setting === 'wsPort'
+      ? ` The dashboard dials this port, so move it too: ${DASHBOARD_BROKER_URL_ENV_VAR}=ws://localhost:${
+          suggestion === 0 ? '<the port reported at startup>' : suggestion
+        }.`
+      : '';
+
+  return (
+    `port ${port} is already in use -- on a machine with Mosquitto installed, that is usually Mosquitto, ` +
+    `which holds it on every interface. Move this relay instead: ${moves.join(', or ')}. ` +
+    `Changing the default was not the fix: ${why}.${alsoMoveThePage}`
+  );
+}
+
 /** Bind one server and resolve the port it actually got. */
-async function listen(server: TcpServer | HttpServer, host: string, port: number): Promise<number> {
+async function listen(
+  server: TcpServer | HttpServer,
+  host: string,
+  port: number,
+  setting: BrokerListenerSetting,
+): Promise<number> {
   await new Promise<void>((resolve, reject) => {
     // A listen failure (EADDRINUSE, EACCES) arrives as an 'error' event rather than a throw,
     // and `once` is what keeps it from also reaching the long-lived handler installed above.
     const onError = (error: Error): void => {
-      reject(new Error(`cannot listen on ${host}:${port}: ${error.message}`, { cause: error }));
+      // Guidance only for a collision. EACCES on a privileged port or EADDRNOTAVAIL on an
+      // interface this host does not have are different problems, and "try another port" would
+      // be confidently wrong advice about both.
+      const guidance = isAddressInUse(error) ? `\n  ${portInUseGuidance(setting, port)}` : '';
+      reject(
+        new Error(`cannot listen on ${host}:${port}: ${error.message}${guidance}`, {
+          cause: error,
+        }),
+      );
     };
     server.once('error', onError);
     server.listen(port, host, () => {
@@ -174,6 +255,18 @@ async function listen(server: TcpServer | HttpServer, host: string, port: number
   }
 
   return address.port;
+}
+
+/**
+ * Whether a listen failure was a port collision.
+ *
+ * `code` is not declared on `Error`, and Node's `SystemError` type is not exported anywhere that
+ * can import it, so `in` does the narrowing — TypeScript widens the operand to carry the tested
+ * key, which is a check at runtime rather than a cast asserting something unproven. Matching on
+ * the message text instead would break the moment a Node version reworded it.
+ */
+function isAddressInUse(error: Error): boolean {
+  return 'code' in error && error.code === 'EADDRINUSE';
 }
 
 /**
