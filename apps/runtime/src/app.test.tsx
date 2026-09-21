@@ -359,6 +359,79 @@ describe('<Dashboard> — how the chrome prints the scale', () => {
   });
 });
 
+/** The strip's flex items, in the order they are laid out. */
+const chromeItems = (): readonly HTMLElement[] =>
+  [...screen.getByTestId('perch-chrome').children].filter(
+    (el): el is HTMLElement => el instanceof HTMLElement,
+  );
+
+/** What a strip item is called, for an assertion a reader can diff against the screenshots. */
+const nameOf = (el: HTMLElement): string => el.dataset['testid'] ?? '(heartbeat)';
+
+/**
+ * Which items the strip is allowed to truncate, and which it is not.
+ *
+ * These are declarations read back off the rendered elements, not measurements: jsdom has no layout
+ * engine, so it cannot be asked whether `71.1%` fitted. What it *can* be asked is which items the
+ * stylesheet made shrinkable, and that is the whole of the defect — at 1366px against a 1920x400
+ * canvas every item in the strip was `flex-shrink: 1` with `overflow: hidden; text-overflow:
+ * ellipsis`, so a 20px row deficit was spread across all six and each ate its own tail. The fit
+ * badge's tail is the scale percentage, and it painted as `windowed · letterboxed · 71.…` — a
+ * number whose useful digits are exactly the ones dropped.
+ *
+ * Shortening the string was never the fix: restoring the badge's previous `0.711x` convention in the
+ * live page cost it *four* pixels rather than three. Nor was removing the ellipsis: with the same
+ * shrink applied, the text clips mid-glyph instead of drawing `…`, which is less honest rather than
+ * more. The fix is to rank the row — the measurements and the provenance keep their pixels, and the
+ * one item that is prose gives them up.
+ */
+describe('<Dashboard> — what the chrome strip gives up when the row does not fit', () => {
+  it('lets exactly one item give way, and it is the migration report', () => {
+    viewport(1366, 768);
+    mount({ layout: 'oversize' });
+
+    const elastic = chromeItems().filter((el) => getComputedStyle(el).flexShrink !== '0');
+
+    // Not "the fit badge does not shrink" on its own: an item exempted while its neighbours stay
+    // shrinkable only moves the same truncation one item along, which is what the live page showed
+    // when the badge alone was pinned. The contract is the whole ranking, so the assertion is too.
+    expect(elastic.map(nameOf)).toEqual(['perch-migrations']);
+  });
+
+  it('never truncates the scale percentage, which is the part of the badge worth reading', () => {
+    viewport(1366, 768);
+    mount({ layout: 'oversize' });
+
+    // The regression this file exists to catch, stated on the element the defect was reported
+    // against rather than only through the ranking above.
+    expect(getComputedStyle(fitBadge()).flexShrink).toBe('0');
+    expect(fitBadge()).toHaveTextContent('windowed · letterboxed · 71.1%');
+  });
+
+  it('marks the truncation it does allow, so a cut sentence never reads as a whole one', () => {
+    viewport(1366, 768);
+    mount({ layout: 'oversize' });
+
+    // The ellipsis belongs on the one item that can actually reach it. Left on items that no longer
+    // shrink it is inert, and inert CSS is read by the next person as a claim that still holds.
+    const migrations = screen.getByTestId('perch-migrations');
+    const style = getComputedStyle(migrations);
+    expect(style.overflow).toBe('hidden');
+    expect(style.textOverflow).toBe('ellipsis');
+  });
+
+  it('bounds itself by the viewport, not by the viewport plus its own padding', () => {
+    viewport(1366, 768);
+    mount({ layout: 'oversize' });
+
+    // `max-width: 100vw` on a content-box element with `padding: 4px 10px` is a 100vw + 20px border
+    // box: measured live, the strip's right edge sat at 1386px in a 1366px viewport, so its last
+    // 20px — the right padding and the tail of the final item — was off-screen entirely, and the
+    // flex line was being solved against 20px more room than the screen has.
+    expect(getComputedStyle(screen.getByTestId('perch-chrome')).boxSizing).toBe('border-box');
+  });
+});
+
 describe('<Dashboard> — which source is on screen', () => {
   it('names the mock as a mock, in the page rather than only in a console', () => {
     mount();

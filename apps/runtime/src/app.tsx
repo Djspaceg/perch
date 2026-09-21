@@ -388,8 +388,17 @@ function PageChrome({
         {`${status} · ${SOURCE_STATUS_WORDING[status]}`}
       </span>
       <span className="perch-chrome__item">{`${HEARTBEAT_LABEL} ${heartbeatAt}`}</span>
+      {/*
+       * `--elastic`: the one item in the strip that may be truncated, because it is the one item that
+       * is prose rather than a measurement. It is also the reason the row overflows — the longest
+       * string the strip prints, by a wide margin — so it is what has to absorb the shortfall if the
+       * scale percentage beside it is to survive a 1366px window. See `PAGE_STYLES` below.
+       */}
       {migrations === '' ? null : (
-        <span className="perch-chrome__item" data-testid="perch-migrations">
+        <span
+          className="perch-chrome__item perch-chrome__item--elastic"
+          data-testid="perch-migrations"
+        >
           {migrations}
         </span>
       )}
@@ -439,7 +448,26 @@ html, body {
   display: flex;
   align-items: center;
   gap: 12px;
+  /*
+   * \`border-box\`, because \`max-width: 100vw\` on a content box is a lie the width of the padding.
+   * Content-box made this strip's border box 100vw + 20px, so in a 1366px viewport its right edge sat
+   * at 1386px: the right padding and the tail of the last item were off-screen, and the flex line was
+   * solved against 20px of room the screen does not have. One line of the truncation was therefore
+   * invisible rather than ellipsised, which is the worse of the two failures.
+   */
+  box-sizing: border-box;
   max-width: 100vw;
+  /*
+   * The row is one line and stays one line. Wrapping was the obvious alternative and is wrong here:
+   * the strip is \`position: fixed\` at the bottom of a *captured* surface, so a second line grows
+   * upward into the canvas and changes how much of the panel the image contains — and unboundedly,
+   * since a migration report has no length limit. A panel read from across a room also wants the
+   * strip in the same place at every layout. So the row keeps its height and ranks its contents
+   * instead, and \`overflow: hidden\` guarantees nothing escapes past the viewport edge even at a
+   * width where the ranking runs out.
+   */
+  flex-wrap: nowrap;
+  overflow: hidden;
   padding: 4px 10px;
   border-top-right-radius: 6px;
   background: rgba(7, 8, 10, 0.82);
@@ -449,8 +477,39 @@ html, body {
   color: #9aa4b2;
   font-variant-numeric: tabular-nums;
 }
+/*
+ * Nothing in the strip gives up pixels by default, and that is the fix.
+ *
+ * These items were all \`flex-shrink: 1\` with \`overflow: hidden; text-overflow: ellipsis\`, and
+ * \`overflow: hidden\` is what makes it bite: it resolves an item's automatic minimum size to zero, so
+ * every item was freely shrinkable. Flexbox then spread a 20px row deficit proportionally across all
+ * six and each ellipsised its own tail. Measured at 1366x768 against the 1920x400 canvas, the fit
+ * badge lost 3px and painted \`windowed · letterboxed · 71.…\` — the digits a reader is there for.
+ *
+ * The rule is \`ui-kit\`'s readout rule, applied to a row instead of a widget: the surfaces that carry
+ * a *measurement* get a geometric guarantee, and the surface that carries *prose* absorbs the
+ * shortfall. See \`readout.tsx\`'s header — a plausible-looking truncated number is worse than an
+ * obviously starved one, because nothing on the panel says the digits are missing. Every item here
+ * except one is a measurement or a provenance claim: the layout's name, the fit and its scale, which
+ * source is live, that source's status, and when it last published. None of them are abbreviatable.
+ */
 .perch-chrome__item {
   white-space: nowrap;
+  flex-shrink: 0;
+}
+/*
+ * The one item that gives way, and the only place the ellipsis still does any work.
+ *
+ * A migration report is a sentence about the layout file, it is the longest thing the strip ever
+ * prints, and it is the reason the row overflows at all: removing it from the live page dropped the
+ * deficit to zero and every other item rendered in full. It is also the only item a reader can lose
+ * the tail of without losing a fact — the full text is in the layout file and in the relay's log,
+ * and an ellipsis says plainly that there is more. \`min-width\` keeps a recognisable stub rather than
+ * a bare \`…\`, so a starved strip looks starved instead of looking like it had nothing to say.
+ */
+.perch-chrome__item--elastic {
+  flex-shrink: 1;
+  min-width: 12ch;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -461,6 +520,14 @@ html, body {
  */
 .perch-badge {
   white-space: nowrap;
+  /*
+   * Stated rather than inherited, though it was already true by accident: with no \`overflow: hidden\`
+   * this badge's automatic minimum size was its own text, so it was the one item the old strip could
+   * not shrink — which is why it is the only item in the 1366px capture that is not ellipsised. The
+   * declaration makes that a decision the next edit has to undo deliberately rather than a side
+   * effect of which properties this rule happens to omit.
+   */
+  flex-shrink: 0;
   font-weight: 600;
   padding: 1px 8px;
   border-radius: 999px;
