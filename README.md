@@ -19,6 +19,11 @@ PERCH_BROKER_URL=ws://localhost:9001 \
 npm run dev:stack
 ```
 
+If another MQTT broker already holds 1883 or 9001 — a Homebrew `mosquitto` is
+the usual culprit — `dev:stack` names it and offers to stop it before building
+anything. It only offers for a process it can identify, only on a terminal, and
+never when you have set your own ports.
+
 **Always set `PERCH_BROKER_URL` explicitly.** Its built-in default is
 `ws://localhost:9001`, and on a developer machine that port is often a
 *different* broker — one that accepts the connection, accepts the
