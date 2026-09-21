@@ -142,8 +142,10 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 
-# Project Agent evidence artifacts (logs, screenshots, probes) — machine-local
+# Project Agent evidence artifacts (logs, screenshots, probes) — machine-local.
+# Both spellings: workers have created each.
 .evidence/
+evidence/
 
 # Local-only Claude Code settings; .claude/settings.json IS tracked
 .claude/settings.local.json
