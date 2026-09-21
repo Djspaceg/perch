@@ -51,3 +51,23 @@ are written to be honest about that and to show the whole range of readout state
   cannot be mistaken for a reading off a real machine.
 
 `apps/runtime/src/layouts.test.ts` asserts each of those against the real files.
+
+## The bottom band belongs to the chrome strip
+
+The runtime paints a fixed 29px provenance strip across the bottom of the *viewport*, over the canvas,
+and a layout cannot turn it off (`apps/runtime/README.md`, "The chrome strip"). Windowed mode scales
+the canvas, but not the strip — so the band of canvas it covers is **29 ÷ scale** canvas pixels, and it
+grows as the window gets smaller relative to the target.
+
+Keep the bottom of a canvas clear in proportion to how small it will ever be shown:
+
+| Smallest scale you care about | Canvas pixels to leave clear |
+| --- | --- |
+| 1 (the panel, capture mode) | 29 |
+| 0.625 (target in a 1280×800 tab) | 46 |
+| 0.3125 (a tall layout on a 1920×400 panel) | 92 |
+
+`tower-720x1280.json` puts its footer line at y 1196 of 1280 — 84px of headroom, which clears the
+strip at 1:1 and in a tab, and is *covered* when the column is scaled onto the panel's own 1920×400.
+That is a known limit and not a bug in the fit: see `.evidence/CAPTURES.md`, which measures it. Nothing
+here enforces the rule, which is one more way a layout is a call site no compiler checks.
