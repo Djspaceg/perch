@@ -28,13 +28,21 @@
  * reporting nothing" — the unpopulated fan header in the capture — and overloading it with "the
  * relay cannot reach LHM" would destroy a distinction the contract exists to make. When the
  * source is unreachable the relay publishes nothing, `at` ages, and the runtime's staleness
- * detection is what tells the dashboard. The failure is written to the log every time it
- * happens, so it is visible where a human looks, which is what SPEC rule 4 asks for. See
- * DECISIONS.md.
+ * detection is what tells the dashboard. The failure is *reported* — visible where a human looks,
+ * which is what SPEC rule 4 asks for — but a failure that keeps happening is not re-typed once a
+ * second: `failure-log.ts` collapses a run into the first failure, a change of reason, an
+ * escalating summary and a recovery. See DECISIONS.md.
  */
 
 import { SENSOR_META_SUFFIX, type SensorTopic } from '@perch/sensor-contract';
 import type { BrokerPublisher } from './broker.js';
+import {
+  createFailureRun,
+  noteFailure,
+  noteSuccess,
+  type FailureKind,
+  type FailureRun,
+} from './failure-log.js';
 import type { LhmDataFetcher } from './lhm-client.js';
 import { readLhmPayload, type LhmTopicCollision } from './lhm-tree.js';
 
@@ -76,6 +84,12 @@ export interface RelayHandle {
   stop(): Promise<void>;
 }
 
+/** How a poll that could not read LHM is named in the log. */
+const POLL_FAILURES: FailureKind = { subject: 'poll', failed: 'failed' };
+
+/** How a defect in the loop itself is named. Not "failed": this one is the relay's own fault. */
+const TICK_FAILURES: FailureKind = { subject: 'tick', failed: 'aborted unexpectedly' };
+
 /**
  * Run one poll: fetch, map, publish.
  *
@@ -91,8 +105,11 @@ export async function runOnePoll(deps: RelayDeps, state: RelayState): Promise<Po
   try {
     payload = await deps.fetchLhmData();
   } catch (error) {
-    const failure = error instanceof Error ? error.message : String(error);
-    deps.logger.error(`poll failed: ${failure}`);
+    const failure = describe(error);
+    // The clock is read again rather than reusing `at`: the failure happened when the request
+    // gave up, which for a timeout is a whole 1500 ms later, and that gap is the outage
+    // duration the recovery line reports.
+    noteFailure(deps.logger, state.pollFailures, POLL_FAILURES, failure, deps.now());
 
     return {
       at,
@@ -131,6 +148,16 @@ export async function runOnePoll(deps: RelayDeps, state: RelayState): Promise<Po
     }
   }
 
+  // After the publishes, so "recovered" means the readings are on the broker rather than that the
+  // HTTP call answered — and before the anomaly warnings, so the line that ends an outage is not
+  // printed underneath a first-poll warning about a duplicate sensor identifier.
+  noteSuccess(
+    deps.logger,
+    state.pollFailures,
+    POLL_FAILURES,
+    readAt,
+    `${String(mapping.sensors.length)} readings published`,
+  );
   reportAnomalies(deps.logger, state, mapping.unmapped, mapping.collisions);
 
   return {
@@ -151,8 +178,12 @@ export interface RelayState {
   readonly collisionsWarned: Set<SensorTopic>;
   /** Identifiers already reported as unmappable. */
   readonly unmappedWarned: Set<string>;
-  /** Whether the previous tick failed, so recovery is logged once rather than never. */
-  failing: boolean;
+  /** The run of consecutive poll failures in progress, if any. */
+  readonly pollFailures: FailureRun;
+  /** The run of consecutive tick defects in progress, if any. Separate from `pollFailures`
+   * because a broker that rejects every publish and a source that answers nothing are two
+   * different outages, and collapsing them together would hide whichever started second. */
+  readonly tickFailures: FailureRun;
 }
 
 export function createRelayState(): RelayState {
@@ -160,7 +191,8 @@ export function createRelayState(): RelayState {
     metaSent: new Set<SensorTopic>(),
     collisionsWarned: new Set<SensorTopic>(),
     unmappedWarned: new Set<string>(),
-    failing: false,
+    pollFailures: createFailureRun(),
+    tickFailures: createFailureRun(),
   };
 }
 
@@ -179,27 +211,32 @@ export function startRelay(pollIntervalMs: number, deps: RelayDeps): RelayHandle
 
   const tick = async (): Promise<void> => {
     const report = await runOnePoll(deps, state);
-    logTick(deps.logger, state, report);
+    logTick(deps.logger, report);
+    noteSuccess(deps.logger, state.tickFailures, TICK_FAILURES, deps.now());
+  };
+
+  /**
+   * A tick that threw.
+   *
+   * `runOnePoll` resolves on every expected failure, so reaching here means a defect in the relay
+   * itself — a publish that rejected, say. Reported loudly, and the loop continues, because a
+   * broker hiccup must not end a long-lived service. Collapsed the same way a poll failure is:
+   * a broker that is gone stays gone, and this path is on the same 1 Hz as the poll it wraps.
+   */
+  const onTickDefect = (error: unknown): void => {
+    noteFailure(deps.logger, state.tickFailures, TICK_FAILURES, describe(error), deps.now());
+    schedule();
   };
 
   const schedule = (): void => {
     if (stopped) return;
 
     timer = setTimeout(() => {
-      inFlight = tick().then(schedule, (error: unknown) => {
-        // `runOnePoll` resolves on every expected failure, so reaching here means a defect in
-        // the relay itself — a publish that rejected, say. Reported loudly, and the loop
-        // continues, because a broker hiccup must not end a long-lived service.
-        deps.logger.error(`tick aborted unexpectedly: ${describe(error)}`);
-        schedule();
-      });
+      inFlight = tick().then(schedule, onTickDefect);
     }, pollIntervalMs);
   };
 
-  inFlight = tick().then(schedule, (error: unknown) => {
-    deps.logger.error(`first tick aborted unexpectedly: ${describe(error)}`);
-    schedule();
-  });
+  inFlight = tick().then(schedule, onTickDefect);
 
   return {
     stop: async (): Promise<void> => {
@@ -214,21 +251,13 @@ export function startRelay(pollIntervalMs: number, deps: RelayDeps): RelayHandle
  * One line per tick, and only when it says something new.
  *
  * A per-tick success line at 1 Hz is 86 400 identical lines a day, which is how a log stops
- * being read at all. So the steady state is quiet: the first successful poll is logged, every
- * failure is logged, and a recovery is logged. Anything anomalous is logged once per distinct
- * cause by `reportAnomalies`.
+ * being read at all. So the steady state is quiet: a tick is logged only when it published
+ * metadata, which after the first successful poll means a sensor that was not there before.
+ * Failures and recoveries belong to `state.pollFailures` and are reported by `failure-log.ts`;
+ * anything anomalous is logged once per distinct cause by `reportAnomalies`.
  */
-function logTick(logger: RelayLogger, state: RelayState, report: PollReport): void {
-  if (report.failure !== undefined) {
-    state.failing = true;
-    return;
-  }
-
-  if (state.failing) {
-    logger.info(`recovered: ${report.readingsPublished} readings published`);
-    state.failing = false;
-    return;
-  }
+function logTick(logger: RelayLogger, report: PollReport): void {
+  if (report.failure !== undefined) return;
 
   if (report.metaPublished > 0) {
     logger.info(

@@ -224,6 +224,37 @@ describe('a failed poll publishes nothing at all', () => {
     expect(lines[0]).toContain('poll failed: down');
   });
 
+  it('logs the first failure in full and then stops repeating itself', async () => {
+    // 100 hours of unreachable host at 1 Hz is 360 000 identical lines, and the damage is not the
+    // volume: it is that the first failure's reason is buried in it.
+    const reason = 'GET http://192.168.1.3:8085/data.json failed: no response within 1500 ms';
+    const { deps, lines } = depsFor(() => Promise.reject(new Error(reason)));
+    const state = createRelayState();
+
+    for (let poll = 0; poll < 5; poll += 1) await runOnePoll(deps, state);
+
+    expect(lines).toEqual([`error: poll failed: ${reason}`]);
+  });
+
+  it('logs a changed reason immediately, and says what it changed from', async () => {
+    // A refused connection becoming a timeout means the host went from "up, nothing listening" to
+    // "gone". That is new information and it does not wait for the next summary.
+    let reason = 'GET http://192.168.1.3:8085/data.json failed: fetch failed (ECONNREFUSED)';
+    const { deps, lines } = depsFor(() => Promise.reject(new Error(reason)));
+    const state = createRelayState();
+
+    await runOnePoll(deps, state);
+    await runOnePoll(deps, state);
+    reason = 'GET http://192.168.1.3:8085/data.json failed: no response within 1500 ms';
+    await runOnePoll(deps, state);
+
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toContain('error: poll failure reason changed');
+    expect(lines[1]).toContain('3 failed attempts');
+    expect(lines[1]).toContain('no response within 1500 ms');
+    expect(lines[1]).toContain('(was: GET http://192.168.1.3:8085/data.json failed: fetch failed');
+  });
+
   it('reports a non-Error rejection rather than losing it', async () => {
     // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- rejecting with a non-Error is the case under test: `fetch` and its dependencies can throw anything, and "[object Object]" in the log would be worse than useless.
     const { deps } = depsFor(() => Promise.reject('just a string'));
@@ -380,19 +411,85 @@ describe('the loop', () => {
     vi.useFakeTimers();
     try {
       const { logger, lines } = collectingLogger();
+      let attempts = 0;
+      const handle = startRelay(100, {
+        fetchLhmData: () => Promise.resolve(payload),
+        broker: {
+          publish: () => {
+            attempts += 1;
+            return Promise.reject(new Error('broker gone'));
+          },
+        },
+        logger,
+        now: () => Date.now(),
+      });
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(lines).toEqual([
+        expect.stringContaining('error: tick aborted unexpectedly: broker gone'),
+      ]);
+
+      // Still scheduled — a broker hiccup must not end a long-lived service — and the repeats of
+      // its own defect are collapsed on the same ladder as a poll failure, because a broker that
+      // is gone stays gone and this path runs at the poll's cadence.
+      const afterFirst = attempts;
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(attempts).toBeGreaterThan(afterFirst);
+      expect(lines).toHaveLength(1);
+
+      await handle.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('collapses a tick defect that keeps happening into a summary', async () => {
+    vi.useFakeTimers();
+    try {
+      const { logger, lines } = collectingLogger();
       const handle = startRelay(100, {
         fetchLhmData: () => Promise.resolve(payload),
         broker: { publish: () => Promise.reject(new Error('broker gone')) },
         logger,
-        now: () => AT,
+        now: () => Date.now(),
       });
 
-      await vi.advanceTimersByTimeAsync(0);
-      expect(lines).toEqual([expect.stringContaining('broker gone')]);
+      await vi.advanceTimersByTimeAsync(11_000);
 
-      // And it is still scheduled: a broker hiccup must not end a long-lived service.
-      await vi.advanceTimersByTimeAsync(100);
-      expect(lines.length).toBeGreaterThan(1);
+      expect(lines).toHaveLength(2);
+      expect(lines[1]).toContain('tick still failing after 10s');
+
+      await handle.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('collapses five minutes of identical failures into a handful of lines', async () => {
+    // The whole complaint, at the scale it was reported: 1 Hz against an unreachable host. The
+    // clock is the fake timer's, so five minutes of outage costs milliseconds.
+    vi.useFakeTimers();
+    try {
+      const reason = 'GET http://192.168.1.3:8085/data.json failed: no response within 1500 ms';
+      let polls = 0;
+      const { deps, lines } = depsFor(
+        () => {
+          polls += 1;
+          return Promise.reject(new Error(reason));
+        },
+        () => Date.now(),
+      );
+      const handle = startRelay(1000, deps);
+
+      await vi.advanceTimersByTimeAsync(300_000);
+
+      expect(polls).toBeGreaterThan(290);
+      // First failure, then summaries at 10s, 30s, 1m 10s and 2m 30s.
+      expect(lines).toHaveLength(5);
+      expect(lines[0]).toBe(`error: poll failed: ${reason}`);
+      expect(lines[4]).toContain('poll still failing after 2m 30s');
+      expect(lines[4]).toContain('consecutive failures since');
+      expect(lines[4]).toContain(reason);
 
       await handle.stop();
     } finally {
@@ -421,19 +518,54 @@ describe('the loop', () => {
   });
 
   it('logs a recovery, so a silent log is not the only sign the source came back', async () => {
+    // An operator who walks up after the source came back must still be able to see that it went
+    // away, how long for, and how many polls it cost.
     vi.useFakeTimers();
     try {
       let fail = true;
-      const { deps, lines } = depsFor(() =>
-        fail ? Promise.reject(new Error('down')) : Promise.resolve(payload),
+      const { deps, lines } = depsFor(
+        () => (fail ? Promise.reject(new Error('down')) : Promise.resolve(payload)),
+        () => Date.now(),
       );
-      const handle = startRelay(100, deps);
+      const handle = startRelay(1000, deps);
 
-      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(40_000);
       fail = false;
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(1000);
 
-      expect(lines).toContainEqual(expect.stringContaining('info: recovered'));
+      const recovered = lines.find((line) => line.startsWith('info: poll recovered'));
+      expect(recovered).toContain('after 41s');
+      expect(recovered).toContain('41 failed attempts');
+      expect(recovered).toContain('last failure: down');
+      expect(recovered).toContain('213 readings published');
+
+      await handle.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('treats a second outage as a fresh first failure, not a continuation', async () => {
+    vi.useFakeTimers();
+    try {
+      let fail = true;
+      const { deps, lines } = depsFor(
+        () => (fail ? Promise.reject(new Error('down')) : Promise.resolve(payload)),
+        () => Date.now(),
+      );
+      const handle = startRelay(1000, deps);
+
+      await vi.advanceTimersByTimeAsync(40_000);
+      fail = false;
+      await vi.advanceTimersByTimeAsync(5000);
+      lines.length = 0;
+      fail = true;
+      await vi.advanceTimersByTimeAsync(11_000);
+
+      expect(lines[0]).toBe('error: poll failed: down');
+      expect(lines[1]).toContain('poll still failing after 10s');
+      // The count restarts with the outage: 11 polls, not the 52 since the relay started.
+      expect(lines[1]).toContain('11 consecutive failures');
 
       await handle.stop();
     } finally {

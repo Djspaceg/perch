@@ -46,6 +46,18 @@ export {
 } from './broker.js';
 
 export {
+  FIRST_SUMMARY_MS,
+  MAX_SUMMARY_INTERVAL_MS,
+  createFailureRun,
+  formatDuration,
+  noteFailure,
+  noteSuccess,
+  type FailureKind,
+  type FailureLogger,
+  type FailureRun,
+} from './failure-log.js';
+
+export {
   createRelayState,
   runOnePoll,
   startRelay,
