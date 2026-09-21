@@ -3417,3 +3417,203 @@ is a one-line change in a package this work was told not to touch.
 means do not check" is carried only in prose. A caller that forgets it gets a silent pass on the
 frame-rate question rather than a type error — which is the correct behaviour for this page and a
 trap for one that genuinely knows its refresh rate.
+
+# A chart element in the layout contract, and the first real migration — decisions
+
+`@perch/layout-schema` described three element kinds and had a migration runner with an empty table.
+These are the decisions taken adding a fourth kind — a chart, with a time axis — and taking the
+format from version 1 to version 2 so that both sides of that boundary behave. Contract only: there
+is no chart renderer yet, and every choice below was made to be the thing a renderer is built
+against rather than a guess at what one will want.
+
+## 1. A chart is its own `kind`, not a widget element with extra fields
+
+`windowMs` is required for a chart and meaningless on a gauge. Deciding *which fields are required*
+from the value of `kind` is the entire job of the discriminated union, so the requirement belongs to
+a kind.
+
+The alternative was an optional `windowMs` on `kind: 'widget'`. It fails twice over: it accepts a
+chart with no window, and it silently ignores a window on a readout. Getting the requirement back
+would mean a second registry capability flag (`needsWindow` beside `drawsScale`) — which is to say,
+inventing a new mechanism to recover a property the union already gives away for free.
+
+The cost is that `chart` repeats `widget`, `topic`, `rect`, `style` and `range` in its field list.
+That repetition is in the *field list*, not in the *rules*: see decision 3.
+
+## 2. `windowMs` is required, is authored, and carries its unit in its name
+
+Required, because there is no chart without a time axis, and a chart that picks its own span is a
+chart whose meaning changes without the file changing.
+
+Authored, for precisely the reason `range` is authored, and the SPEC's existing argument transfers
+without modification. The two ways to avoid authoring it are to span "however long this process has
+been up" or to derive it from `rect.w` at some samples-per-pixel. The first makes the axis mean
+something different on every restart; the second makes a layout edit silently rescale time. Both are
+the `range` mistake relocated into the time axis, and the format already refused it once.
+
+The unit is in the name because a factor of 1000 in a time axis is invisible in the output — a
+window that is wrong by 1000x still draws a plausible-looking line — and because `windowMs` matches
+`at` on a sensor reading, so a renderer subtracts and compares without a conversion. `window` was
+also rejected on its own merits: it is a DOM global, and this package already renamed `Element` to
+`LayoutElement` for exactly that trap.
+
+The accepted band is 1 s to 24 h, and both ends are arguments rather than round numbers. The floor
+is there because a sub-second window holds too few samples to be a trend at any frame rate this
+format allows, and because a `windowMs` that small is almost always seconds typed into a
+milliseconds field — so the issue message names that mistake. The ceiling is there because nothing
+in this project buffers history: a 48-hour window can only ever be drawn for the part of it this
+process has been running, so the file is asking for something no source can supply.
+
+## 3. `range` on a chart is the registry's rule, reused, not a chart rule that agrees with it
+
+The brief's constraint, and the one worth being explicit about: "this widget needs a range" is
+already modelled, in the registry, as `drawsScale`. A chart that requires a range must fall out of
+that and not out of a new check.
+
+So the rule was *extracted*. `requireRangeIfScaled` is now one function, called by
+`validateWidgetElement` and `validateChartElement` alike; the registry is unchanged and still knows
+nothing about element kinds. The observable consequence is pinned in `chart.test.ts`: a chart naming
+`readout` (registered `drawsScale: false`) needs no range, because the registry's answer is the only
+answer there is. Two copies of the rule would agree today and drift the first time one of them
+gained a condition.
+
+## 4. `gap` is a field, and the default is the honest one
+
+The source buffers nothing, so a reconnect leaves a real hole, visible through `at` timestamps. The
+brief asked whether the layout should be able to say what happens to it.
+
+It should, and the reason is that this is not a style question. Spanning a gap draws a line through
+time where no measurement existed — an assertion about the world that is false. That is the same
+class of untruth as putting two units on one y-axis, and it is not the renderer's call to make
+silently, because whether the lie is acceptable depends on what the chart is for. A smooth
+watched-all-day CPU trace can span a two-second reconnect without misleading anyone; a chart being
+used to find out *whether the source dropped out* must not.
+
+Hence: `gap?: 'break' | 'span'`, defaulting to `'break'`. Absence means the honest rendering, so a
+file that never thought about it does not ship the lie. The default is exported as
+`DEFAULT_CHART_GAP` rather than written into the renderer, so `runtime` and `editor` cannot disagree
+about what an absent `gap` means. And the validator leaves an absent `gap` absent rather than
+materialising the default into the document — same treatment `fit` gets, same reason: a saved file
+that differs from the one the author wrote is a file whose diffs stop being reviewable.
+
+Whether the chart *draws* the break as a visible discontinuity, a dotted segment or simply nothing
+is still entirely the renderer's business. The field says which of two meanings is wanted, not how
+to paint it.
+
+## 5. One topic per chart in version 1 — agreeing with the recommendation, with a concrete answer
+
+Kept, and not merely deferred: the case that actually motivates multi-series has an answer today.
+Paint order is array order, so two chart elements with the same `rect` and the same `range` already
+stack into two series on one set of axes. That is pinned by a test rather than asserted here.
+
+Two series that do not share a `range` should not share a y-axis in the first place — the thing
+multi-series is usually reached for is the thing that makes a chart lie. And real multi-series (per
+series style, labels, a legend, possibly independent axes) is a design with field names in it. Every
+one of those names would be a guess made before a renderer exists to have an opinion, and each guess
+is permanent in a versioned format: wrong fields are more expensive to remove than missing fields
+are to add.
+
+## 6. The version step, and what the migration does
+
+`LAYOUT_SCHEMA_VERSION` goes 1 to 2, with one table entry `{ from: 1, to: 2 }` whose `migrate` is
+`(document) => ({ ...document })`.
+
+The no-op is the point, not a placeholder. Version 2 is purely additive: no version 1 field changed
+meaning, so every valid version 1 document is a valid version 2 document with its number stepped,
+and there is nothing to rewrite. What the step buys is the two halves of the boundary:
+
+- **New reader, old file.** `loadLayout` migrates it forward and *says so* — `fromVersion: 1`, steps
+  `['1->2']`, and `formatMigrationReport` naming the change. A version 1 document that is wrong on
+  its own merits is still refused on its merits after migrating, not instead of migrating.
+- **Old reader, chart file.** It refuses the *document* at `schemaVersion`, once, naming the version
+  it can read and the version it was handed. Without the step it would walk into the elements and
+  produce `unknown-element-kind` plus a pile of `unknown-field` issues — technically a refusal, but
+  one that blames the author for fields they wrote correctly, when the true problem is that the
+  build is old. Refusing at the version is the only refusal that names the real fault.
+
+The step is also load-bearing for its own sake: a version 2 with no step from 1 would make
+`earliestMigratableVersion` return 2 and strand every existing version 1 file as
+`unsupported-past-version`. That is asserted directly, because it is the failure mode that would
+otherwise be discovered by a user with a file they wrote last week.
+
+## 7. Zero new issue codes were needed, and that is a result
+
+Every failure the brief asked for maps onto a code that already existed: `missing-field`,
+`out-of-range`, `wrong-type`, `missing-range`, `invalid-range`, `unknown-field`, `malformed-topic`,
+`unknown-element-kind`. Adding a whole element kind with a new required numeric field, a new enum and
+a conditional requirement did not need one new member of `LayoutIssueCode`.
+
+That is evidence the issue union was cut along the right joint — codes describe *what kind of wrong*
+a value is, not *which field* is wrong, and the field is carried by `path`. Worth recording while the
+format is young, because the pressure to add a `bad-window` code was there and taking it would have
+started a vocabulary that grows with every field.
+
+## 8. Found while doing it: `targetVersion` alone no longer describes an older reader
+
+The one thing in the existing machinery that genuinely fought back, and it is a real finding rather
+than a test bug.
+
+Writing "an old build refuses a chart layout" as `loadLayout(chartDocument(), { targetVersion: 1 })`
+throws `RangeError` from `assertLayoutMigrationTable`, because the table it defaults to ends at 2 and
+a table that overshoots its target is malformed. The error is *correct* — a bad table is programmer
+input, not a bad file, and throwing beats collecting an issue for it. But it means that now the real
+table is non-empty, simulating an older reader takes both halves: `targetVersion: 1` **and**
+`migrations: []`, the empty table that build actually shipped with.
+
+Left as it is, deliberately. Both parts are true of an old build, and a helper that filled the table
+in from the target version would be inventing history. The `RangeError` is pinned by a test so the
+next person meets it as a message rather than as a puzzle, and the test-local `v1Reader` constant
+carries the explanation at the point where someone will need it.
+
+Two smaller notes from the same pass. `validateLayout` consults no table at all, so `targetVersion`
+on its own *is* a version 1 reader there — the asymmetry is correct but it is the kind of thing that
+reads as an inconsistency until you know why. And migration running before validation means a
+hand-stamped `schemaVersion: 2` document containing a chart is accepted by a reader that would have
+refused the same document at version 1; that ordering is deliberate and documented in `migrate.ts`,
+so the leniency is pinned by a test rather than left to be rediscovered as a surprise.
+
+## 9. Call sites: what a fourth element kind reaches
+
+Required because this change is in `packages/*`. Everything outside `packages/layout-schema/` is
+another worker's territory in this session and was **not** touched; it is enumerated here so the
+consequences are known rather than found.
+
+Inside `packages/layout-schema/` (all updated):
+
+- `src/element.ts` — the union, `ELEMENT_KINDS`, `CHART_FIELDS`, the `ELEMENT_VALIDATORS` table, and
+  `requireRangeIfScaled` extracted out of `validateWidgetElement`.
+- `src/chart.ts` (new) — the window band and the gap vocabulary.
+- `src/layout.ts` — `LAYOUT_SCHEMA_VERSION = 2`.
+- `src/migrate.ts` — the `1 -> 2` entry, and `LAYOUT_MIGRATIONS` no longer empty.
+- `src/index.ts` — `ChartElement`, `ChartGap`, `CHART_GAPS`, `CHART_MIN_WINDOW_MS`,
+  `CHART_MAX_WINDOW_MS`, `DEFAULT_CHART_GAP`.
+- `src/layout-fixture.test-support.ts` — the shared fixture is at version 2 and has a chart, so every
+  document-level test carries one; `v1LayoutDocument()` added as the other side of the boundary.
+- `src/chart.test.ts` (new), `src/element.test.ts`, `src/layout.test.ts`, `src/migrate.test.ts`.
+
+Outside it, reached and left alone:
+
+- `apps/runtime/src/layout-canvas.tsx:133` — **fails to compile**, by design.
+  `renderElement`'s `switch` is closed by `assertNever`, and its own comment says "a fourth member of
+  `ELEMENT_KINDS` fails to compile here until it has a branch". It does:
+  `error TS2345: Argument of type 'ChartElement' is not assignable to parameter of type 'never'`.
+  This is the mechanism working. The fix is a `case 'chart':` and a renderer, which is the chart
+  widget task.
+- `apps/runtime/src/layouts.test.ts:107` — **fails**, twice (`desk-1920x400.json`,
+  `tower-720x1280.json`): `expect(layout.schemaVersion).toBe(1)`. The shipped layouts are version 1
+  files, `loadShipped` migrates them, and the migrated result is now 2. The assertion is a correct
+  statement about a format that has moved; it becomes `LAYOUT_SCHEMA_VERSION`, or 2.
+- `apps/runtime/src/app.tsx:319` — will now start rendering its "migrated from schemaVersion 1"
+  chrome for every shipped layout, because every shipped layout now migrates. Visible, correct, and
+  possibly asserted against in `app.test.tsx` — that lane passes today but the chrome text is a
+  user-visible change somebody should see on purpose.
+- `layouts/*.json` and `layouts/invalid/broken-desk.json` — all `"schemaVersion": 1`. They keep
+  working through `loadLayout` (that is what the migration is for) and only need stepping if the
+  intent is for the shipped files to stop being migrated on every load.
+- `apps/runtime/src/layout-canvas.tsx:201` (`styleOf`) — reached and *not* broken: `chart` carries
+  `style`, so the `kind === 'media'` test still narrows correctly. Noted because it is the other
+  place that enumerates kinds and it needed nothing.
+- `packages/ui-kit/` — nothing. The registry's `drawsScale` already carries everything the chart's
+  `range` rule needs, and no widget code learned about element kinds.
+- `apps/editor/`, `apps/caster/`, `apps/agent/`, `packages/sensor-contract/`,
+  `packages/sensor-sources/` — nothing; they do not read the element union.
