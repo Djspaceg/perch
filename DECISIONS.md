@@ -4152,3 +4152,153 @@ all under `apps/editor/` plus this `DECISIONS.md` section:
 `index.html`, `vite.config.ts`, `package.json`, `vitest.setup.ts`. The other workers' `packages/ui-kit`
 and `apps/runtime` edits, the new `packages/ui-kit` chart/line-chart files, `layouts/trend-1920x400.json`,
 and `.claude/settings.json` were left unstaged.
+
+# perch's first chart: the history store and the line renderer — decisions
+
+These are the decisions taken building the `kind: 'chart'` renderer whose contract the layout-schema
+worker had already settled (its section above, "A chart element in the layout contract"). That section
+ends "there is no chart renderer yet, and every choice below was made to be the thing a renderer is
+built against." This is that renderer. Nothing in `packages/layout-schema` was touched; where the
+contract was awkward to implement against, it is reported in 8 and 9 rather than patched.
+
+Two commits: the history store (`ab18d9c`) and the widget. They read as two because history is a
+store concern that a chart happens to be the first consumer of, and the widget is a pure view over it.
+
+## 1. History is a bounded ring in the ui-kit store, sized by the longest window any chart asks for
+
+No history existed: the MQTT source buffers nothing on purpose and the relay publishes only the latest
+reading. The approved design puts history in the store, not the source and not the relay. A `TopicRing`
+per topic holds readings; its capacity is derived from a `WindowDemand` ledger — a multiset of the
+`windowMs` values of every mounted chart on that topic — as `historyCapacity(max(windows))`. One ring
+per topic, shared by every chart on it, so two charts on one topic cost one buffer sized to the longer.
+
+Rejected and not drifted toward: relay-side retention (the relay stays latest-only) and a time-series
+store (this is a fixed-size ring in memory, nothing queryable). Accepted on the record: history does
+not survive a page reload — the canvas text on the demo layout says so.
+
+## 2. Demand shrinks, it is not monotonic-forever
+
+The doubt the brief named: "the buffer's size is derived from demand, so that derivation needs to be
+honest rather than monotonic-forever." `WindowDemand` is a counted multiset. `retain(windowMs)` adds a
+count and `release()` removes exactly one; `recompute()` rescans the live counts so the ring's capacity
+*falls* when the widest chart unmounts. A chart unmount releases its window; when the last chart on a
+topic releases, the ring is dropped and the memory freed (`forgetHistoryIfIdle`). Retention lives in
+`useSensorHistory`'s `subscribe`, not in an effect, so it is in place before the first `getSnapshot`
+and is StrictMode-safe. `sensor-history.test.ts` covers shrink-on-release, the two-charts-one-ring
+case, idempotent release, and that nothing grows without limit (a 10,000-reading run stays capped).
+
+## 3. The x-axis advances with no new reading, and the geometry stays a pure function of a snapshot
+
+A chart is a line over time, so it must move left even while a publisher is quiet. The store carries
+`endsAt` inside the published `SensorHistorySnapshot` and republishes once per recheck tick; materiality
+is quantised to whole seconds so an idle topic does not churn. `chartView` is then a pure function of
+the snapshot — clock included, because the clock arrives as `endsAt`. "Same snapshot, same pixels" is
+asserted directly (`chartView(x)` deep-equals `chartView(x)`), which is what the capture story rests on.
+
+## 4. The frame budget: one path per series, holes as `M` moves, a fixed skeleton
+
+Every output path *captures* the page, so redraw must finish inside the capture interval and the element
+skeleton must not reflow on update. Three things hold the node count constant across every state:
+one `<path>` for the whole series (holes are `M` subpath moves inside one `d`, not extra elements),
+a fixed `CHART_GRIDLINE_COUNT`, and every text run plus the marker always rendered (the placeholder is
+an empty string, the marker toggles on `data-shown`, not on mount). An update writes text and attributes
+only. The plot is sized by arithmetic from the authored rect, never measured — a `ResizeObserver` fires
+after layout, so a measured chart would draw frame one at the wrong size and move it on frame two, a
+reflow inside the capture interval. Redraw cost is bounded by the rect, not the publish rate: per-pixel-
+column thinning keeps the min and max of each column, capping points at `(plot.w + 1) * 2`. At a 386px
+plot that is 774; a 40 Hz publisher's 2,401 readings over a minute still render <= 774 (proved in
+`chart-view.test.ts`, and `red-2` shows the assertion bites when thinning is removed). Coordinates are
+whole pixels, so two frames of identical data produce byte-identical `d` strings and nothing re-rasterises.
+
+## 5. Panel strokes: 3px line, hairline grid solved by placement, 10px ringed marker
+
+The output is a 1920x400 LCD read across a room, where thin lines flicker and sub-pixel antialiasing
+reads badly. So, adjusted once for the target and only once: a **3px** round-capped series line where a
+screen chart uses 2px (odd-times-one, so a stroke on an integer pixel covers whole pixels; the round cap
+also makes a single reading paint as a dot). Gridlines stay **1px hairline** — the panel problem is
+solved by *placing* the line on a half-integer with `shape-rendering: crispEdges`, so it lands on one
+row of pixels instead of smearing over two, rather than by thickening it into a table of boxes. The
+newest reading carries a **10px** marker with a 2px surface ring so it stays legible where it crosses
+the line. The series keeps default rendering, because a diagonal stroke needs antialiasing to read as a
+line. Captures at both sizes were inspected (`.evidence/chart-widget/CAPTURES.md`); the line reads
+cleanly at 1:1 and the grid recedes.
+
+## 6. Empty and all-stale both render legibly, and are different states
+
+A chart with nothing in its window paints the frame, grid and scale, prints `--`, and carries
+`waiting for readings` — a reader sees what it will plot and against what scale before the first reading.
+A chart whose newest reading is older than the store's staleness threshold draws the line in
+`--perch-stale`, rings the marker the same, prints the held-but-old number, and notes its age; the shape
+is worth seeing, what must not happen is showing it as current. A third placeholder, `no values in
+window`, covers a present sensor reporting only nulls: there is a series and no line, which an empty plot
+under an `n/a` header would not explain. All three are in the demo capture at once (cpu live, cooler
+`no values in window`, psu `waiting for readings`).
+
+## 7. `gap` is honoured exactly, and the hole threshold is borrowed, not invented
+
+`'break'` is the default because spanning draws a line through time where no measurement existed — the
+same untruth as two units on one axis. The widget defaults to `DEFAULT_CHART_GAP` (it does not restate
+`'break'`), so if the format ever changes its default this follows without an edit; `red-1` shows the
+break-by-default tests fail the moment the default is hardcoded wrong. `'span'` draws through a hole and
+only when an author asks. A null reading contributes no coordinate under either setting — `span` decides
+whether the pen lifts, never whether a missing measurement becomes a number. The definition of "a hole"
+has no home in the chart contract, so it is borrowed from `store.staleAfterMs`: the one definition of
+"a publisher went quiet" in the system, so a chart and the readout beside it agree about the same silence.
+
+## 8. Awkwardness reported, not patched (1): a widget name resolves against one registry for two kinds
+
+A `chart` element's `widget` resolves against the *same* `WidgetRegistry` as a `widget` element — the
+same name check, the same `drawsScale`/`range` rule — which is correct, so "charts need ranges" is not a
+second mechanism. But `ChartElement` carries `windowMs`/`gap` a `WidgetElement` has no field for, so the
+catalogue entry is a union discriminated on `binding: 'widget' | 'chart'`, and each renderer gets its
+narrowed element with no cast. The registry cannot make a mismatch impossible — it has one capability
+flag and it is about scales — so `widget: line-chart` on a `kind: 'widget'` element, and `widget:
+readout` on a `kind: 'chart'` element, both validate and are caught in `layout-canvas.tsx` as visible
+failure boxes rather than handed to a renderer reading fields that are not there. This is the format's
+limit, reported here per the schema worker's own call-site note; it is not a schema defect to patch.
+
+## 9. Awkwardness reported, not patched (2): the chart contract has no place for the hole threshold
+
+`ChartGap` says whether to break or span, but "how long a silence is a hole" is not in the element — it
+is a property of the source's cadence, which the layout author does not know. Deriving it from
+`staleAfterMs` (8, above) is the right answer, but it means a chart's break behaviour depends on a store
+setting the layout file cannot see or set. Worth noting while the format is young: if per-chart control
+is ever wanted, the field belongs on the element, and the contract would grow to carry it.
+
+## Call sites — what the `packages/ui-kit` changes touch
+
+- `packages/ui-kit/src/index.ts` — re-exports the new surface (`chartView`, `LineChart`,
+  `LINE_CHART_STYLES`, the `CHART_*` constants, `WidgetBinding`, the history exports). Consumed by
+  `apps/runtime` and `apps/editor` through `@perch/ui-kit`.
+- `packages/ui-kit/src/widget-catalogue.tsx` — `WidgetCatalogueEntry` became a `binding`-discriminated
+  union; a `line-chart` entry was added. `WIDGET_REGISTRY` (derived from it) is injected into
+  `loadLayout` by both apps, so a new registry entry is a new widget both apps accept and draw.
+- `packages/ui-kit/src/layout-canvas.tsx` — `renderChart` now dispatches through `widgetFor` with a
+  binding check; `renderWidget` gained the mirror check. `LayoutCanvas` is rendered by `apps/runtime`
+  and `apps/editor`; both reach this branch for any `kind: 'chart'` element.
+- `packages/ui-kit/src/tokens.ts` — seven `--perch-chart-*` tokens added; read only by
+  `LINE_CHART_STYLES`. `tokens.test.ts` enforces every token is referenced by a registered sheet, so
+  `LINE_CHART_STYLES` joined `SHEETS`.
+- `packages/ui-kit/src/{chart-view,line-chart}.ts(x)` — new; `line-chart.tsx` is reached only through
+  the catalogue, `chart-view.ts` also directly by tests and any capture harness that wants geometry
+  without mounting React.
+- `layouts/trend-1920x400.json` — new content, outside every workspace. Picked up by the runtime's
+  glob catalogue; sorts after `desk-1920x400`, so the default layout is unchanged.
+
+## The `#8a7470` validator note
+
+The `dataviz` validator FAILs `--perch-stale` (`#8a7470`) on its chroma floor in any paired run. It is
+not "fixed": `--perch-stale` is perch's pre-existing status colour, and the validator's own scope line
+says a lone status colour is checked by WCAG text contrast instead of the categorical-series chroma
+floor. The series colour it is measured against, `--perch-chart-series` (`#4c9ad8`), was chosen by
+running the validator against the canvas surface: it passes the lightness band, the chroma floor and 3:1
+contrast alone, and sits 16.8 ΔE (normal) / 15.0 ΔE (deuteranopia) from `--perch-stale`, which is what
+lets a stale series read as the same line in another state rather than as a second series.
+
+## Evidence
+
+Mock-driven throughout; the sensor host is offline. Under `.evidence/chart-widget/`: `RED-FIRST.md`
+(three reverted-hunk red probes), `CAPTURES.md` and the two PNGs (`.evidence/chart-trend-1920x400.png`
+at scale 1, `.evidence/chart-trend-1440x900-tab.png` letterboxed at 75%), `chart-capture-report.json`
+(the machine-readable twin), and the root-gate logs. No adversarial-review file and no `code-review.md`,
+per the standing rule.
