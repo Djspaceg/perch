@@ -65,6 +65,7 @@ import { normalizeSensorTopic, parseSensorTopic, type SensorMetric } from '@perc
 import { assertNever } from './exhaustive.js';
 import { readoutView, type ReadoutStateKind } from './readout-view.js';
 import { useSensor, useSensorMeta } from './sensor-context.js';
+import { token } from './tokens.js';
 
 export interface ReadoutProps {
   /** The topic to read. Canonical or the authored shorthand. */
@@ -245,6 +246,20 @@ function parseTopic(topic: string): { canonical: string; metric: SensorMetric } 
  * `container-type: inline-size` is what makes `cqw` mean the widget's width, and it earns its place
  * twice: the same containment makes the widget's inline size independent of its contents, so the
  * raw-topic fallback label *cannot* size it rather than merely declining to.
+ *
+ * ## Colours and type ends are tokens; geometry is not
+ *
+ * Every colour, the value's weight, and the two ends of its type ramp are read through `token()`,
+ * so a layout's `theme` can retheme a readout without this package knowing what a layout is. Each
+ * reference carries the default this sheet used before tokens existed, so a layout with `theme: {}`
+ * renders byte-identically to the hard-coded page this replaced.
+ *
+ * What is deliberately *not* tokenised is the geometry that the frame budget depends on: the note
+ * row's fixed height, the `min-width: 0`/`nowrap`/ellipsis triple on the label and note, the
+ * `14cqw` measurement, and the value field's width. Those are not presentation — they are the
+ * guarantees that an update cannot reflow the widget and that a label cannot set its width. A theme
+ * token able to switch one of them off would make a layout file capable of reintroducing the defect
+ * this file's history is mostly about.
  */
 export const READOUT_STYLES = `
 .perch-readout {
@@ -253,8 +268,8 @@ export const READOUT_STYLES = `
   container-type: inline-size;
   min-width: 0;
   gap: 0.15rem;
-  font-family: ui-sans-serif, system-ui, sans-serif;
-  color: #f2f4f8;
+  font-family: ${token('--perch-font')};
+  color: ${token('--perch-fg')};
 }
 .perch-readout__primary {
   display: flex;
@@ -268,16 +283,16 @@ export const READOUT_STYLES = `
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: clamp(1.5rem, 14cqw, 3rem);
-  font-weight: 650;
+  font-size: clamp(${token('--perch-value-size-min')}, 14cqw, ${token('--perch-value-size-max')});
+  font-weight: ${token('--perch-value-weight')};
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
 .perch-readout__unit {
-  font-size: 1.25rem;
+  font-size: ${token('--perch-unit-size')};
   font-weight: 500;
   white-space: nowrap;
-  color: #9aa4b2;
+  color: ${token('--perch-dim')};
 }
 .perch-readout__label {
   min-width: 0;
@@ -285,10 +300,10 @@ export const READOUT_STYLES = `
   overflow: hidden;
   text-overflow: ellipsis;
   height: 1.375rem;
-  font-size: 1rem;
+  font-size: ${token('--perch-label-size')};
   line-height: 1.375rem;
   letter-spacing: 0.02em;
-  color: #9aa4b2;
+  color: ${token('--perch-dim')};
 }
 .perch-readout__note {
   min-width: 0;
@@ -301,14 +316,14 @@ export const READOUT_STYLES = `
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #6b7480;
+  color: ${token('--perch-faint')};
 }
-.perch-readout[data-state='waiting'] .perch-readout__value { color: #6b7480; }
-.perch-readout[data-state='no-reading'] .perch-readout__value { color: #6b7480; }
-.perch-readout[data-state='value'] .perch-readout__value { color: #f2f4f8; }
-.perch-readout[data-state='stale'] .perch-readout__value { color: #8a7470; }
+.perch-readout[data-state='waiting'] .perch-readout__value { color: ${token('--perch-faint')}; }
+.perch-readout[data-state='no-reading'] .perch-readout__value { color: ${token('--perch-faint')}; }
+.perch-readout[data-state='value'] .perch-readout__value { color: ${token('--perch-fg')}; }
+.perch-readout[data-state='stale'] .perch-readout__value { color: ${token('--perch-stale')}; }
 .perch-readout[data-tone='none'] .perch-readout__note { color: transparent; }
-.perch-readout[data-tone='quiet'] .perch-readout__note { color: #6b7480; }
-.perch-readout[data-tone='warn'] .perch-readout__note { color: #c8b06b; }
-.perch-readout[data-tone='alert'] .perch-readout__note { color: #d08770; }
+.perch-readout[data-tone='quiet'] .perch-readout__note { color: ${token('--perch-faint')}; }
+.perch-readout[data-tone='warn'] .perch-readout__note { color: ${token('--perch-warn')}; }
+.perch-readout[data-tone='alert'] .perch-readout__note { color: ${token('--perch-alert')}; }
 `;
