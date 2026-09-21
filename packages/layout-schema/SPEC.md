@@ -32,6 +32,8 @@ type Element =
   | { kind: 'widget'; widget: string; topic: string; rect: Rect; style?: Style; range?: [number, number] }
   | { kind: 'text';   text: string;   rect: Rect; style?: Style }
   | { kind: 'media';  src: string;    rect: Rect; fit?: 'cover' | 'contain' }
+  | { kind: 'chart';  widget: string; topic: string; rect: Rect; style?: Style; range?: [number, number];
+      windowMs: number; gap?: 'break' | 'span' }
 
 type Rect = { x: number; y: number; w: number; h: number }
 ```
@@ -50,6 +52,51 @@ the author makes once.
 See `packages/sensor-contract/SPEC.md`, which deliberately excludes range from
 sensor metadata for this reason.
 
+## The chart element (added in schema version 2)
+
+A chart is a widget binding plus **a time axis**. It is its own `kind` rather than a
+widget element with extra fields, because `windowMs` is *required* for a chart and
+meaningless on a gauge, and deciding which fields are required from the value of
+`kind` is exactly what the discriminated union is for. An optional `windowMs` on
+`kind: 'widget'` would accept a chart with no window and silently ignore a window on
+a readout.
+
+What it adds beyond a widget element:
+
+- **`windowMs`** (required) — how much time the x-axis spans, in milliseconds,
+  ending at now. Authored, for the same reason `range` is authored: the alternatives
+  are an axis that depends on how long the process has been up, or one that depends
+  on `rect.w`, and both are the `range` mistake moved into the time axis. The unit is
+  in the name because a factor of 1000 in a time axis is invisible in the output, and
+  because it matches `at` on a sensor reading, so a renderer needs no conversion.
+  Accepted band: `CHART_MIN_WINDOW_MS` (1 s) to `CHART_MAX_WINDOW_MS` (24 h). The
+  floor exists because a sub-second window holds too few samples to be a trend at any
+  frame rate this format allows, and because a value that small is almost always
+  seconds written into a field that wants milliseconds. The ceiling exists because
+  nothing in this project buffers history.
+- **`gap`** (optional, `'break' | 'span'`, default `'break'`) — what to do with the
+  hole a reconnect leaves in the data. The source buffers nothing, so a gap is real
+  and visible through `at` timestamps. Whether to *draw* it is a rendering decision,
+  but which of the two is correct is a truth decision only the author can make:
+  spanning draws a line through time where no measurement existed, which is the same
+  class of untruth as two units on one y-axis. So it is a field, the default is the
+  honest one, and `DEFAULT_CHART_GAP` is exported so the runtime and the editor cannot
+  drift on what an absent `gap` means.
+
+What it deliberately does *not* add:
+
+- **`range` is not a chart rule.** A chart requires an authored range under exactly
+  the same condition a widget does — the injected registry says the widget
+  `drawsScale` — and both kinds call the same check. Charts got no second copy of the
+  rule.
+- **No multi-series.** A chart element binds **one** `topic`, like every other bound
+  element. Two series that share a unit and a scale need nothing new: paint order is
+  array order, so two chart elements with the same `rect` and `range` already stack.
+  Two series that do *not* share a unit should not share a y-axis anyway. Multi-series
+  with per-series style, labels and independent axes is a real feature with a real
+  design; inventing its shape before a renderer exists would be guessing at the field
+  names it needs.
+
 ## Coordinate system
 
 `ASSUMPTION:` Absolute pixels on a fixed canvas the size of `target`, with the
@@ -67,6 +114,25 @@ identical. Degrading to a browser tab is then a scale factor, not a reflow.
 migrated forward and the result reported; a layout from the future is rejected
 with its version named. There is no "best effort" path — silently ignoring an
 unknown field is how authored work gets destroyed.
+
+**Current version: 2.** The chart element is the only change from 1, and it is purely
+additive — no version 1 field changed meaning, and every valid version 1 document is a
+valid version 2 document with its version number stepped. So the `1 -> 2` migration
+rewrites nothing; what the version step buys is the two halves of the boundary being
+legible:
+
+- **A new reader handed an old file** migrates it forward and says so.
+  `loadLayout` reports the steps it ran, and `formatMigrationReport` names them.
+- **An old reader handed a chart layout** refuses the *document* at its
+  `schemaVersion`, once, naming the version it can read and the version it was given —
+  rather than walking into the elements and blaming the author for four unknown fields
+  on an element kind it has never heard of. Refusing at the version is the only refusal
+  that tells the human the true problem, which is that their build is too old.
+
+A version step is therefore worth taking even when the migration function is the
+identity. The step also has to exist for its own sake: a version 2 with no step from 1
+would make `earliestMigratableVersion` 2 and strand every version 1 file as
+`unsupported-past-version`.
 
 ## Hard rules
 
@@ -89,3 +155,6 @@ unknown field is how authored work gets destroyed.
   adding them now is speculative.
 - **Per-element visibility rules.** e.g. hide a widget when its sensor is stale.
   Probably belongs here rather than in `ui-kit`, but not in v1.
+- **Multi-series charts.** Deferred, not rejected — see the chart section. Two stacked
+  chart elements cover the case that shares a scale; anything past that wants per-series
+  style and labels, which is a design to do once a chart renderer exists.
