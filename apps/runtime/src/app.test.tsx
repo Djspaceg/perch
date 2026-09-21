@@ -67,6 +67,21 @@ const OVERSIZE = JSON.stringify({
   ],
 });
 
+/** Same shape again, a canvas smaller than the viewport, so the scale lands above 1. */
+const UNDERSIZE = JSON.stringify({
+  schemaVersion: 1,
+  target: { width: 512, height: 384, frameRate: 30 },
+  theme: {},
+  elements: [
+    {
+      kind: 'widget',
+      widget: 'readout',
+      topic: sensorTopic('cpu', 'load'),
+      rect: { x: 0, y: 0, w: 200, h: 100 },
+    },
+  ],
+});
+
 /** Refused for its contents rather than its syntax, which is the interesting refusal. */
 const NOT_A_LAYOUT = JSON.stringify({
   schemaVersion: 1,
@@ -84,7 +99,7 @@ const NOT_A_LAYOUT = JSON.stringify({
 });
 
 const CATALOGUE = createLayoutCatalogue({
-  layouts: { panel: PANEL, oversize: OVERSIZE },
+  layouts: { panel: PANEL, oversize: OVERSIZE, undersize: UNDERSIZE },
   invalid: { 'invalid/not-a-layout': NOT_A_LAYOUT },
   assets: { 'panel.assets/bg.svg': '/assets/bg-abc123.svg' },
 });
@@ -286,6 +301,61 @@ describe('<Dashboard> — a viewport that cannot honour the layout', () => {
 
     expect(screen.queryByTestId('perch-layout-problem')).not.toBeInTheDocument();
     expect(canvas()).toBeInTheDocument();
+  });
+});
+
+/**
+ * What the chrome says about the fit, as a string.
+ *
+ * The rendered text rather than `data-perch-scale`, because the string is what was wrong: the badge
+ * printed `0.711x` from a convention of its own while a refusal printed `71.1%` for the same canvas,
+ * and an assertion on the raw number would have passed throughout.
+ */
+const fitBadge = (): HTMLElement => screen.getByTestId('perch-fit');
+
+/** A viewport other than the 1024x768 jsdom reports, for the fits that need one. */
+function viewport(width: number, height: number): void {
+  vi.stubGlobal('innerWidth', width);
+  vi.stubGlobal('innerHeight', height);
+}
+
+describe('<Dashboard> — how the chrome prints the scale', () => {
+  it('prints a percentage for an untidy ratio, to the precision it takes to read it', () => {
+    // 1366 wide against a 1920-wide canvas: 0.7114583333333333, which is the shape of scale this page
+    // actually runs at on a window nobody sized deliberately.
+    viewport(1366, 768);
+    mount({ layout: 'oversize' });
+
+    expect(fitBadge()).toHaveTextContent('windowed · letterboxed · 71.1%');
+  });
+
+  it('prints 100% for an exact fit, not a bare 1', () => {
+    mount({ layout: 'panel' });
+
+    // Telling an exact fit from a 99.9% one is most of why the number is on screen at all — one is
+    // pixel-identical to the editor and the other is resampled — so `100%` is the floor of it, and
+    // `formatScalePercent` extends the precision rather than let 0.999 round to a flat 100%.
+    expect(fitBadge()).toHaveTextContent('windowed · exact · 100%');
+  });
+
+  it('prints above 100% when the canvas is scaled up, so the direction is legible', () => {
+    // 512x384 in a 1024x768 window: the same aspect ratio, so scaled rather than letterboxed, at 2.
+    mount({ layout: 'undersize' });
+
+    // `200%` is obviously bigger than the declared size where `2x` is a number a reader has to
+    // compare against 1 first.
+    expect(fitBadge()).toHaveTextContent('windowed · scaled · 200%');
+  });
+
+  it('prints the same number the refusal does, because both come from one formatter', () => {
+    // The drift this fix exists to end: the badge and the `target-mismatch` sentence describing the
+    // same canvas at the same viewport have to agree digit for digit, and a second copy of the percent
+    // logic here would agree today and diverge the next time either side changed precision.
+    viewport(1366, 768);
+    mount({ layout: 'oversize', mode: 'capture' });
+
+    expect(problem()).toHaveAttribute('data-perch-problem', 'target-mismatch');
+    expect(problem()).toHaveTextContent('71.1%');
   });
 });
 

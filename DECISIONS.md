@@ -3896,3 +3896,109 @@ It remains a one-line adoption for a change that is allowed to alter visible out
 
 Nothing outside `apps/runtime` imported either file, which is the whole reason this move is small:
 the canvas was already only reachable from the one app, and that was the problem.
+
+# The chrome scale badge adopts `formatScalePercent` — decisions
+
+Scope of this change: one expression in `apps/runtime/src/app.tsx`, the test that pins what it
+prints, and this section. Nothing outside `apps/runtime/` was edited. `TargetFit.scale` is untouched.
+
+Evidence: `red-before.log` (the three new assertions failing against the old convention, with the
+old strings in the diff), `root-lanes.log` (all five root lanes with their own exit codes),
+`badge-text.txt` and the three `chrome-scale-*.png` captures of the badge in a real browser.
+
+## 1. The local convention is deleted, not harmonised
+
+`formatScale` in `app.tsx` is gone and the call site now calls `formatScalePercent` from
+`@perch/layout-schema`. The alternative — a local percent format that agrees with the shared one
+today — was rejected for the same reason a second copy of a topic string is: the two copies have no
+mechanism holding them together, so the next precision change to either is a silent divergence.
+The previous change's decision 8 exported the formatter for this call site and its own comment says
+so; adopting it is what closes that loop rather than re-deciding it.
+
+## 2. What a person actually saw before this
+
+The same canvas, at the same viewport, printed two different numbers on the same page:
+
+| Surface | Before | After |
+|---|---|---|
+| chrome badge, 1366x768 against a 1920x400 canvas | `0.711x` | `71.1%` |
+| `target-mismatch` refusal, same canvas and viewport | `71.1%` | `71.1%` (unchanged) |
+
+Two renderings of one measurement is not a cosmetic difference — a reader comparing the badge
+against a refusal has no way to know they are the same number.
+
+## 3. `TargetFit.scale` was not rounded, and the captures prove it
+
+Only the printed string changed. `data-perch-scale` still carries
+`0.7114583333333333` and the canvas transform is still `scale(0.711458)` —
+both visible in `badge-text.txt`. Rounding the number to shorten the string would have moved
+rendered geometry to save a printed digit, which is exactly what `TargetFit.scale`'s doc comment
+forbids.
+
+## 4. The test asserts the rendered string, at three fits
+
+Because the string is what was wrong, `app.test.tsx` asserts the badge's text content and not
+`data-perch-scale` — an assertion on the raw number passed throughout the defect. Three cases, one
+per shape of scale, plus a fourth tying the two surfaces together:
+
+| Case | Viewport / canvas | Badge text | Old text |
+|---|---|---|---|
+| untidy ratio | 1366x768 / 1920x400 | `windowed · letterboxed · 71.1%` | `windowed · letterboxed · 0.711x` |
+| exactly 1 | 1024x768 / 1024x768 | `windowed · exact · 100%` | `windowed · exact · 1x` |
+| above 1 | 1024x768 / 512x384 | `windowed · scaled · 200%` | `windowed · scaled · 2.000x` |
+| both surfaces agree | 1366x768 / 1920x400, `mode=capture` | refusal contains `71.1%` | already passed |
+
+The fourth case passed before the fix, which is the point of keeping it: the refusal was already
+right, so it is the badge that had to move to meet it.
+
+A `data-testid="perch-fit"` was added to the span. It is the only markup change, and it exists
+because the item previously had no handle and `screen.getByText` on a string this change is
+rewriting would be a test that asserts its own subject.
+
+## 5. A 512x384 fixture layout was added to the test catalogue
+
+`UNDERSIZE`, a canvas smaller than the 1024x768 jsdom viewport, because no existing fixture can
+produce a scale above 1 and the direction above 1 is the reading `200%` makes legible where `2x`
+does not. The catalogue's default layout is unaffected: sorted, `oversize` still comes first.
+
+## 6. Swept `apps/runtime` for other local conventions, and found exactly one
+
+The brief asked whether anything else in `apps/runtime` formats a scale, ratio, percentage or unit
+locally while a shared formatter exists. Searched for `toFixed`, `Math.round`, `Math.floor`,
+`toPrecision`, `toLocaleString`, `padStart` and literal `%` across all of `apps/runtime/src`: the
+only hit was the line this change deletes.
+
+Three near-misses, all correct as they stand and deliberately left alone:
+
+- `layout-problem.tsx` already calls `formatLayoutIssues` — and calls it centrally, so a caller
+  cannot format issues its own way. That is this decision, already made, in the same app.
+- `publishedAt` uses `toLocaleTimeString`. A wall clock, not a scale; no shared formatter exists for
+  it and inventing one to have a rule would be the opposite of the rule.
+- `viewport.ts` formats nothing at all. It returns numbers and a sentence `layout-schema` built.
+
+## 7. Found while doing it, and not fixed here: the strip truncates at 1366px
+
+`chrome-scale-1366x768-letterboxed.png` shows the badge as
+`windowed · letterboxed · 71.…` — the percentage is clipped by
+`.perch-chrome__item`'s `text-overflow: ellipsis` because at 1366px the strip's contents,
+including a long migration report, exceed the viewport width. It is pre-existing, unrelated to which
+formatter produces the string, and shortening the string is not the fix. Recorded here rather than
+silently widened into this change; `badge-text.txt` carries the untruncated text for the same frame.
+
+## 8. Call sites: everything that reaches `formatScalePercent`
+
+The diff touches no `packages/*` file, so nothing shared changed shape. The adopted symbol's call
+sites, for completeness:
+
+| Call site | Uses | What happened |
+|---|---|---|
+| `packages/layout-schema/src/target.ts:128` | the definition | unchanged |
+| `packages/layout-schema/src/target.ts:142` | `describeScaling`, for a refusal sentence | unchanged |
+| `packages/layout-schema/src/index.ts:101` | the barrel re-export | unchanged; already exported |
+| `packages/layout-schema/src/target.test.ts:179` | pins the format itself | unchanged; still the one place the rounding rule is tested |
+| `apps/runtime/src/app.tsx:376` | the chrome badge | **the change** — replaces a local `toFixed(3)` convention |
+| `apps/runtime/src/app.test.tsx` | asserts the rendered badge text | new tests |
+| `apps/editor/`, `apps/caster/`, `apps/agent/`, `packages/ui-kit/`, `packages/sensor-*` | nothing | no call sites; nothing to update |
+
+After this change there is one implementation of the scale convention and two call sites printing
+it, which is the state decision 8 of the previous change was aiming at.

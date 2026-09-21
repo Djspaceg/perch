@@ -35,6 +35,7 @@
 
 import { useMemo, type ReactNode } from 'react';
 import {
+  formatScalePercent,
   loadLayoutJson,
   type Layout,
   type LoadLayoutOptions,
@@ -361,8 +362,18 @@ function PageChrome({
       <span className="perch-chrome__item" data-testid="perch-layout-name">
         {layoutName ?? '(no layout)'}
       </span>
-      <span className="perch-chrome__item">
-        {`${mode}${fitKind === null ? '' : ` · ${fitKind}`}${scale === null ? '' : ` · ${formatScale(scale)}`}`}
+      {/*
+       * `formatScalePercent` rather than a scale format of this file's own.
+       *
+       * The same number is printed twice on this page — here, and inside the sentence a
+       * `target-mismatch` refusal carries — so the two came from one implementation or they drift.
+       * They already had: this badge said `0.711x` where the refusal said `71.1%`, which reads as two
+       * different measurements of the same canvas. `layout-schema` exports the formatter precisely so
+       * this call site can use it; a percent format copied locally would agree today and be the same
+       * bug again the first time either side changed its precision.
+       */}
+      <span className="perch-chrome__item" data-testid="perch-fit">
+        {`${mode}${fitKind === null ? '' : ` · ${fitKind}`}${scale === null ? '' : ` · ${formatScalePercent(scale)}`}`}
       </span>
       <span
         className="perch-chrome__item"
@@ -384,11 +395,6 @@ function PageChrome({
       )}
     </div>
   );
-}
-
-/** The scale, short enough to read at a glance and precise enough to tell 1 from 0.99. */
-function formatScale(scale: number): string {
-  return `${scale === 1 ? '1' : scale.toFixed(3)}x`;
 }
 
 /** When the heartbeat topic last published, or why it has not. */
