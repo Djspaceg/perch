@@ -50,4 +50,9 @@ export {
   type ReadoutViewModel,
 } from './readout-view.js';
 
-export { READOUT_STYLES, Readout, type ReadoutProps } from './readout.js';
+export {
+  READOUT_STYLES,
+  READOUT_VALUE_FIELD_CHARS,
+  Readout,
+  type ReadoutProps,
+} from './readout.js';

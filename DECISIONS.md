@@ -2873,3 +2873,128 @@ developer on 22.0 satisfies the repo's own declaration and then fails on a trans
 check. Tightening `engines` to match would be strictly more strict, not less — but it is a
 change to what the repo accepts rather than part of taking dependencies to latest, so it is
 recorded here rather than folded in silently.
+
+# The clipped value: printing a seven-digit reading in full — decisions
+
+`6699008 B/s` — the GPU PCIe Rx figure the README names as the tell that the page is reading
+hardware over MQTT rather than mock data — painted as `669…` in its 216px tile, at the 1920×400
+panel viewport and in a browser tab alike. That is the worst shape a display bug can take: an
+unreadable value announces itself, where `669` is a plausible throughput four orders of magnitude
+out and nothing on the panel says so.
+
+## 1. The rule that was clipping it, found by reading rather than guessing
+
+`.perch-readout__value` carried `min-width: 0; overflow: hidden; text-overflow: ellipsis` at a
+fixed `font-size: 3rem`, inside a `.perch-readout__primary` that is `display: flex` with its own
+`min-width: 0; overflow: hidden`. `min-width: 0` is what lets a flex item shrink below its
+min-content width, and the value was the *only* item in that row carrying it — `.perch-readout__unit`
+has no `min-width: 0` and so cannot shrink at all. Every pixel of shortfall in the row therefore
+landed on the value, and the ellipsis that absorbed it was the same mechanism decision 8 installed
+to stop a raw-topic fallback label from setting the widget's width.
+
+So the containment was not wrong and was not removed. What was wrong is that it applied to the one
+run of text in the widget whose characters are not decoration: eight digits of a reading are eight
+significant figures, where eight characters of a label are a name the reader already knows.
+
+## 2. The value is exempted by geometry, not by turning containment off
+
+Two changes co-operate, and neither makes the tile's size depend on the reading.
+
+- **A field sized in characters.** The value element carries `width: 8ch` with
+  `font-variant-numeric: tabular-nums`, where one `ch` is one digit advance. `0`, `-40.0` and
+  `37699580` all occupy the same box; the unit beside it sits at the same offset in every state.
+- **A type scale taken from the widget's own inline size.** `.perch-readout` is now
+  `container-type: inline-size` and the value's size is `clamp(1.5rem, 14cqw, 3rem)` — the largest
+  size at which that eight-character field plus a unit still fits the width the page granted.
+
+`overflow: hidden` with the ellipsis stays, as a backstop for a ninth character. A widget given too
+little room must still look starved rather than spill into its neighbour — the 1440px defect
+recorded as decision 9 — and the answer to a genuinely wider reading is decision 5 below, not a
+wider tile.
+
+## 3. How the geometry stays stable across every reading
+
+The frame budget binds here: every output path captures the page, so a value crossing a digit
+boundary must not resize anything.
+
+- The field is a constant. `READOUT_VALUE_FIELD_CHARS` is a module constant, rendered as the same
+  `style` attribute in every state and for every reading, so React writes it once at mount and
+  never patches it. Nothing about the field's width is a function of `view.value`.
+- The type scale's only input is the container's inline size, which is the page's layout and is
+  already constant across a capture. It is not a function of the text either — `cqw`, not `em` of
+  content, and no `fit-content`, no `max-content`, no `ch` derived from the string's length.
+
+Measured in Chrome 153 against the running stack, both viewports, two frames four seconds apart:
+every tile reported an identical `8ch` field box and an identical unit offset in frame 2 as in
+frame 1, while `cpu/load` and `cpu/power` changed value between the frames. At 1920×400 each of
+the eight tiles is 216px, the field 132.64px, the value 25.48px; at 1440×900 the row of six is
+213.33px with a 130.75px field, and the two tiles on the wrapped second row are 672px, where the
+`3rem` cap engages and the field is 248.66px. `valueClipped` was false for all sixteen tile
+readings and `spillsPastTile` was −16px throughout.
+
+## 4. Eight characters, measured against this machine's own sensors
+
+Eight is not a round number picked for comfort. `fixtures/lhm-data.sample.json` reports GPU PCIe Rx
+as `6699008 B/s` — seven digits, the reported defect — and GPU PCIe Tx, the same card in the same
+payload, as `37699580 B/s`. Eight is the widest reading the hardware this reads actually produces.
+It also covers `-40.0`, a signed six-digit figure, and both placeholders.
+
+The number lives in `readout.tsx` rather than in `READOUT_STYLES`, and the split is deliberate: how
+many characters a reading may need is a claim about *data*, where the type scale beside it is a
+claim about pixels. A claim about data belongs where the reading that motivates it can be cited in
+a comment and a test can read it back off the rendered element. That also made the fix survive the
+toolchain upgrade that landed underneath it: jsdom 30 normalises a computed `8ch` to `64px` on an
+assumed 8px advance, so a field declared in the stylesheet was unassertable through
+`getComputedStyle` — on the element, `style.width` is `8ch` whatever the DOM implementation thinks
+a character is. At weight 650 in the system sans a digit advances 0.6475em, confirmed by measuring
+the rendered box: 248.66px for eight characters at 48px.
+
+## 5. Display-unit scaling is deliberately not here
+
+Rendering `6699008 B/s` as `6.4 MB/s` would make the tile narrower and read better, and it is still
+out of scope, for two reasons that are not about effort:
+
+- The README documents the **raw** figure as the tell that the page is reading hardware over MQTT
+  rather than mock data, and `apps/runtime` captions that tile `hardware only · raw bytes/s`.
+  Scaling the number would remove the signal the tile exists to carry.
+- Which metrics scale, at what precision, and whether the layout controls it, is a schema question.
+  It belongs with `layout-schema`, where a `scale` or `unit` field can be authored and validated
+  once for every widget, rather than being decided inside one widget by the person fixing a clip.
+
+## 6. The label's protection was re-checked, not assumed, and is now stronger
+
+Decision 8's fix is untouched: the label and note keep `min-width: 0; white-space: nowrap;
+overflow: hidden; text-overflow: ellipsis` and their fixed heights, and there is still no
+`grid-template-columns` anywhere in the sheet. A test asserts the unlabelled `psu/voltage` topic
+renders its raw canonical topic `sensors/psu/0/voltage/0` as its label with those three properties
+resolved on the rendered element, and the capture confirms that tile is exactly as wide as its
+seven siblings — 216px — at the panel viewport.
+
+Making the widget a query container hardens that fix rather than competing with it: an inline-size
+container's width cannot depend on its contents at all, so the fallback label is now *structurally*
+unable to size the widget, not merely ellipsised out of trying. That is asserted too.
+
+## 7. Proving it where the pixels are not: characters, not geometry
+
+jsdom has no layout engine — every box it reports is 0 — so "is this number clipped?" cannot be
+asked of it directly. The field is declared in characters, so the test asks the same question in
+characters: a field of N characters renders a reading of N characters or fewer in full. Nine tests
+read the rendered value's text and its field capacity off the element for `6699008`, `37699580`,
+`0`, `-40.0`, `48.500`, `n/a` and `--`, assert one field width across four readings of different
+lengths, and re-check the label. All nine fail against the pre-fix file (capacity 0 — the value got
+whatever width was left over, and left-over is what the ellipsis ate) and pass after. The pixel
+question is answered where pixels exist: in Chrome, by the capture in decision 3.
+
+## 8. Call sites: what a `ui-kit` widget change reaches
+
+`<Readout>` has exactly one renderer today: `apps/runtime/src/app.tsx`, which injects
+`READOUT_STYLES` verbatim once per page and renders eight tiles — including the throughput tile that
+carried this defect and the unlabelled `psu/voltage` tile that guards decision 8. It sets no width on
+the value and is not edited here; it picks up both the field and the type scale unchanged.
+`apps/editor` depends on `@perch/ui-kit` and imports the namespace in `dependency-edges.test.ts`, but
+does not render the widget yet, so the change reaches it only as a resolvable export. `apps/caster`
+captures the runtime page rather than importing the widget, so it sees the fix through the page.
+Neither dependency-edge test asserts the shape of the export list, so adding
+`READOUT_VALUE_FIELD_CHARS` broke nothing; it has no consumer outside `ui-kit`'s own tests, and is
+exported so a future display-unit decision has a number to reason about rather than a magic `8ch`
+buried in a stylesheet.

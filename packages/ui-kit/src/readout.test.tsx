@@ -20,6 +20,8 @@ import {
 
 const CPU_TEMP = sensorTopic('cpu', 'temperature');
 const GPU_FAN = sensorTopic('gpu', 'fan');
+/** The tile that carried the truncation defect: LHM reports this in raw bytes per second. */
+const GPU_THROUGHPUT = sensorTopic('gpu', 'throughput');
 const CPU_FACTOR = sensorTopic('cpu', 'factor');
 const PSU_VOLTAGE = sensorTopic('psu', 'voltage');
 
@@ -81,6 +83,13 @@ function mount(children: ReactNode, options: { now?: () => number } = {}) {
       recheckIntervalMs={0}
       {...(options.now === undefined ? {} : { now: options.now })}
     >
+      {/*
+       * The widget's own stylesheet, mounted the way the page mounts it, because some of what this
+       * file has to prove is not in the markup. jsdom has no layout engine, but it does resolve the
+       * cascade, so a declared field width or an ellipsis can be read off the rendered element
+       * rather than regexed out of the stylesheet string.
+       */}
+      <style>{READOUT_STYLES}</style>
       <Capture />
       {children}
     </SensorProvider>,
@@ -109,6 +118,37 @@ function shapeOf(readout: HTMLElement): string[] {
   // `Array.from` rather than a spread: the package's `lib` deliberately omits `dom.iterable`, so a
   // `NodeList` is an `ArrayLike` here and not an iterable.
   return Array.from(readout.querySelectorAll('*'), (node) => `${node.tagName}.${node.className}`);
+}
+
+/** One part of the rendered widget, or a failure — a missing element must not skip an assertion. */
+function partOf(readout: HTMLElement, part: string): HTMLElement {
+  const element = readout.querySelector(`.perch-readout__${part}`);
+  if (!(element instanceof HTMLElement)) throw new Error(`no ${part} in the rendered readout`);
+  return element;
+}
+
+/**
+ * How many characters the rendered value's field holds.
+ *
+ * "Is this number clipped?" is a question about pixels, and jsdom has no layout engine — every
+ * geometry it reports is 0. The field is written on the element in `ch` against `tabular-nums`,
+ * where one `ch` is one digit, so the same question can be asked in characters: a field of N
+ * characters renders a value of N characters or fewer in full, whatever the font or the type size.
+ *
+ * Read off the element's own `style`, not through `getComputedStyle`: jsdom normalises a computed
+ * `8ch` to `64px` on an assumed 8px advance, which is both wrong and a moving target between
+ * versions. Anything that is not a character field — `auto`, a percentage, nothing at all — returns
+ * 0, which is the pre-fix state: the value got whatever width was left over in the row, and
+ * left-over is what the ellipsis ate.
+ */
+function valueFieldChars(readout: HTMLElement): number {
+  const chars = /^([0-9.]+)ch$/.exec(partOf(readout, 'value').style.width)?.[1];
+  return chars === undefined ? 0 : Number(chars);
+}
+
+/** What the value element renders, as the reader sees it. */
+function valueTextOf(readout: HTMLElement): string {
+  return partOf(readout, 'value').textContent;
 }
 
 describe('<Readout> — the four states, rendered', () => {
@@ -215,6 +255,134 @@ describe('<Readout> — labelling', () => {
 
   it('throws on a topic outside the grammar rather than showing no data forever', () => {
     expect(() => mount(<Readout topic="sensors/cpu/tempreature" />)).toThrow(RangeError);
+  });
+});
+
+describe('<Readout> — the value is printed in full, never truncated', () => {
+  /**
+   * The reported defect. `6699008 B/s` rendered as `669…` in a 216px tile at both captured
+   * viewports, and `669` is a plausible reading four orders of magnitude out — the worst kind of
+   * wrong, because nothing on the panel says it happened.
+   */
+  it('prints a seven-digit throughput reading in full', () => {
+    const { source } = mount(<Readout topic={GPU_THROUGHPUT} label="GPU PCIe Rx" />);
+
+    source.emit(GPU_THROUGHPUT, { value: 6699008, at: Date.now() });
+
+    const readout = readoutNamed('GPU PCIe Rx');
+    expect(valueTextOf(readout)).toBe('6699008');
+    expect(valueFieldChars(readout)).toBeGreaterThanOrEqual('6699008'.length);
+  });
+
+  /**
+   * The widest reading the field is sized for, and not a hypothetical one: the same machine's
+   * GPU PCIe Tx sensor reports it, in `fixtures/lhm-data.sample.json`.
+   */
+  it('prints an eight-digit throughput reading in full', () => {
+    const { source } = mount(<Readout topic={GPU_THROUGHPUT} label="GPU PCIe Tx" />);
+
+    source.emit(GPU_THROUGHPUT, { value: 37699580, at: Date.now() });
+
+    const readout = readoutNamed('GPU PCIe Tx');
+    expect(valueTextOf(readout)).toBe('37699580');
+    expect(valueFieldChars(readout)).toBeGreaterThanOrEqual('37699580'.length);
+  });
+
+  it('prints a real zero in full', () => {
+    const { source } = mount(<Readout topic={GPU_THROUGHPUT} label="GPU PCIe Rx" />);
+
+    source.emit(GPU_THROUGHPUT, { value: 0, at: Date.now() });
+
+    const readout = readoutNamed('GPU PCIe Rx');
+    expect(valueTextOf(readout)).toBe('0');
+    expect(valueFieldChars(readout)).toBeGreaterThanOrEqual('0'.length);
+  });
+
+  it('prints a negative reading in full, minus sign included', () => {
+    const { source } = mount(<Readout topic={CPU_TEMP} />);
+
+    source.emit(CPU_TEMP, { value: -40, at: Date.now() });
+
+    const readout = readoutNamed('CPU Package');
+    // The sign is the whole point: `40.0` where `-40.0` belongs is an 80-degree error.
+    expect(valueTextOf(readout)).toBe('-40.0');
+    expect(valueFieldChars(readout)).toBeGreaterThanOrEqual('-40.0'.length);
+  });
+
+  it('prints a long decimal in full', () => {
+    const { source } = mount(<Readout topic={CPU_FACTOR} decimals={3} />);
+
+    source.emit(CPU_FACTOR, { value: 48.5, at: Date.now() });
+
+    const readout = readoutNamed('CPU Multiplier');
+    expect(valueTextOf(readout)).toBe('48.500');
+    expect(valueFieldChars(readout)).toBeGreaterThanOrEqual('48.500'.length);
+  });
+
+  it('prints the no-reading placeholder in full', () => {
+    const { source } = mount(<Readout topic={GPU_FAN} label="GPU Fan" />);
+
+    source.emit(GPU_FAN, { value: null, at: Date.now() });
+
+    const readout = readoutNamed('GPU Fan');
+    expect(valueTextOf(readout)).toBe(READOUT_NO_READING_TEXT);
+    expect(valueFieldChars(readout)).toBeGreaterThanOrEqual(READOUT_NO_READING_TEXT.length);
+  });
+
+  it('prints the waiting placeholder in full', () => {
+    mount(<Readout topic={GPU_THROUGHPUT} label="GPU PCIe Rx" />);
+
+    const readout = readoutNamed('GPU PCIe Rx');
+    expect(valueTextOf(readout)).toBe(READOUT_WAITING_TEXT);
+    expect(valueFieldChars(readout)).toBeGreaterThanOrEqual(READOUT_WAITING_TEXT.length);
+  });
+
+  /**
+   * The frame-budget half of the fix, asked the only way jsdom can answer it: the field is declared
+   * in characters, so a reading that grows by seven digits cannot change it. Nothing beside the
+   * value — the unit, the label, the tile, the row — moves when a value crosses a digit boundary.
+   */
+  it('keeps one field width across every length of reading', () => {
+    const { source } = mount(<Readout topic={GPU_THROUGHPUT} label="GPU PCIe Rx" />);
+    const readout = readoutNamed('GPU PCIe Rx');
+
+    const waiting = valueFieldChars(readout);
+
+    source.emit(GPU_THROUGHPUT, { value: 0, at: Date.now() });
+    const zero = valueFieldChars(readout);
+
+    source.emit(GPU_THROUGHPUT, { value: 6699008, at: Date.now() + 1 });
+    const seven = valueFieldChars(readout);
+
+    source.emit(GPU_THROUGHPUT, { value: 37699580, at: Date.now() + 2 });
+    const eight = valueFieldChars(readout);
+
+    expect(zero).toBe(waiting);
+    expect(seven).toBe(waiting);
+    expect(eight).toBe(waiting);
+    expect(waiting).toBeGreaterThanOrEqual(8);
+  });
+
+  /**
+   * The original defect, re-checked on the rendered element rather than on the stylesheet string.
+   * An unlabelled topic's fallback label is the raw canonical topic — the longest string the widget
+   * ever prints — and it must still be unable to set the widget's width. Exempting the value must
+   * not have exempted the label with it.
+   */
+  it('still keeps an unlabelled topic from setting the widget width', () => {
+    mount(<Readout topic={PSU_VOLTAGE} />);
+
+    const readout = readoutNamed(PSU_VOLTAGE);
+    const label = partOf(readout, 'label');
+    expect(label.textContent).toBe(PSU_VOLTAGE);
+
+    const labelStyle = getComputedStyle(label);
+    expect(labelStyle.whiteSpace).toBe('nowrap');
+    expect(labelStyle.overflow).toBe('hidden');
+    expect(labelStyle.textOverflow).toBe('ellipsis');
+    // The label cannot contribute width, and now neither can anything else inside: an inline-size
+    // query container's width is independent of its contents by definition.
+    expect(getComputedStyle(readout).getPropertyValue('container-type')).toBe('inline-size');
   });
 });
 
