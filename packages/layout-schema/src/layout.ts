@@ -41,7 +41,7 @@ import { validateTokenMap, type ThemeTokens } from './theme.js';
  * Bumped in the same change that adds the migration carrying the previous version forward, never
  * separately — a version with no migration into it is a version that can strand files.
  */
-export const LAYOUT_SCHEMA_VERSION = 1;
+export const LAYOUT_SCHEMA_VERSION = 2;
 
 /**
  * Largest canvas dimension accepted, in pixels.

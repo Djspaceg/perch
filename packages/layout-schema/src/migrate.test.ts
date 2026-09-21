@@ -22,6 +22,7 @@ import {
   loadLayout,
   loadLayoutJson,
   migrateLayoutDocument,
+  validateLayout,
   type LayoutMigration,
   type LoadLayoutOptions,
   type MigrateLayoutResult,
@@ -34,6 +35,7 @@ import {
   issuesOf,
   layoutWith,
   TEST_WIDGETS,
+  v1LayoutDocument,
   validLayoutDocument,
   without,
 } from './layout-fixture.test-support.js';
@@ -58,6 +60,15 @@ const RETHEME: LayoutMigration = {
   migrate: (document) => ({ ...document, theme: { '--perch-bg': '#000000' } }),
 };
 
+/**
+ * The current fixture stamped at version 1, for the tests that exercise the *runner*.
+ *
+ * Those tests care only that the document is one version behind the synthetic target; its content
+ * is beside the point. Distinct from `v1LayoutDocument()`, which is what a version 1 build actually
+ * wrote and is what the real boundary tests below use.
+ */
+const v1Document = (): Record<string, unknown> => layoutWith({ schemaVersion: 1 });
+
 const migrated = (result: MigrateLayoutResult): Record<string, unknown> => {
   if (!result.ok) {
     throw new Error(`expected migration to succeed, got: ${codesOf(result).join(', ')}`);
@@ -69,9 +80,9 @@ const migrated = (result: MigrateLayoutResult): Record<string, unknown> => {
 const options: LoadLayoutOptions = { widgets: TEST_WIDGETS };
 
 describe('the production table', () => {
-  it('is empty, because version 1 is the first version there has been', () => {
-    expect(LAYOUT_MIGRATIONS).toEqual([]);
-    expect(LAYOUT_SCHEMA_VERSION).toBe(1);
+  it('carries the step into the current version, and only that step', () => {
+    expect(LAYOUT_SCHEMA_VERSION).toBe(2);
+    expect(LAYOUT_MIGRATIONS.map((step) => `${step.from}->${step.to}`)).toEqual(['1->2']);
   });
 
   it('is frozen, so nothing appends to it at runtime', () => {
@@ -84,8 +95,9 @@ describe('the production table', () => {
     }).not.toThrow();
   });
 
-  it('reports the current version as the oldest loadable one while it is empty', () => {
-    expect(earliestMigratableVersion(LAYOUT_MIGRATIONS)).toBe(LAYOUT_SCHEMA_VERSION);
+  it('reports version 1 as the oldest loadable one, so no version 1 file is stranded', () => {
+    expect(earliestMigratableVersion(LAYOUT_MIGRATIONS)).toBe(1);
+    expect(earliestMigratableVersion([], 7)).toBe(7);
     expect(earliestMigratableVersion([RAISE_FRAME_RATE, RETHEME], 3)).toBe(1);
     expect(earliestMigratableVersion([RETHEME], 3)).toBe(2);
   });
@@ -98,8 +110,8 @@ describe('migrateLayoutDocument: a document already at the target', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.steps).toEqual([]);
-    expect(result.fromVersion).toBe(1);
-    expect(result.toVersion).toBe(1);
+    expect(result.fromVersion).toBe(LAYOUT_SCHEMA_VERSION);
+    expect(result.toVersion).toBe(LAYOUT_SCHEMA_VERSION);
   });
 
   it('still hands back a copy, so a caller cannot be surprised by a shared reference', () => {
@@ -112,7 +124,7 @@ describe('migrateLayoutDocument: a document already at the target', () => {
 
 describe('migrateLayoutDocument: carrying a document forward', () => {
   it('runs one step and stamps the new version', () => {
-    const result = migrateLayoutDocument(validLayoutDocument(), {
+    const result = migrateLayoutDocument(v1Document(), {
       migrations: [RAISE_FRAME_RATE],
       targetVersion: 2,
     });
@@ -126,7 +138,7 @@ describe('migrateLayoutDocument: carrying a document forward', () => {
   });
 
   it('chains steps in order', () => {
-    const result = migrateLayoutDocument(validLayoutDocument(), {
+    const result = migrateLayoutDocument(v1Document(), {
       migrations: [RAISE_FRAME_RATE, RETHEME],
       targetVersion: 3,
     });
@@ -161,7 +173,7 @@ describe('migrateLayoutDocument: carrying a document forward', () => {
         return { ...document };
       },
     };
-    const document = validLayoutDocument();
+    const document = v1Document();
     const before = clone(document);
 
     migrateLayoutDocument(document, { migrations: [vandal], targetVersion: 2 });
@@ -178,9 +190,9 @@ describe('migrateLayoutDocument: carrying a document forward', () => {
     };
 
     expect(
-      migrated(
-        migrateLayoutDocument(validLayoutDocument(), { migrations: [forgetful], targetVersion: 2 }),
-      )['schemaVersion'],
+      migrated(migrateLayoutDocument(v1Document(), { migrations: [forgetful], targetVersion: 2 }))[
+        'schemaVersion'
+      ],
     ).toBe(2);
   });
 
@@ -193,9 +205,9 @@ describe('migrateLayoutDocument: carrying a document forward', () => {
     };
 
     expect(
-      migrated(
-        migrateLayoutDocument(validLayoutDocument(), { migrations: [liar], targetVersion: 2 }),
-      )['schemaVersion'],
+      migrated(migrateLayoutDocument(v1Document(), { migrations: [liar], targetVersion: 2 }))[
+        'schemaVersion'
+      ],
     ).toBe(2);
   });
 });
@@ -206,13 +218,13 @@ describe('migrateLayoutDocument: the versions it refuses', () => {
 
     expect(issue.code).toBe('unsupported-future-version');
     expect(issue.message).toContain('9');
-    expect(issue.message).toContain('1');
+    expect(issue.message).toContain(String(LAYOUT_SCHEMA_VERSION));
     expect(issue.message).toMatch(/destroy|never heard of/);
   });
 
   it('rejects a version older than the table can reach, naming the oldest it can', () => {
     const issue = issueAt(
-      migrateLayoutDocument(validLayoutDocument(), { migrations: [RETHEME], targetVersion: 3 }),
+      migrateLayoutDocument(v1Document(), { migrations: [RETHEME], targetVersion: 3 }),
       'schemaVersion',
     );
 
@@ -263,7 +275,7 @@ describe('migrateLayoutDocument: a step that misbehaves', () => {
     };
 
     const issue = issueAt(
-      migrateLayoutDocument(validLayoutDocument(), { migrations: [thrower], targetVersion: 2 }),
+      migrateLayoutDocument(v1Document(), { migrations: [thrower], targetVersion: 2 }),
       '',
     );
 
@@ -282,7 +294,7 @@ describe('migrateLayoutDocument: a step that misbehaves', () => {
     };
 
     const issue = issueAt(
-      migrateLayoutDocument(validLayoutDocument(), { migrations: [wrong], targetVersion: 2 }),
+      migrateLayoutDocument(v1Document(), { migrations: [wrong], targetVersion: 2 }),
       '',
     );
 
@@ -310,7 +322,7 @@ describe('migrateLayoutDocument: a step that misbehaves', () => {
       },
     };
 
-    migrateLayoutDocument(validLayoutDocument(), {
+    migrateLayoutDocument(v1Document(), {
       migrations: [thrower, watcher],
       targetVersion: 3,
     });
@@ -319,7 +331,7 @@ describe('migrateLayoutDocument: a step that misbehaves', () => {
   });
 
   it('rejects a document that is not JSON-safe, per hard rule 1', () => {
-    const document: Record<string, unknown> = validLayoutDocument();
+    const document: Record<string, unknown> = v1Document();
     document['self'] = document;
 
     expect(
@@ -377,7 +389,7 @@ describe('assertLayoutMigrationTable', () => {
 
   it('is enforced by the runner, not merely available to it', () => {
     expect(() =>
-      migrateLayoutDocument(validLayoutDocument(), {
+      migrateLayoutDocument(v1Document(), {
         migrations: [{ ...RAISE_FRAME_RATE, to: 4 }],
         targetVersion: 4,
       }),
@@ -391,13 +403,13 @@ describe('loadLayout: migrate, then validate', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.fromVersion).toBe(1);
+    expect(result.fromVersion).toBe(LAYOUT_SCHEMA_VERSION);
     expect(result.migrations).toEqual([]);
     expect(result.layout.target.frameRate).toBe(30);
   });
 
   it('carries a document one version behind forward and reports what it did', () => {
-    const result = loadLayout(validLayoutDocument(), {
+    const result = loadLayout(v1Document(), {
       ...options,
       migrations: [RAISE_FRAME_RATE],
       targetVersion: 2,
@@ -421,7 +433,7 @@ describe('loadLayout: migrate, then validate', () => {
     };
 
     const issue = issueAt(
-      loadLayout(validLayoutDocument(), { ...options, migrations: [breaker], targetVersion: 2 }),
+      loadLayout(v1Document(), { ...options, migrations: [breaker], targetVersion: 2 }),
       'flavour',
     );
 
@@ -429,7 +441,7 @@ describe('loadLayout: migrate, then validate', () => {
   });
 
   it('refuses a future version before it validates anything', () => {
-    expect(codesOf(loadLayout(layoutWith({ schemaVersion: 2 }), options))).toEqual([
+    expect(codesOf(loadLayout(layoutWith({ schemaVersion: 99 }), options))).toEqual([
       'unsupported-future-version',
     ]);
   });
@@ -462,7 +474,7 @@ describe('loadLayoutJson', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.layout.elements).toHaveLength(4);
+    expect(result.layout.elements).toHaveLength(5);
   });
 
   it('reports a syntax error as an issue', () => {
@@ -470,7 +482,7 @@ describe('loadLayoutJson', () => {
   });
 
   it('migrates text through the same path as an object', () => {
-    const result = loadLayoutJson(JSON.stringify(validLayoutDocument()), {
+    const result = loadLayoutJson(JSON.stringify(v1Document()), {
       ...options,
       migrations: [RAISE_FRAME_RATE],
       targetVersion: 2,
@@ -479,6 +491,149 @@ describe('loadLayoutJson', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.layout.target.frameRate).toBe(60);
+  });
+});
+
+/**
+ * The version 1 / version 2 boundary, in both directions.
+ *
+ * This is the first real migration, and the first time the machinery carries a document written by
+ * a previous format rather than a synthetic one. Both directions matter and they fail differently:
+ * forwards, an old file must be carried and the carrying *reported*; backwards, a build that
+ * predates the chart must refuse the whole document at its version rather than pick over fields it
+ * does not recognise.
+ */
+describe('the version 1 to version 2 boundary: an old document in a new reader', () => {
+  it('migrates a version 1 file forward and reports that it did', () => {
+    const result = loadLayout(v1LayoutDocument(), options);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.fromVersion).toBe(1);
+    expect(result.layout.schemaVersion).toBe(2);
+    expect(result.migrations.map((step) => `${step.from}->${step.to}`)).toEqual(['1->2']);
+    expect(formatMigrationReport(result.migrations)).toContain('chart');
+  });
+
+  it('changes nothing in the document but the version, because version 2 only adds', () => {
+    const before = v1LayoutDocument();
+    const result = migrateLayoutDocument(before);
+
+    expect(migrated(result)).toEqual({ ...before, schemaVersion: 2 });
+  });
+
+  it('reports no migration for a document already at version 2', () => {
+    const result = loadLayout(validLayoutDocument(), options);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.migrations).toEqual([]);
+    expect(formatMigrationReport(result.migrations)).toBe('no migration needed');
+  });
+
+  it('loads a version 1 file that is behind but still wrong, without hiding what is wrong', () => {
+    // Migration is not a repair. A v1 file with a broken element migrates to v2 and is then
+    // refused on its merits, with the element named rather than the version blamed.
+    const broken = {
+      ...v1LayoutDocument(),
+      elements: [
+        { kind: 'widget', widget: 'gauge', topic: 'a/b', rect: { x: 0, y: 0, w: 1, h: 1 } },
+      ],
+    };
+
+    expect(codesOf(loadLayout(broken, options))).toEqual(['missing-range']);
+  });
+});
+
+describe('the version 1 to version 2 boundary: a chart layout in an old reader', () => {
+  /** A version 2 document with a chart in it — what a current editor writes. */
+  const chartDocument = (): Record<string, unknown> =>
+    layoutWith({
+      elements: [
+        {
+          kind: 'chart',
+          widget: 'sparkline',
+          topic: 'sensors/cpu/0/load/0',
+          rect: { x: 0, y: 0, w: 480, h: 200 },
+          windowMs: 300_000,
+          range: [0, 100],
+        },
+      ],
+    });
+
+  /**
+   * A build that predates the chart: target version 1, and the empty table it shipped with.
+   *
+   * Both halves are needed, and finding that out is itself worth pinning. `targetVersion: 1` alone
+   * throws `RangeError` from `assertLayoutMigrationTable`, because this build's table ends at 2 and
+   * a table that overshoots its target is malformed. That is the right error — it is a programmer
+   * mistake, not a bad file — but it means `targetVersion` on its own no longer describes an older
+   * reader now that the table is non-empty.
+   */
+  const v1Reader: LoadLayoutOptions = { ...options, targetVersion: 1, migrations: [] };
+
+  it('refuses it at the version, naming the version, before it looks at a single element', () => {
+    // The refusal is one issue about `schemaVersion` — not a list of complaints about `windowMs`
+    // and an unknown `kind`, which is what field-by-field refusal would have produced and would
+    // have blamed the author for.
+    const issues = issuesOf(loadLayout(chartDocument(), v1Reader));
+
+    expect(issues.map((issue) => issue.code)).toEqual(['unsupported-future-version']);
+    const [only] = issues;
+    expect(only?.path).toBe('schemaVersion');
+    expect(only?.message).toContain('2');
+    expect(only?.message).toContain('1');
+  });
+
+  it('refuses it through validateLayout too, pointing at the version and not at the chart', () => {
+    // `validateLayout` consults no table, so `targetVersion` alone is a v1 reader here.
+    const issue = issueAt(
+      validateLayout(chartDocument(), { ...options, targetVersion: 1 }),
+      'schemaVersion',
+    );
+
+    expect(issue.code).toBe('unsupported-future-version');
+    expect(issue.message).toMatch(/upgrade/);
+  });
+
+  it('throws rather than guessing when a reader is given a table that cannot reach its target', () => {
+    // The mistake the comment on `v1Reader` describes, pinned so the next person meets it as a
+    // message rather than as a puzzle. A bad table is programmer input, so it throws.
+    expect(() => loadLayout(chartDocument(), { ...options, targetVersion: 1 })).toThrow(RangeError);
+  });
+
+  it('would have refused the chart fields as well, which is why the version gate is enough', () => {
+    // The belt behind the braces. An old reader's `elements` allowed no `chart` kind and its widget
+    // fields allowed no `windowMs`, and both are errors rather than ignored — so even a reader that
+    // somehow got past `schemaVersion` could not silently drop what it did not understand. That
+    // rule is what makes stamping version 2 a sufficient defence rather than a hopeful one.
+    expect(
+      codesOf(validateLayout(layoutWith({ elements: [{ kind: 'trend', topic: 'a/b' }] }), options)),
+    ).toEqual(['unknown-element-kind']);
+  });
+
+  it('accepts a chart at version 2 with no migration, which is the other half of the same gate', () => {
+    const result = loadLayout(chartDocument(), options);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.migrations).toEqual([]);
+    expect(result.layout.elements[0]?.kind).toBe('chart');
+  });
+
+  it('carries a hand-stamped version 1 document containing a chart forward rather than refusing it', () => {
+    // Deliberate and worth pinning: migration runs *before* validation and must, because an old
+    // document does not satisfy the current field checks — that is what a version is. So a document
+    // claiming version 1 while containing version 2 content is migrated and then accepted. No v1
+    // writer produced this, and nothing is misread: the chart means at v2 what it says. The
+    // alternative, validating at the claimed version first, is the thing the machinery cannot do.
+    const handEdited = { ...chartDocument(), schemaVersion: 1 };
+    const result = loadLayout(handEdited, options);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.fromVersion).toBe(1);
+    expect(result.layout.schemaVersion).toBe(2);
   });
 });
 

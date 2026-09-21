@@ -38,7 +38,7 @@ describe('validateLayout, positively', () => {
     const layout = layoutOf(validateLayout(validLayoutDocument(), options));
 
     expect(layout).toEqual(validLayoutDocument());
-    expect(layout.elements).toHaveLength(4);
+    expect(layout.elements).toHaveLength(5);
   });
 
   it('returns a rebuilt layout with exactly the schema fields and no extras', () => {
@@ -82,6 +82,7 @@ describe('validateLayout, positively', () => {
       'text',
       'widget',
       'widget',
+      'chart',
     ]);
   });
 });
@@ -110,7 +111,7 @@ describe('validateLayout: schemaVersion is mandatory and has no best-effort path
 
   it('rejects a version behind the target, pointing at loadLayout rather than guessing', () => {
     const issue = issueAt(
-      validateLayout(validLayoutDocument(), { ...options, targetVersion: 2 }),
+      validateLayout(validLayoutDocument(), { ...options, targetVersion: 3 }),
       'schemaVersion',
     );
 
@@ -135,7 +136,7 @@ describe('validateLayout: schemaVersion is mandatory and has no best-effort path
     );
 
     expect(layout.schemaVersion).toBe(4);
-    expect(layout.elements).toHaveLength(4);
+    expect(layout.elements).toHaveLength(5);
   });
 });
 
@@ -163,7 +164,7 @@ describe('validateLayout: an unknown field is an error, not a shrug', () => {
 
   it('treats an inherited field as absent rather than as configuration', () => {
     const document = Object.assign(hostile<Record<string, unknown>>(Object.create({ theme: {} })), {
-      schemaVersion: 1,
+      schemaVersion: LAYOUT_SCHEMA_VERSION,
       target: { width: 1920, height: 400, frameRate: 30 },
       elements: [],
     });
@@ -309,7 +310,7 @@ describe('validateLayout: issues are collected, not thrown at the first problem'
     const codes = codesOf(
       validateLayout(
         {
-          schemaVersion: 1,
+          schemaVersion: LAYOUT_SCHEMA_VERSION,
           target: { width: 0, height: 400, frameRate: 30 },
           theme: { fg: '#fff' },
           elements: [],
@@ -364,7 +365,9 @@ describe('validateLayout: issues are collected, not thrown at the first problem'
   });
 
   it('names a field and a location in every message', () => {
-    for (const issue of issuesOf(validateLayout({ schemaVersion: 1 }, options))) {
+    for (const issue of issuesOf(
+      validateLayout({ schemaVersion: LAYOUT_SCHEMA_VERSION }, options),
+    )) {
       expect(issue.message.length).toBeGreaterThan(0);
       expect(issue.path.length).toBeGreaterThan(0);
     }

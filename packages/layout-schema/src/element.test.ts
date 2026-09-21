@@ -1,8 +1,9 @@
 /**
- * The element union: the three kinds, the injected widget vocabulary, and the range rule.
+ * The element union: the kinds, the injected widget vocabulary, and the range rule.
  *
  * Every case is "one element in an otherwise valid layout", so a failure names `elements[0]` and
- * nothing else is in the way.
+ * nothing else is in the way. The `chart` kind's own rules live in `chart.test.ts`; what is here is
+ * the union it joined and the widget-binding rules it shares.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -51,8 +52,8 @@ const oneElement = (element: unknown): ReturnType<typeof validateLayout> =>
   validateLayout(layoutWithElements([element]), options);
 
 describe('kind is the discriminant, and an unknown one is not guessed at', () => {
-  it('lists exactly the v1 kinds', () => {
-    expect(ELEMENT_KINDS).toEqual(['widget', 'text', 'media']);
+  it('lists exactly the kinds there are', () => {
+    expect(ELEMENT_KINDS).toEqual(['widget', 'text', 'media', 'chart']);
     expect(isElementKind('widget')).toBe(true);
     expect(isElementKind('group')).toBe(false);
   });

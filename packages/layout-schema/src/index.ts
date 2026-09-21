@@ -38,6 +38,7 @@ export {
 export {
   ELEMENT_KINDS,
   isElementKind,
+  type ChartElement,
   type ElementKind,
   type LayoutElement,
   type MediaElement,
@@ -45,6 +46,14 @@ export {
   type TextElement,
   type WidgetElement,
 } from './element.js';
+
+export {
+  CHART_GAPS,
+  CHART_MAX_WINDOW_MS,
+  CHART_MIN_WINDOW_MS,
+  DEFAULT_CHART_GAP,
+  type ChartGap,
+} from './chart.js';
 
 export { rectIntersectsCanvas, type Rect } from './geometry.js';
 

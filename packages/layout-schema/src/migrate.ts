@@ -7,16 +7,18 @@
  * work gets destroyed. Which is also why an unknown field is an error rather than a shrug: the
  * two rules are the same rule, applied at the document and at the field.
  *
- * ## Why this exists with only one version
+ * ## Why this was built before it was needed
  *
  * Retrofitting migration at the moment it is first needed means the first migration ever written
  * runs for the first time on somebody's real file, through machinery that has never carried a
- * document end to end. So the machinery is here now, and it is built as a **table of data plus a
- * runner** rather than as a chain of hard-coded `if (v === 1)` branches. The table being data is
- * what makes the runner testable while it is empty: the tests inject synthetic tables with two
- * and three versions and a `targetVersion` to match, and exercise chaining, ordering, an
- * unreachable old version, a future version, a step that throws, and the no-op at the target. The
- * production table is `LAYOUT_MIGRATIONS`, and it is `[]`.
+ * document end to end. So the machinery was here first, built as a **table of data plus a runner**
+ * rather than as a chain of hard-coded `if (v === 1)` branches, and exercised against synthetic
+ * tables: chaining, ordering, an unreachable old version, a future version, a step that throws,
+ * and the no-op at the target.
+ *
+ * `LAYOUT_MIGRATIONS` now carries a real entry, and the synthetic tables are still there. They are
+ * not redundant: the real table has one step, so only a synthetic one can exercise a chain, a
+ * document joining a chain halfway, or a table that does not reach the target.
  *
  * ## Adding a version
  *
@@ -62,12 +64,37 @@ export interface LayoutMigrationStep {
 }
 
 /**
+ * Version 1 to version 2: the `chart` element kind exists.
+ *
+ * **The document rewrite is empty, and that is the whole point of the step.** Version 2 is purely
+ * additive — it adds a fourth member to `ELEMENT_KINDS` and a `windowMs`/`gap` vocabulary that only
+ * that member uses — so every field a version 1 file contains means in version 2 exactly what it
+ * meant in version 1, and there is nothing to rewrite.
+ *
+ * What the step buys is the *version number*, which is load-bearing in the other direction. An
+ * unknown field is an error in this schema and an unknown `kind` is an error too, so a build that
+ * predates the chart, handed a layout containing one, would refuse it element by element and blame
+ * the author for fields that are perfectly valid — or, worse, a future relaxation of that rule
+ * would have it drop them. Stamping version 2 means such a build refuses the *document*, once, at
+ * `schemaVersion`, naming the version it cannot read and telling the human to upgrade. The
+ * migration exists so that the refusal happens at the version rather than at the fields.
+ *
+ * A no-op `migrate` is therefore correct rather than lazy, and it must still be here: a
+ * `LAYOUT_SCHEMA_VERSION` of 2 with no step from 1 would make `earliestMigratableVersion` 2 and
+ * strand every version 1 file as `unsupported-past-version`.
+ */
+const ADD_CHART_ELEMENT: LayoutMigration = {
+  from: 1,
+  to: 2,
+  description: 'add the chart element kind; no version 1 field changes meaning',
+  migrate: (document) => ({ ...document }),
+};
+
+/**
  * Every migration this build knows, in ascending order, contiguous, ending at
  * `LAYOUT_SCHEMA_VERSION`.
- *
- * Empty: version 1 is the first version, so there is nothing behind it. The runner is not empty.
  */
-export const LAYOUT_MIGRATIONS: readonly LayoutMigration[] = Object.freeze([]);
+export const LAYOUT_MIGRATIONS: readonly LayoutMigration[] = Object.freeze([ADD_CHART_ELEMENT]);
 
 /** Options for the migration runner. */
 export interface MigrateLayoutOptions {

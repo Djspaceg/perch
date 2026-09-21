@@ -36,12 +36,16 @@ export function clone<T>(value: T): T {
  * A valid layout at the current schema version: the 1920x400 panel `ARCHITECTURE.md` names, with
  * one element of each kind.
  *
+ * "Each kind" is load-bearing, not decorative: it is what puts every element kind through the
+ * document-level tests — the JSON round trip, the rebuilt-with-exactly-these-keys check, and paint
+ * order — rather than only through its own file. A fifth kind belongs here on the day it is added.
+ *
  * Returned from a function rather than exported as a constant so no test can leave a mutation
  * behind for another.
  */
 export function validLayoutDocument(): Record<string, unknown> {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     target: { width: 1920, height: 400, frameRate: 30 },
     theme: {
       '--perch-fg': '#e6edf3',
@@ -74,6 +78,45 @@ export function validLayoutDocument(): Record<string, unknown> {
         rect: { x: 320, y: 80, w: 240, h: 240 },
         range: [0, 100],
         style: { '--perch-accent': '#f85149' },
+      },
+      {
+        kind: 'chart',
+        widget: 'sparkline',
+        topic: 'sensors/cpu/0/load/0',
+        rect: { x: 640, y: 80, w: 480, h: 200 },
+        windowMs: 300_000,
+        range: [0, 100],
+        gap: 'break',
+      },
+    ],
+  };
+}
+
+/**
+ * The same dashboard as a version 1 build would have written it: no chart, `schemaVersion: 1`.
+ *
+ * The other half of the version boundary. Every "old document into new reader" test starts here,
+ * and it is written out rather than derived from `validLayoutDocument()` because the thing under
+ * test is what the *old format* looked like — deriving it would let a change to the current fixture
+ * quietly redefine the history being migrated from.
+ */
+export function v1LayoutDocument(): Record<string, unknown> {
+  return {
+    schemaVersion: 1,
+    target: { width: 1920, height: 400, frameRate: 30 },
+    theme: { '--perch-fg': '#e6edf3' },
+    elements: [
+      {
+        kind: 'text',
+        text: 'CPU',
+        rect: { x: 48, y: 32, w: 200, h: 40 },
+      },
+      {
+        kind: 'widget',
+        widget: 'gauge',
+        topic: 'sensors/gpu/0/temperature/0',
+        rect: { x: 320, y: 80, w: 240, h: 240 },
+        range: [0, 100],
       },
     ],
   };
