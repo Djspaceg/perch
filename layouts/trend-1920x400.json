@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 2,
+  "target": { "width": 1920, "height": 400, "frameRate": 30 },
+  "theme": {
+    "--perch-canvas-bg": "#0b0e13",
+    "--perch-letterbox-bg": "#050608",
+    "--perch-font": "ui-monospace, SFMono-Regular, Menlo, monospace",
+    "--perch-fg": "#e8f1ff",
+    "--perch-dim": "#7f8da3",
+    "--perch-faint": "#4c586b",
+    "--perch-text-color": "#7f8da3",
+    "--perch-chart-surface": "#0b0e13",
+    "--perch-chart-grid": "#1e2530",
+    "--perch-chart-value-size": "1.375rem",
+    "--perch-chart-label-size": "0.8125rem",
+    "--perch-chart-axis-size": "0.75rem"
+  },
+  "elements": [
+    {
+      "kind": "text",
+      "text": "perch · trend panel",
+      "rect": { "x": 32, "y": 18, "w": 700, "h": 32 },
+      "style": {
+        "--perch-text-size": "1.125rem",
+        "--perch-text-weight": "700",
+        "--perch-text-tracking": "0.24em",
+        "--perch-text-transform": "uppercase",
+        "--perch-text-color": "#cfe0ff"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "mock source · generated values, not hardware",
+      "rect": { "x": 1100, "y": 18, "w": 788, "h": 32 },
+      "style": {
+        "--perch-text-justify": "flex-end",
+        "--perch-text-size": "0.8125rem",
+        "--perch-text-tracking": "0.18em",
+        "--perch-text-transform": "uppercase",
+        "--perch-text-color": "#6b7a91"
+      }
+    },
+    {
+      "kind": "chart",
+      "widget": "line-chart",
+      "topic": "sensors/cpu/0/temperature/0",
+      "rect": { "x": 32, "y": 72, "w": 352, "h": 240 },
+      "windowMs": 60000,
+      "range": [30, 95]
+    },
+    {
+      "kind": "chart",
+      "widget": "line-chart",
+      "topic": "sensors/cpu/0/load/0",
+      "rect": { "x": 408, "y": 72, "w": 352, "h": 240 },
+      "windowMs": 60000,
+      "range": [0, 100]
+    },
+    {
+      "kind": "chart",
+      "widget": "line-chart",
+      "topic": "sensors/storage/1/temperature/0",
+      "rect": { "x": 784, "y": 72, "w": 352, "h": 240 },
+      "windowMs": 300000,
+      "range": [20, 70],
+      "gap": "span"
+    },
+    {
+      "kind": "chart",
+      "widget": "line-chart",
+      "topic": "sensors/cooler/0/fan/0",
+      "rect": { "x": 1160, "y": 72, "w": 352, "h": 240 },
+      "windowMs": 60000,
+      "range": [0, 2600],
+      "style": {
+        "--perch-faint": "#8a6a3c"
+      }
+    },
+    {
+      "kind": "chart",
+      "widget": "line-chart",
+      "topic": "sensors/psu/0/voltage/0",
+      "rect": { "x": 1536, "y": 72, "w": 352, "h": 240 },
+      "windowMs": 60000,
+      "range": [11.4, 12.6],
+      "style": {
+        "--perch-faint": "#8a6a3c"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "history is held in the page for as long as a chart asks for it, and does not survive a reload\nfive charts, five windows · drive 2 spans its gaps because this layout asked it to · the pump header reports nothing · psu voltage is never published by this source",
+      "rect": { "x": 32, "y": 320, "w": 1856, "h": 40 },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-size": "0.75rem",
+        "--perch-text-line-height": "1.6",
+        "--perch-text-color": "#5b687c"
+      }
+    }
+  ]
+}
