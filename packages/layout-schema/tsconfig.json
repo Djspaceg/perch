@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"],
+  // `*.test-support.ts` is excluded for the same reason as the tests themselves, and the same
+  // reason `sensor-contract` excludes its own: it is test scaffolding, and it must not reach
+  // `dist`, where SPEC hard rule 4's zero-runtime-dependency claim applies.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test-support.ts"]
+}

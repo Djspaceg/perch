@@ -1,0 +1,25 @@
+{
+  "name": "@perch/layout-schema",
+  "version": "0.0.0",
+  "private": true,
+  "description": "What a dashboard is: layout format, validation, versioning, migration.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "test": "vitest run",
+    "typecheck": "tsc -b"
+  }
+}
