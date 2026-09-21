@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "lib": ["ES2022", "DOM"],
+    // The automatic runtime: JSX compiles to `react/jsx-runtime` calls, so a component
+    // file needs no `import React`. Set now so the first `.tsx` file added is the whole
+    // change, rather than a config edit plus a file.
+    "jsx": "react-jsx"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"],
+  "references": [
+    { "path": "../../packages/sensor-contract" },
+    { "path": "../../packages/layout-schema" },
+    { "path": "../../packages/ui-kit" },
+    { "path": "../../packages/sensor-sources" }
+  ]
+}

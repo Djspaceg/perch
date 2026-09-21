@@ -1,0 +1,32 @@
+{
+  "name": "@perch/runtime",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Renders a layout: windowed and capture mode, and the standalone bundle.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b && vite build",
+    "clean": "tsc -b --clean",
+    "dev": "vite",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@perch/layout-schema": "0.0.0",
+    "@perch/sensor-contract": "0.0.0",
+    "@perch/sensor-sources": "0.0.0",
+    "@perch/ui-kit": "0.0.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "vite": "^6.4.3"
+  }
+}

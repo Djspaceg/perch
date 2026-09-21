@@ -1,0 +1,33 @@
+<!doctype html>
+<!--
+  The page Vite serves and builds.
+
+  What is *absent* here is the point. There is no import map: the previous harness needed one
+  because `tsc -b` emits bare specifiers like `@perch/ui-kit` that no browser can resolve, so each
+  workspace package had to be pointed at its own emitted `dist/index.js` by hand, and adding a
+  package meant editing this file. Vite resolves workspace packages itself, from source, so the
+  map is gone and so is the `dist/` round-trip — the browser runs what `src/` says.
+
+  Nor is there a stylesheet link. The widget's CSS lives with the widget, as a string in
+  `@perch/ui-kit`, and React hoists it into the document head when the component that needs it
+  renders. (Written as prose, not as the tag: Vite injects its dev client after the first literal
+  head tag in this file, and when that match is inside a comment the injected scripts are commented
+  out too — the app still mounts, but the react-refresh preamble never runs and the React plugin
+  then throws. Do not write that tag name inside this comment.)
+
+  This file will not load over `file://`: module scripts are blocked by the origin rules there, and
+  the failure is silent — a blank page with nothing in the console. `npm run dev -w @perch/runtime`
+  serves it over HTTP. (The standalone bundle described in README.md is a separate build with
+  different constraints, and does not exist yet.)
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>perch · runtime</title>
+  </head>
+  <body>
+    <div id="perch-root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "@perch/caster",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runs a built runtime bundle at target resolution on a capturable surface.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "test": "vitest run",
+    "typecheck": "tsc -b"
+  }
+}
