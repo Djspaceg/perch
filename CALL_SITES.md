@@ -568,3 +568,53 @@ them for one source.
   `@vitejs/plugin-react@^6.1.1`, and the root declares `vite@^8.3.0` as well, so there is one
   installed copy rather than two majors. The alignment that earlier notes deferred to "the next
   `npm install`" has happened.
+
+# Added by "wiring the layout format into the page"
+
+`apps/runtime` is the first consumer of `@perch/layout-schema`, and `@perch/ui-kit` grew two
+components plus a token vocabulary. Nothing in `layout-schema` changed, so no existing call site
+moved — what follows is what now exists to be called, and what a change to it would reach.
+
+## `@perch/ui-kit` — new exports, and the readout's tokens
+
+- `TextBlock` and `MediaFrame`, the two element kinds a layout needs beyond a widget. Both hold a
+  fixed element shape and do not reflow on update, for the same reason `Readout` does not.
+- `tokens.ts`: `PERCH_TOKENS`, `PERCH_TOKEN_DEFAULTS`, `token(name)`. `Readout`'s hard-coded colours
+  and sizes are now `var(--perch-*, <default>)` reads through `token()`.
+- **This is the surface a layout's `theme` and per-element `style` reach.** `layout-schema` validates
+  a theme as a map of CSS custom properties without knowing what any of them mean, so the *set* of
+  tokens that do anything is `PERCH_TOKEN_DEFAULTS` plus `CANVAS_TOKEN_DEFAULTS` in the runtime.
+  Renaming a token silently stops a shipped layout's styling from applying: `layouts/*.json` name
+  tokens as strings and no compiler sees them. `layouts.test.ts` checks that the two layouts still
+  differ in their themes, which catches the crude form of this and not the subtle one.
+
+## `apps/runtime` — the new files and who may call them
+
+- `widget-catalogue.tsx` — `WIDGET_CATALOGUE` is the **only** place a widget name is declared.
+  `WIDGET_REGISTRY` and the component map are derived; adding a widget means one entry carrying both
+  halves. Anything that needs the registry imports it from here rather than building one.
+- `layout-catalogue.ts` — the only file that knows where `layouts/` is. Holds the three
+  `import.meta.glob` calls and the `ImportMeta.glob` declaration.
+- `layout-canvas.tsx` — the canvas, the letterbox, and `CANVAS_TOKEN_DEFAULTS` (`--perch-canvas-bg`,
+  `--perch-letterbox-bg`). These are the page's own tokens; `ui-kit` has never heard of either.
+- `layout-problem.tsx` — the three refusals and their `data-perch-problem` values.
+- `viewport.ts` — `useViewport`, `fitCanvas`, `parsePageRequest`. The query-string contract
+  (`?layout=`, `?mode=`) is parsed here and nowhere else.
+
+## Live hazards for whoever touches this next
+
+- **A registry with no component behind a name is the failure mode this design removes.** Do not
+  reintroduce a second hand-written list of widget names anywhere. A layout that validates and paints
+  an empty rectangle is worse than either half failing alone.
+- **`layouts/*.json` are call sites with no compiler.** Widget names, topic strings, token names and
+  media paths inside them are checked at run time by `loadLayout` and by `layouts.test.ts`, not by
+  `tsc`. Renaming a widget, a token, or a `MOCK_SENSOR_SPECS` entry can break a shipped layout with a
+  green build.
+- **Capture mode refuses rather than scales.** Anything that screenshots the page must size its
+  viewport to `layout.target` exactly, or drop `&mode=capture`. `.evidence/capture-layouts.mjs` is the
+  worked example.
+- **The chrome strip is not optional and not themable.** It is the page's provenance statement while
+  the sensor host is off. Hiding it needs a decision recorded, not a CSS change.
+- **`OutputCapabilities.frameRate` is deliberately omitted by `fitCanvas`.** Supplying it would start
+  refusing layouts on a claim a browser cannot honestly make. A test asserts the mismatch text never
+  mentions Hz.

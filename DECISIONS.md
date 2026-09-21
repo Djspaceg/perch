@@ -3100,3 +3100,320 @@ human's call.
 
 The lockfile was **deleted and regenerated** from the manifests rather than edited, so the resolution
 committed here is one npm produced from scratch.
+
+# The 1 Hz failure line: reporting an outage without repeating it — decisions
+
+The relay polls once a second. While LibreHardwareMonitor is unreachable it wrote one line per
+poll, so a host switched off for 100 hours produced on the order of **360 000 identical lines**.
+The volume is the obvious complaint; the damage is that it buries the two lines that carry
+information — the **first** failure, whose reason is the diagnostic, and a **change** of reason,
+where `ECONNREFUSED` becoming a timeout is the difference between "host up, nothing listening"
+and "host gone".
+
+The bar this was built to: someone tailing the log can answer *is it still broken, since when, and
+why* without scrolling past repeats.
+
+## 1. Collapse the run; do not lower the severity, drop the line, or add a quiet flag
+
+Three cheaper fixes were available and all three are the wrong trade. Demoting the line to `warn`
+or `debug` keeps 360 000 lines and makes them harder to find. Dropping repeats with no summary
+leaves a reader unable to distinguish "still broken" from "the process died". A `--quiet` flag
+that defaults to hiding failures makes the default configuration the one that lies.
+
+So failures stay on `error`, nothing is suppressed that says something new, and there is no flag.
+What changed is that a *run* of failures is reported as a run: `apps/agent/src/failure-log.ts`
+emits the first failure in full, a changed reason immediately and in full, a periodic summary on
+an escalating interval, and a recovery carrying the outage's duration and failed-attempt count.
+Everything in between is silent.
+
+## 2. The summary interval escalates: 10 s doubling to a 1 hour cap
+
+A fixed interval has to choose between being useless early and noisy late. Ten seconds is right in
+the first minute, when a human is watching and wants to know the relay is still trying — and it is
+36 000 lines across a four-day outage. One hour is right overnight, and leaves the first minute
+silent, which reads exactly like the process having died.
+
+So the gap starts at 10 s and doubles after each summary, capped at one hour:
+
+| summary at | 10 s | 30 s | 1 m 10 s | 2 m 30 s | 5 m 10 s | 10 m 30 s | 21 m 10 s | 42 m 30 s | then hourly |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+
+The properties that made this the choice rather than a round number picked by feel:
+
+- **Bounded and easy to state.** Logarithmic while it ramps, one line an hour after. The 100-hour
+  outage this was written for costs **108 lines instead of 360 000**, and the arithmetic is one
+  sentence rather than a table a reader has to trust.
+- **Never more than an hour stale.** The cap is what makes "is it still broken" answerable from
+  the last line visible on screen, however long the outage has run. An unbounded ladder would
+  eventually be indistinguishable from silence.
+- **Reassuring while a human is present.** Four lines in the first three minutes is the window
+  where someone is actually watching a relay they just started.
+
+Each summary is self-contained — reason, elapsed duration, consecutive-failure count, and the
+outage's absolute ISO start — because a reader who starts tailing mid-outage sees only summaries,
+and the relay's lines carry no timestamp of their own.
+
+## 3. A changed reason restarts the ladder but not the outage clock
+
+A new reason is the moment a human starts watching again, so the escalation goes back to its base
+and the change is followed by an early confirmation. The outage's `startedAt` and its cumulative
+attempt count deliberately do **not** reset: the source has been down since it went down, and
+reporting a five-day outage as five seconds old would be a worse lie than the repeats were. So a
+reason change reads `poll failure reason changed after 16s and 16 failed attempts: <new> (was:
+<old>)` — the duration is the whole outage, and the previous reason is named, because "what it
+changed from" is the information.
+
+Recovery, by contrast, resets in full, so a second outage is reported like a first one: its own
+full line, its own clock, the ladder back at its base. A continuation-shaped report ("still
+failing after 6 hours") for an outage that started a minute ago would misdirect whoever reads it.
+
+## 4. The clock is a parameter, so the timing is tested without waiting
+
+Every decision in this module is about elapsed time. Every entry point therefore takes `at` as an
+argument rather than reading a clock, and `startRelay` passes `deps.now()`. `failure-log.test.ts`
+runs **a hundred hours of outage in a loop** and asserts the line count is about 108 rather than
+360 000; `relay.test.ts` runs five minutes of 1 Hz failure under vitest's fake timers and asserts
+exactly five lines. Nothing in the suite sleeps.
+
+The failure path reads the clock again at the point the request gave up rather than reusing the
+pre-request reading, because for a timeout those are 1500 ms apart and the difference accumulates
+into the duration the recovery line reports.
+
+## 5. The tick-defect path got the same treatment, because it has the same cadence
+
+Auditing the relay for anything else logging per poll or per publish turned up exactly one other
+line: `tick aborted unexpectedly`, in `startRelay`'s rejection handler. It fires when a *publish*
+rejects — a broker that has gone away — and a broker that is gone stays gone, so at 1 Hz it is the
+same defect with a different cause. It now runs through the same collapser, with its own
+independent run state: a source that answers nothing and a broker that rejects everything are two
+different outages, and collapsing them together would hide whichever started second.
+
+Two other emitters were examined and deliberately left alone. `reportAnomalies` (unmapped sensors,
+duplicate identifiers) was already once-per-distinct-cause. The `[broker] ...` lines in `broker.ts`
+are per client-error events, not per poll; a reconnect storm could make them noisy, but that is a
+different cadence with a different fix, and inventing one here would be scope the report does not
+ask for.
+
+## 6. Ordering: the recovery line goes above the anomaly warnings
+
+`noteSuccess` runs after the publishes — "recovered" has to mean the readings reached the broker,
+not that the HTTP call answered — but *before* `reportAnomalies`. The first successful poll after
+an outage re-warns nothing, but a source that came back with a new sensor can warn, and the line
+that ends an outage should not be printed underneath a note about a duplicate sensor identifier.
+This was found by reading the captured terminal output, not by reasoning about the diff.
+
+## 7. `RelayState.failing` is gone, and that is a visible interface change
+
+The boolean that tracked "the previous tick failed" is replaced by two `FailureRun` records.
+`RelayState` is exported through the app's barrel, so this is a breaking change to a published
+type — acceptable because `apps/agent` is a leaf that nothing in the repo imports
+(ARCHITECTURE.md), and the barrel exists for tests and a future single-file build. The recovery
+line's wording changed with it, from `recovered: 213 readings published` to `poll recovered after
+40s, 25 failed attempts, last failure: <reason>; 213 readings published`, which is the duration
+and the count the report asked for.
+
+## 8. What the terminal actually looks like
+
+Asserting on a mock logger proves the logic and shows nothing about the complaint, which was about
+a terminal. Two real runs were captured, both with `PERCH_MQTT_PORT`/`PERCH_WS_PORT` moved off
+this machine's occupied defaults:
+
+- **`.evidence/relay-outage-terminal.log`** — `PERCH_LHM_HOST=127.0.0.1 PERCH_LHM_PORT=1`, run
+  past the 5 m 10 s rung: **311 consecutive failed polls, five error lines.** Worth knowing for
+  anyone reproducing it: port 1 is on the WHATWG bad-port list, so `fetch` reports `bad port`
+  without ever connecting — a reliable refusal, but not an `ECONNREFUSED`.
+- **`.evidence/relay-reason-change-terminal.log`** — one relay against a staged source on port
+  18085 that refuses, then accepts without answering, then serves the captured payload. One
+  process, every line the collapser can emit: the first `ECONNREFUSED` in full, a summary, the
+  change to `no response within 1500 ms` naming what it changed from, another summary, the
+  recovery with duration and failed-attempt count, and then a fresh full line when the source went
+  away again.
+
+# Wiring the layout format into the page — decisions
+
+The format existed and nothing consumed it: `@perch/layout-schema` was built and tested, while
+`apps/runtime` painted a hard-coded tile list. These are the decisions taken closing that gap — the
+page now reads a document through `loadLayout` and paints whatever comes back.
+
+## 1. The widget vocabulary is declared once, so the two halves cannot drift
+
+Two consumers have to agree about what a widget is: `layout-schema` needs a `WidgetRegistry` (which
+names exist, which of them draw a scale and so require an authored `range`), and the page needs a
+name → React component map. The format's own hard rule keeps `layout-schema` from importing
+`ui-kit`, so the vocabulary is injected — which is exactly the arrangement that invites two
+hand-written lists to disagree.
+
+The drift has one specific shape and it is the worst available outcome: a name in the registry with
+no component behind it. A layout using it **validates and then renders nothing**. The format's
+typo-safety says the document is fine while the panel shows an empty rectangle, so the author looks
+everywhere except at the widget name.
+
+`apps/runtime/src/widget-catalogue.tsx` therefore declares neither list. `WIDGET_CATALOGUE` is the
+only declaration, and both are derived from it at module load: the registry by projecting each
+entry's `drawsScale`, the component map by `Object.entries` of the same object. An entry's type
+requires both halves, so a half-entry does not compile. Drift is not tested for — it is
+unrepresentable. `widget-catalogue.test.tsx` asserts the weaker, still worthwhile thing: that the
+derivation is still a derivation, in both directions.
+
+`drawsScale` lives with the registry builder rather than in `ui-kit`, per the format's own note:
+whether a widget needs a `range` is a statement about what a layout author must write, not about a
+component's props.
+
+**One entry today**, `readout`, and that is the honest state of the project. A catalogue entry for a
+gauge nobody has written would be precisely the failure above, with the validator telling authors to
+use a widget the page cannot draw.
+
+## 2. A layout arrives as *text*, not as a parsed module
+
+`layout-catalogue.ts` reads `layouts/` with `import.meta.glob(..., { query: '?raw' })` and hands the
+bytes to `loadLayoutJson`. Importing the JSON as a module instead would put Vite's parser in front of
+the format's: a layout with a trailing comma would fail at build time with a bundler error rather
+than on the page with `formatLayoutIssues`. The promise is that a bad layout is refused *legibly*,
+and that requires the runtime to see the document exactly as it is on disk.
+
+The globs are eager, which the standalone bundle requires working backwards: the deliverable loads
+cold from a static directory, so a layout fetched as a dynamic chunk would need a network the panel
+host may not have. The whole catalogue is a few kilobytes.
+
+The page takes the catalogue as a **prop**, exactly as it takes its sensor source. That is what lets
+a test drive the refusal path with a document that is not on disk, and it keeps the knowledge of
+where `layouts/` lives in one file.
+
+## 3. Absolute pixels on a fixed canvas, scaled as one unit — never a reflow
+
+The canvas is a box exactly `target.width × target.height` CSS pixels; every element is absolutely
+positioned at its authored integer rect; the whole canvas is scaled with a single `transform` and
+centred, so the spare space on one axis becomes the letterbox. Nothing reflows at any viewport.
+
+`transform: scale()` rather than recomputing sizes: a transform is applied after layout, so children
+keep their authored geometry and no amount of scaling can change which element is where. Scaling
+proportionally by arithmetic instead would put every rounding decision back in play at every
+viewport, and the editor's canvas and the panel's output would stop being pixel-identical — which is
+the whole reason the format's geometry is integers.
+
+Paint order is array order, implemented as source order with **no `z-index` anywhere**. A bleeding
+rect keeps the geometry its author wrote and is clipped by the canvas, rather than being clamped: the
+format allows the bleed deliberately, and clamping would move a background by 20px with nothing to
+explain why.
+
+## 4. Capture mode is where a target is refused; `frameRate` is not checked in a browser
+
+"Rejects a layout it cannot honour" and "windowed scales to fit" are both requirements, and they
+contradict each other unless the refusal has a home. It is capture mode: windowed legitimately scales
+and letterboxes, capture renders **1:1 or not at all**, and a viewport that is not exactly the
+declared target is refused with `describeTargetMismatch`'s sentence. Handing a screenshot tool a
+scaled picture of the panel is the one failure a capture mode exists to prevent.
+
+`OutputCapabilities.frameRate` is deliberately **omitted** rather than guessed. A browser cannot
+report a compositor rate honestly, and the format documents omission as "unknown, do not check" —
+so a 24fps layout is not refused by a claim the page is in no position to make. A test asserts the
+mismatch text never mentions Hz, which is the observable form of that decision.
+
+## 5. Problems on the page, in the format's own words
+
+`layout-problem.tsx` renders three refusals — `unknown-layout`, `invalid-layout`, `target-mismatch` —
+each with its own `data-perch-problem` value so a harness can tell them apart. The issue list is
+`formatLayoutIssues`' output verbatim: one line per issue, `path: message [code]`, including the
+field path and element index an author needs to find the line in their file.
+
+It is a `<pre>` because that indent and one-issue-per-line shape carry meaning, and it **wraps**
+rather than scrolling horizontally. Two of the format's messages — the theme-token grammar and the
+media-path rule — are longer than a 1280px window, and a message clipped at the right edge is
+unreadable in a screenshot and on a panel with no scrollbar.
+
+The refusal page is deliberately **not themed**. One of the things a layout can be invalid about is
+its theme, so a refusal must render identically whatever the document says.
+
+## 6. Layout selection is a query parameter, and an unknown name is refused rather than defaulted
+
+`?layout=<path under layouts/ without .json>` and `?mode=windowed|capture`. No picker UI: a panel has
+no keyboard, and a URL is the one setting a kiosk browser can be given at launch. Absent `?layout=`
+means the first catalogued name, sorted, so `npm run dev` stays one command.
+
+A name that does not exist is refused **with the list of names that do**, not quietly replaced by the
+default. Falling back would make a typo look like a layout rendering the wrong content, which is the
+same class of failure as a registry with no component behind a name.
+
+## 7. `layouts/invalid/` — catalogued, reachable, never offered
+
+The refusal path deserves to be exercised against a real file on a real page, not only against a test
+fixture. `layouts/invalid/broken-desk.json` is valid JSON that fails validation nine ways at once, one
+per issue code the page has to render.
+
+`layouts/README.md` says a layout that will not validate is not a layout, and that rule is kept
+rather than bent: these documents live in their own directory under their own name, and the catalogue
+marks them `offered: false`. The page will not default to one and does not list one; you have to ask
+for it by name.
+
+## 8. The second mock source is gone, and staleness moves to where it can be proven
+
+The page used to construct a second, short-lived mock source purely to drive the stale rendering on
+one tile. A layout file cannot name a source — and should not be able to — so that source had no
+tile it could reach once the tile list came from a document. It is removed, and `main.tsx` records
+why.
+
+Staleness is not left unproven: `ui-kit` tests it against a controlled clock, which is where a claim
+about elapsed time belongs. What was lost is a demonstration on a live page; what was avoided is a
+page whose rendering depends on a source no layout can request.
+
+## 9. The chrome strip is fixed, unstylable, and rendered on every path
+
+A strip along the bottom names the layout, the mode and fit, the source, the source's status in
+words, and the time of the last reading. It renders in windowed mode, in capture mode, and on every
+refusal, and a layout's theme cannot reach it.
+
+That is a provenance decision, not a design one. The sensor host is off; every value on this page is
+generated by the mock. A screenshot that did not say so would be a picture of invented hardware
+readings. Both shipped layouts *also* carry "mock source · generated values, not hardware" as canvas
+text, so a crop that loses the strip still says where the numbers came from.
+
+The ready signal is `data-perch-ready` on the page root, driven by whether a reading has actually
+arrived — not by a wall clock, which advances happily in a screenshot of a dead page.
+
+## 10. Two layouts that differ in character, from one widget
+
+Only `readout` exists, so the difference had to come from everything else: `desk-1920x400` is a dark
+monospace strip of eight narrow tiles over a rail backdrop at 30fps; `tower-720x1280` is a tall warm
+serif column of six deep tiles on paper at 24fps, with a hero tile at a larger type scale. Target
+size and aspect, tile density, theme tokens, text elements and a media background carry it.
+
+Each reads an indexed topic (storage device 1) and leaves one tile deliberately waiting on a topic
+the mock never publishes; the tower also shows the `no-reading` state, which the mock publishes as a
+`null` for the pump header. Most tiles read live values on purpose — a screen of waiting tiles looks
+like a failure rather than a layout, and a layout with no gap never shows the waiting state at all.
+
+The mock's nine-topic vocabulary was **sufficient** for two convincingly different pages. It is,
+however, the ceiling on what any layout can display, and it is narrow enough that a third layout
+would start repeating topics.
+
+## 11. Assets are hand-authored SVG, and no binary is committed
+
+Both backdrops are a `<pattern>` plus a few rects, a few hundred bytes each, authored at the canvas
+size so `fit: cover` is a 1:1 paint at target. A background that can only be diffed as bytes is a
+background nobody will ever review — and `layouts/` is content the human is expected to read.
+
+Media is referenced, never embedded: `?url` hands back the bundler's copied path, so "media is a
+path relative to the layout file" holds all the way into the built page. A layout referencing a file
+that is not there **validates** — the format checks the shape of a path, having no filesystem — and
+renders a box naming the path it could not find, in the rect the image should have occupied.
+
+## 12. `import.meta.glob`'s type lives next to its call site
+
+Declared in `layout-catalogue.ts` inside `declare global`, not in `vite-env.d.ts`, because the tests
+program (`tsconfig.tests.json`) includes test files plus what they import — not the package projects'
+ambient `.d.ts` files. A declaration beside its only call site is in every program that can reach the
+call, and `npm run typecheck` covers both programs. `vite/client` is still not referenced, for the
+reason `vite-env.d.ts` already records: it carries an `any`-indexed `ImportMetaEnv`.
+
+## 13. Awkward in `layout-schema`'s surface, reported rather than patched
+
+Two things, neither a defect, both noticed while consuming it:
+
+`describeTargetMismatch` interpolates the raw scale, so a 1280×800 window refusing a 1920×400 layout
+prints `scaled by 0.6666666666666666`. It is correct and it reads like a bug on a wall. Rounding it
+is a one-line change in a package this work was told not to touch.
+
+`fitLayoutTarget`'s `OutputCapabilities.frameRate` being optional is the right shape, but "omitted
+means do not check" is carried only in prose. A caller that forgets it gets a silent pass on the
+frame-rate question rather than a type error — which is the correct behaviour for this page and a
+trap for one that genuinely knows its refresh rate.
