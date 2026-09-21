@@ -14,7 +14,7 @@
 
 import { act, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { loadLayoutJson, type Layout } from '@perch/layout-schema';
+import { LAYOUT_SCHEMA_VERSION, loadLayoutJson, type Layout } from '@perch/layout-schema';
 import {
   sensorTopic,
   type SensorMeta,
@@ -205,7 +205,7 @@ describe('<LayoutCanvas> — element geometry', () => {
   });
 });
 
-describe('<LayoutCanvas> — the three kinds', () => {
+describe('<LayoutCanvas> — the widget, text and media kinds', () => {
   it('renders a widget through the catalogue, subscribed to its topic', () => {
     const { source } = mount();
 
@@ -253,6 +253,97 @@ describe('<LayoutCanvas> — the three kinds', () => {
     });
 
     expect(elements()[0]?.querySelector('.perch-media')).toHaveAttribute('data-fit', 'cover');
+  });
+});
+
+describe('<LayoutCanvas> — the chart kind', () => {
+  /**
+   * A one-element document at the current schema version.
+   *
+   * Separate from `ALL_KINDS` rather than added to it, because the widget assertions above find their
+   * readout with a bare `getByRole('group')` and a chart is a second group. The point being made here
+   * is about dispatch, not about coexistence.
+   */
+  const chartDocument = (element: Record<string, unknown>): Record<string, unknown> => ({
+    schemaVersion: LAYOUT_SCHEMA_VERSION,
+    target: { width: 800, height: 400, frameRate: 30 },
+    theme: {},
+    elements: [element],
+  });
+
+  const CHART_ELEMENT = {
+    kind: 'chart',
+    widget: 'line-chart',
+    topic: 'sensors/cpu/0/temperature/0',
+    rect: { x: 16, y: 16, w: 400, h: 200 },
+    windowMs: 60_000,
+    range: [0, 100],
+  };
+
+  it('draws a chart element through the same catalogue a widget element goes through', () => {
+    mount(chartDocument(CHART_ELEMENT));
+
+    const chart = screen.getByRole('group');
+    expect(chart).toHaveClass('perch-chart');
+    expect(chart).toHaveAttribute('data-topic', 'sensors/cpu/0/temperature/0');
+    // The placeholder from `chart-view`, which is how the element proves it reached the real renderer
+    // rather than the failure box this branch used to be.
+    expect(chart).toHaveTextContent('waiting for readings');
+  });
+
+  it('gives the chart the window and the rect the element authored', () => {
+    mount(chartDocument(CHART_ELEMENT));
+
+    const chart = screen.getByRole('group');
+    expect(chart.querySelector('.perch-chart__span')?.textContent).toBe('1 min');
+    // The plot's width is the element's rect, so the geometry came from the layout and not from a
+    // measurement of whatever box jsdom reports.
+    expect(chart.querySelector('.perch-chart__plot')?.getAttribute('width')).toBe('400');
+  });
+
+  it('subscribes the chart to the topic the element named', () => {
+    const { source } = mount(chartDocument(CHART_ELEMENT));
+
+    act(() => {
+      source.emit(CPU_TEMP, { value: 61.5, at: Date.now() });
+    });
+
+    const chart = screen.getByRole('group');
+    expect(chart).toHaveAttribute('data-state', 'series');
+    expect(chart.querySelector('.perch-chart__value')?.textContent).toBe('61.5 °C');
+  });
+
+  it('says so when a chart element names a widget that is not a chart', () => {
+    // Reachable from a layout that validates: `readout` is a registered name and it draws no scale, so
+    // the format has no rule to refuse it here. Its registry carries one capability flag and that flag
+    // is about ranges — see DECISIONS.md on this being reported rather than patched into the schema.
+    mount(
+      chartDocument({
+        kind: 'chart',
+        widget: 'readout',
+        topic: 'sensors/cpu/0/temperature/0',
+        rect: { x: 0, y: 0, w: 400, h: 200 },
+        windowMs: 60_000,
+      }),
+    );
+
+    expect(screen.getByText(/not a chart widget: readout/)).toBeInTheDocument();
+  });
+
+  it('says so when a widget element names a chart', () => {
+    // The mirror case, equally valid to the format and equally undrawable: a `widget` element has no
+    // `windowMs`, so there is no window for a chart to plot.
+    mount(
+      chartDocument({
+        kind: 'widget',
+        widget: 'line-chart',
+        topic: 'sensors/cpu/0/temperature/0',
+        rect: { x: 0, y: 0, w: 400, h: 200 },
+        range: [0, 100],
+      }),
+    );
+
+    expect(screen.getByText(/needs a chart element: line-chart/)).toBeInTheDocument();
   });
 });
 

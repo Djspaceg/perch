@@ -12,6 +12,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { LINE_CHART_STYLES } from './line-chart.js';
 import { MEDIA_FRAME_STYLES } from './media-frame.js';
 import { READOUT_STYLES } from './readout.js';
 import { TEXT_BLOCK_STYLES } from './text-block.js';
@@ -22,6 +23,7 @@ const SHEETS: Readonly<Record<string, string>> = {
   READOUT_STYLES,
   TEXT_BLOCK_STYLES,
   MEDIA_FRAME_STYLES,
+  LINE_CHART_STYLES,
 };
 
 const ALL_SHEETS = Object.values(SHEETS).join('\n');

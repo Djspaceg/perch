@@ -81,6 +81,46 @@ export const PERCH_TOKEN_DEFAULTS = {
 
   /** How strongly a media element paints. A background usually wants to sit under the numbers. */
   '--perch-media-opacity': '1',
+
+  /**
+   * The series line and its wash. The one colour on a chart that carries data.
+   *
+   * Chosen by running the `dataviz` skill's validator against the canvas background rather than by
+   * eye: `#4c9ad8` passes the OKLCH lightness band and chroma floor for a dark surface and clears
+   * 3:1 contrast against it. It is also 16.8 ΔE from `--perch-stale` under normal vision and 15.0
+   * under deuteranopia, which is what lets a stale series be recognised as the same line in a
+   * different state rather than mistaken for a second series.
+   */
+  '--perch-chart-series': '#4c9ad8',
+  /**
+   * The wash under the line, as an opacity on the series colour.
+   *
+   * A wash, never a saturated block: the fill is there to give the line a body that reads from across
+   * a room, and anything heavier competes with the line for the reader's attention.
+   */
+  '--perch-chart-area-opacity': '0.12',
+  /**
+   * Gridlines. One step off the surface, and no more.
+   *
+   * The grid is chrome. It exists to let a reader place a value against the scale and must lose every
+   * contest with the series — which is why the panel's answer to a thin line is a half-integer
+   * placement rather than a brighter grey.
+   */
+  '--perch-chart-grid': '#252c36',
+  /**
+   * What the chart is drawn *on*, used for the 2px ring around the newest marker.
+   *
+   * A separate token from the canvas background, which is a canvas-level concern this package's
+   * widgets cannot read. Its default is that background, so a chart on a plain canvas needs no theme;
+   * a chart placed over a media element should set it to whatever is actually behind the marker.
+   */
+  '--perch-chart-surface': '#101318',
+  /** The newest reading, printed in the chart's header. Smaller than a readout's: this is not a hero. */
+  '--perch-chart-value-size': '1.5rem',
+  /** The chart's caption. */
+  '--perch-chart-label-size': '0.9375rem',
+  /** The footer: the window it covers, and the scale it is drawn against. */
+  '--perch-chart-axis-size': '0.8125rem',
 } as const;
 
 /** A token this package reads. */

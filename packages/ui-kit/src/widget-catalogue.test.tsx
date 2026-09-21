@@ -15,9 +15,9 @@
  * declaration.
  */
 
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { loadLayoutJson } from '@perch/layout-schema';
+import { LAYOUT_SCHEMA_VERSION, loadLayoutJson } from '@perch/layout-schema';
 import type { SensorSource } from '@perch/sensor-contract';
 import { SensorProvider } from '@perch/ui-kit';
 import { WIDGET_NAMES, WIDGET_REGISTRY, widgetFor } from './widget-catalogue.js';
@@ -70,20 +70,30 @@ describe('the widget catalogue', () => {
 });
 
 describe('the catalogue against the validator that shares it', () => {
-  const layoutUsing = (widget: string): string =>
-    JSON.stringify({
-      schemaVersion: 1,
+  /**
+   * A one-element layout naming `widget`, in the element kind that entry binds to.
+   *
+   * Authored per binding rather than always as `kind: 'widget'`, because the two kinds are not
+   * interchangeable: a chart element carries the `windowMs` its renderer draws, and `drawsScale: true`
+   * makes `range` required on it. Building every name as a widget element would refuse `line-chart`
+   * for reasons that are about the fixture, not about the catalogue.
+   */
+  const layoutUsing = (widget: string): string => {
+    const rect = { x: 0, y: 0, w: 400, h: 200 };
+    const topic = 'sensors/cpu/0/load/0';
+    const entry = widgetFor(widget);
+    const element =
+      entry?.binding === 'chart'
+        ? { kind: 'chart', widget, topic, rect, windowMs: 60_000, range: [0, 100] }
+        : { kind: 'widget', widget, topic, rect };
+
+    return JSON.stringify({
+      schemaVersion: LAYOUT_SCHEMA_VERSION,
       target: { width: 400, height: 200, frameRate: 30 },
       theme: {},
-      elements: [
-        {
-          kind: 'widget',
-          widget,
-          topic: 'sensors/cpu/0/load/0',
-          rect: { x: 0, y: 0, w: 400, h: 200 },
-        },
-      ],
+      elements: [element],
     });
+  };
 
   it('accepts every registered widget and renders it', () => {
     for (const name of WIDGET_REGISTRY.names) {
@@ -92,15 +102,29 @@ describe('the catalogue against the validator that shares it', () => {
       if (!loaded.ok) continue;
 
       const element = loaded.layout.elements[0];
-      if (element?.kind !== 'widget') throw new Error('expected a widget element');
 
       // Rendered through the same `widgetFor` the canvas uses: a registered name that validates
-      // must also produce pixels, which is the whole claim.
-      const entry = widgetFor(element.widget);
-      render(<SensorProvider source={SILENT_SOURCE}>{entry?.render(element)}</SensorProvider>);
+      // must also produce pixels, which is the whole claim. The binding is checked the way the canvas
+      // checks it, so each renderer receives the element kind it declared.
+      const entry = widgetFor(name);
+      if (entry?.binding === 'chart') {
+        if (element?.kind !== 'chart') throw new Error('expected a chart element');
+        render(<SensorProvider source={SILENT_SOURCE}>{entry.render(element)}</SensorProvider>);
+      } else {
+        if (element?.kind !== 'widget') throw new Error('expected a widget element');
+        render(<SensorProvider source={SILENT_SOURCE}>{entry?.render(element)}</SensorProvider>);
+      }
 
       expect(screen.getByRole('group')).toBeInTheDocument();
+      cleanup();
     }
+  });
+
+  it('binds each entry to one element kind, and says which', () => {
+    // The canvas dispatches on this, and a missing binding would send a chart element to a renderer
+    // with no window to draw. See `layout-canvas.tsx`.
+    expect(widgetFor('readout')?.binding).toBe('widget');
+    expect(widgetFor('line-chart')?.binding).toBe('chart');
   });
 
   it('refuses a widget it could not render, naming what it does have', () => {

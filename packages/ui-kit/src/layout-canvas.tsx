@@ -155,25 +155,32 @@ function renderElement(
 }
 
 /**
- * A chart element, with no chart to draw it.
+ * A chart element, through the same catalogue a widget element goes through.
  *
- * `layout-schema` version 2 added `chart` to `ELEMENT_KINDS`, which broke this `switch` exactly as
- * its comment promised — and the honest branch today is the failure box, not a renderer. This
- * package ships no chart component: inventing one here to close a compile error would put a graph on
- * a wall panel that nobody designed, which is worse than a box saying the widget is missing.
+ * `layout-schema` version 2 added `chart` to `ELEMENT_KINDS` and this branch was the failure box for
+ * as long as no chart existed. It now resolves the element's `widget` against `widgetFor`, which is
+ * deliberately the *same* lookup and the same registry as `renderWidget` — the format resolves a
+ * chart's widget name against `WidgetRegistry` too, so a second table here would be a second answer
+ * to "does this widget exist".
  *
- * So this reuses the same visible-failure treatment as an unregistered widget and a missing asset,
- * for the same reason: an element the page cannot paint has to *say so* rather than leave a blank
- * rectangle the author reads as their own mistake. Neither shipped layout contains a chart, so
- * nothing on screen reaches this today.
- *
- * Replacing this with a real branch is the chart widget's work, not this file's — see
- * `layout-schema`'s own call-site note, which assigns it there.
+ * What differs is the binding check. An entry declares which element kind it paints, because a
+ * `ChartElement` carries `windowMs` and `gap` that a `WidgetElement` has no field for; see
+ * `widget-catalogue.tsx`. `readout` on a chart element is therefore a real authoring mistake that the
+ * format cannot reject — its registry has one capability flag and it is about scales — so it is
+ * caught here and drawn, rather than handed to a renderer that would read a window that is not there.
  */
 function renderChart(element: ChartElement): ReactNode {
-  return (
-    <span className="perch-element__failure">{`no chart renderer yet: ${element.widget}`}</span>
-  );
+  const widget = widgetFor(element.widget);
+  if (widget === undefined) {
+    return <span className="perch-element__failure">{`no such widget: ${element.widget}`}</span>;
+  }
+  if (widget.binding !== 'chart') {
+    return (
+      <span className="perch-element__failure">{`not a chart widget: ${element.widget}`}</span>
+    );
+  }
+
+  return widget.render(element);
 }
 
 /**
@@ -184,11 +191,20 @@ function renderChart(element: ChartElement): ReactNode {
  * same table `widgetFor` reads, so there is no name that passes one and fails the other. It is
  * rendered anyway, and rendered *visibly*: if that invariant ever breaks, the panel must say so
  * rather than show the blank rectangle this whole arrangement exists to prevent.
+ *
+ * The binding branch, unlike that one, *is* reachable from a valid layout: `widget: line-chart` on a
+ * `kind: 'widget'` element passes every check the format makes, and there is no window in that
+ * element for a chart to draw. It says which mistake was made, in the rect where it was made.
  */
 function renderWidget(element: WidgetElement): ReactNode {
   const widget = widgetFor(element.widget);
   if (widget === undefined) {
     return <span className="perch-element__failure">{`no such widget: ${element.widget}`}</span>;
+  }
+  if (widget.binding !== 'widget') {
+    return (
+      <span className="perch-element__failure">{`needs a chart element: ${element.widget}`}</span>
+    );
   }
 
   return widget.render(element);
@@ -317,9 +333,9 @@ export const LAYOUT_CANVAS_STYLES = `
   overflow: hidden;
 }
 /*
- * A failure that must be seen. Both cases it marks — an unregistered widget, a missing asset —
- * would otherwise paint nothing, and a blank rect on a wall panel is indistinguishable from an
- * element the author forgot to finish.
+ * A failure that must be seen. Every case it marks — an unregistered widget, a widget used on the
+ * wrong element kind, a chart with no range, a missing asset — would otherwise paint nothing, and a
+ * blank rect on a wall panel is indistinguishable from an element the author forgot to finish.
  */
 .perch-element__failure {
   display: block;

@@ -1,19 +1,20 @@
 /**
  * Public surface of `@perch/ui-kit`: the widgets, plus the thing that arranges a layout of widgets.
  *
- * One *widget* so far — the numeric readout — plus the provider that feeds it, and the two
- * non-widget element kinds a layout can also paint: `TextBlock` and `MediaFrame`. The gauge and the
- * sparkline from README.md are deliberately not here yet; DECISIONS.md says why.
+ * Two *widgets* — the numeric readout and the line chart — plus the provider that feeds them, and the
+ * two non-widget element kinds a layout can also paint: `TextBlock` and `MediaFrame`. The gauge from
+ * README.md is deliberately not here yet; DECISIONS.md says why.
  *
  * At the bottom, a level up from all of that: `LayoutCanvas` and the `WIDGET_CATALOGUE` it draws
  * through. That pair is what makes the editor's canvas and the runtime's output the same pixels
  * rather than two implementations that agree for a while.
  *
  * The distinction between the three is worth keeping straight, because only one of them is a
- * *widget* in `layout-schema`'s sense: `Readout` is bound to a sensor topic and appears in the
- * injected widget registry, while `TextBlock` and `MediaFrame` render the `text` and `media`
- * element kinds, hold no topic and are not registry entries. A consumer's element dispatch has
- * three branches; its widget registry has one.
+ * *widget* in `layout-schema`'s sense: `Readout` and `LineChart` are bound to a sensor topic and
+ * appear in the injected widget registry, while `TextBlock` and `MediaFrame` render the `text` and
+ * `media` element kinds, hold no topic and are not registry entries. A consumer's element dispatch has
+ * four branches; its widget registry has two entries — and a chart element resolves its widget against
+ * that same registry, which is why the registry is not "the widget-element vocabulary".
  *
  * The exports are grouped by the direction data flows through them:
  *
@@ -114,6 +115,7 @@ export {
   WIDGET_NAMES,
   WIDGET_REGISTRY,
   widgetFor,
+  type WidgetBinding,
   type WidgetCatalogueEntry,
   type WidgetName,
 } from './widget-catalogue.js';
@@ -126,3 +128,35 @@ export {
   type CanvasToken,
   type LayoutCanvasProps,
 } from './layout-canvas.js';
+
+/**
+ * The chart's pure half: everything it draws, as path data and strings.
+ *
+ * Exported alongside the component for the same reason `readout-view` is — the geometry is the part
+ * worth asserting on, and a capture harness that wants to check "same snapshot, same pixels" should
+ * not have to mount React to do it.
+ */
+export {
+  CHART_COLUMN_PX,
+  CHART_EMPTY_TEXT,
+  CHART_GRIDLINE_COUNT,
+  CHART_GRID_STROKE_PX,
+  CHART_MARKER_RADIUS_PX,
+  CHART_NO_VALUES_TEXT,
+  CHART_PLOT_INSET_PX,
+  CHART_SERIES_STROKE_PX,
+  chartView,
+  formatSpan,
+  type ChartGridline,
+  type ChartStateKind,
+  type ChartViewInput,
+  type ChartViewModel,
+} from './chart-view.js';
+
+export {
+  CHART_FOOTER_PX,
+  CHART_HEADER_PX,
+  LINE_CHART_STYLES,
+  LineChart,
+  type LineChartProps,
+} from './line-chart.js';
