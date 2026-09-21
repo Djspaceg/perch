@@ -31,15 +31,33 @@ export { assertNever } from './exhaustive.js';
 
 export {
   DEFAULT_STALE_AFTER_MS,
+  NO_HISTORY,
   createSensorStore,
+  type SensorHistorySnapshot,
   type SensorSnapshot,
   type SensorStore,
   type SensorStoreOptions,
 } from './sensor-store.js';
 
+/**
+ * The ring and the demand ledger, exported for their own tests and for a harness that wants history
+ * without React — not because a widget should build one. A widget asks through `useSensorHistory`,
+ * which is what ties a retention to a mount.
+ */
+export {
+  HISTORY_MIN_CAPACITY,
+  HISTORY_SLOT_MS,
+  createTopicRing,
+  createWindowDemand,
+  historyCapacity,
+  type TopicRing,
+  type WindowDemand,
+} from './sensor-history.js';
+
 export {
   SensorProvider,
   useSensor,
+  useSensorHistory,
   useSensorMeta,
   useSensorStatus,
   useSensorStore,

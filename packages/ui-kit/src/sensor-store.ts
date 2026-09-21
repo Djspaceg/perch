@@ -35,6 +35,27 @@
  * crossed a whole second. A live reading's age is not part of it, because nothing renders it —
  * republishing a live value once a second would re-render every widget on the page for no
  * visible difference.
+ *
+ * ## The fifth responsibility: history, held only where it was asked for
+ *
+ * A chart needs a *series*, and nothing below this store has one — the source buffers nothing by
+ * design and the relay publishes only the latest reading. So the store also keeps a bounded ring per
+ * topic, sized by the longest window any mounted chart has retained. The mechanics are in
+ * `sensor-history.ts`; what belongs in this comment is the part that is a store decision:
+ *
+ * - **A topic with no retention has no ring.** `history()` on an unretained topic answers
+ *   `NO_HISTORY` and allocates nothing. Recording a series nobody asked for would make memory a
+ *   function of how many topics the source publishes, which is the source's business, rather than of
+ *   what the layout declared, which is the author's.
+ * - **One ring per topic, not one per widget.** Two charts on one topic share the readings and
+ *   differ only in how much of them they draw. The store keeps the longer window; each chart is
+ *   handed the whole ring and clips to its own `windowMs` at draw time.
+ * - **History is published like a snapshot**, for the same `useSyncExternalStore` reason, and it is
+ *   republished once per recheck tick even when no reading arrived — because a history snapshot
+ *   carries the instant its window *ends*, and a chart whose window stopped advancing would show a
+ *   line frozen against a clock that did not stop. The materiality test is whole seconds of
+ *   `endsAt` plus the ring's own revision counter, so an idle retained topic republishes at 1 Hz and
+ *   a busy one republishes per reading.
  */
 
 import {
@@ -48,6 +69,7 @@ import {
   type SensorTopic,
   type Unsubscribe,
 } from '@perch/sensor-contract';
+import { createTopicRing, createWindowDemand, type TopicRing } from './sensor-history.js';
 
 /**
  * What a widget gets for one topic. Three states, because those are the three the *store* can
@@ -75,6 +97,45 @@ export type SensorSnapshot =
  * per-topic data, so there is nothing to distinguish two of them.
  */
 const WAITING: SensorSnapshot = Object.freeze({ state: 'waiting' });
+
+/**
+ * One topic's retained series, as published.
+ *
+ * Three fields, and the middle one is the interesting one. `samples` is what happened; `windowMs` is
+ * how much of it anybody asked for; `endsAt` is the instant that window ends — the store's own clock
+ * at the moment of publication, carried in the value rather than read from `Date.now()` by whoever
+ * draws it.
+ *
+ * Carrying the clock is what makes a chart's geometry a pure function of its snapshot. A renderer
+ * that called `Date.now()` itself would draw a different picture from the same data depending on when
+ * React happened to run it, so "same snapshot, same pixels" — the rule the readout is built around
+ * and the reason a capture is reproducible — would stop being checkable with a plain assertion.
+ *
+ * `windowMs: 0` means **nothing is retained for this topic**, which is a different fact from a
+ * retained window that happens to be empty: the first is a topic no chart is watching, the second is
+ * a chart waiting for its first reading.
+ */
+export interface SensorHistorySnapshot {
+  /** The longest window currently retained, or `0` when nothing retains this topic. */
+  readonly windowMs: number;
+  /** The instant the window ends: the store clock when this was published. */
+  readonly endsAt: number;
+  /** Every retained reading, oldest first. Never longer than the window's derived capacity. */
+  readonly samples: readonly SensorReading[];
+}
+
+/**
+ * One frozen instance for every topic nothing retains.
+ *
+ * Shared by reference for the same reason `WAITING` is: an unretained topic carries no per-topic
+ * data, so two of them are indistinguishable, and a fresh object per call would re-render every
+ * chart on the page forever.
+ */
+export const NO_HISTORY: SensorHistorySnapshot = Object.freeze({
+  windowMs: 0,
+  endsAt: 0,
+  samples: Object.freeze([]),
+});
 
 /**
  * How long a reading stays believable, in ms.
@@ -115,6 +176,14 @@ export interface SensorStoreOptions {
 
 export interface SensorStore {
   /**
+   * The age at which this store reports a reading `stale`, as configured.
+   *
+   * Exposed because it is the only number in the system that says how long a silence is normal, and
+   * a chart needs exactly that to decide where a *hole* is. A chart that picked its own threshold
+   * would disagree with the readout beside it about whether the same publisher had gone quiet.
+   */
+  readonly staleAfterMs: number;
+  /**
    * The source's own connection state as last published, so no widget holds the source.
    *
    * *As last published*, deliberately: like a snapshot, this is a value `useSyncExternalStore`
@@ -132,6 +201,26 @@ export interface SensorStore {
   subscribe(topic: string, onChange: () => void): Unsubscribe;
   /** Call `onChange` whenever `sourceStatus` changes. Never on a mere reading. */
   subscribeStatus(onChange: () => void): Unsubscribe;
+  /**
+   * Ask this store to keep `windowMs` of history for `topic`, until the returned function is called.
+   *
+   * Retention is the *only* thing that starts recording. Before the first retention the topic has no
+   * ring and costs nothing; after the last release the ring is dropped and the memory goes back.
+   * Two charts on one topic retain independently and the store keeps the longer of their windows.
+   *
+   * Returns an idempotent release, so a React cleanup that runs twice releases one retention.
+   */
+  retainHistory(topic: string, windowMs: number): Unsubscribe;
+  /**
+   * The published series for one topic, or `NO_HISTORY` when nothing retains it.
+   *
+   * Stable by reference until the series or the window's end materially changes — the same contract
+   * `snapshot` keeps, for the same `useSyncExternalStore` reason. Reading an unretained topic does
+   * **not** start retaining it.
+   */
+  history(topic: string): SensorHistorySnapshot;
+  /** Call `onChange` whenever this topic's published history changes. */
+  subscribeHistory(topic: string, onChange: () => void): Unsubscribe;
   /** Metadata for a topic, or `undefined`. Accepts the authored shorthand. */
   meta(topic: string): SensorMeta | undefined;
   /** Re-evaluate staleness now and notify whatever changed. */
@@ -177,6 +266,29 @@ export function createSensorStore(options: SensorStoreOptions): SensorStore {
   const published = new Map<SensorTopic, SensorSnapshot>();
   const listeners = new Map<SensorTopic, Set<() => void>>();
   const statusListeners = new Set<() => void>();
+
+  /**
+   * Everything history-related for one topic, in one record.
+   *
+   * One record rather than four parallel maps keyed by topic. The four are only ever correct
+   * together — a ring with no demand is a leak, demand with no ring records nothing, a published
+   * snapshot with no ring is stale forever — and parallel maps hold that invariant with nothing but
+   * care. A record makes "this topic has history" one lookup that either finds all four or none.
+   *
+   * `ring` is `undefined` between the record existing and the first retention, which is the state a
+   * topic with listeners but no retention sits in.
+   */
+  const retained = new Map<
+    SensorTopic,
+    {
+      readonly demand: ReturnType<typeof createWindowDemand>;
+      readonly historyListeners: Set<() => void>;
+      ring: TopicRing | undefined;
+      publishedHistory: SensorHistorySnapshot;
+      /** The ring revision `publishedHistory` was built from. `-1` when it was built from no ring. */
+      publishedRevision: number;
+    }
+  >();
 
   let publishedStatus: SensorSourceStatus = source.status;
   let unsubscribeSource: Unsubscribe | undefined;
@@ -226,13 +338,87 @@ export function createSensorStore(options: SensorStoreOptions): SensorStore {
     return next;
   };
 
+  /** The history record for a topic, created empty on first mention. */
+  const historyRecord = (topic: SensorTopic): NonNullable<ReturnType<typeof retained.get>> => {
+    const existing = retained.get(topic);
+    if (existing !== undefined) return existing;
+
+    const created = {
+      demand: createWindowDemand(),
+      historyListeners: new Set<() => void>(),
+      ring: undefined,
+      publishedHistory: NO_HISTORY,
+      publishedRevision: -1,
+    };
+    retained.set(topic, created);
+    return created;
+  };
+
+  /**
+   * Discard a history record that is holding nothing for nobody.
+   *
+   * Without this the `retained` map would grow by one entry per topic any chart ever watched, which
+   * is the unbounded growth the whole design is against — small per entry, but a map that only ever
+   * gains keys is a leak whatever the key costs.
+   */
+  const forgetHistoryIfIdle = (topic: SensorTopic): void => {
+    const record = retained.get(topic);
+    if (record === undefined) return;
+    if (record.ring !== undefined) return;
+    if (record.demand.windowMs !== 0) return;
+    if (record.historyListeners.size > 0) return;
+    retained.delete(topic);
+  };
+
+  /** Republish `topic`'s history if it materially changed. `true` when it did. */
+  const publishHistory = (topic: SensorTopic): boolean => {
+    const record = retained.get(topic);
+    if (record === undefined) return false;
+
+    const { ring } = record;
+    if (ring === undefined) {
+      if (record.publishedHistory === NO_HISTORY) return false;
+      record.publishedHistory = NO_HISTORY;
+      record.publishedRevision = -1;
+      return true;
+    }
+
+    const endsAt = now();
+    const sameContents = record.publishedRevision === ring.revision;
+    const sameWindow = record.publishedHistory.windowMs === ring.windowMs;
+    // Whole seconds, matching `materiallySame`: a chart's x-axis advancing by a millisecond is not a
+    // visible difference, and a retained topic would otherwise republish on every recheck tick and
+    // on every read.
+    const sameEnd = wholeSeconds(record.publishedHistory.endsAt) === wholeSeconds(endsAt);
+    if (sameContents && sameWindow && sameEnd) return false;
+
+    record.publishedHistory = Object.freeze({
+      windowMs: ring.windowMs,
+      endsAt,
+      samples: Object.freeze(ring.samples()),
+    });
+    record.publishedRevision = ring.revision;
+    return true;
+  };
+
+  const notifyHistory = (topic: SensorTopic): void => {
+    const record = retained.get(topic);
+    if (record === undefined) return;
+    for (const listener of [...record.historyListeners]) listener();
+  };
+
   const onReading: SensorReadingHandler = (topic, reading) => {
     const previous = latest.get(topic);
     // Keep the newest read, not the newest arrival: MQTT can reorder, and a retained message can
     // arrive after a fresher live one.
     if (previous !== undefined && previous.at > reading.at) return;
     latest.set(topic, reading);
+
+    // Recorded before publication, so the snapshot a listener goes on to read already holds it.
+    retained.get(topic)?.ring?.push(reading, now());
+
     if (publish(topic)) notify(topic);
+    if (publishHistory(topic)) notifyHistory(topic);
     publishStatus();
   };
 
@@ -241,10 +427,18 @@ export function createSensorStore(options: SensorStoreOptions): SensorStore {
     for (const topic of published.keys()) {
       if (publish(topic)) notify(topic);
     }
+    // History ages on the same clock and for the same reason: a reading leaving the window is not an
+    // event, so nothing arrives to say the left edge moved.
+    for (const [topic, record] of retained) {
+      record.ring?.evict(now());
+      if (publishHistory(topic)) notifyHistory(topic);
+    }
     publishStatus();
   };
 
   return {
+    staleAfterMs,
+
     get sourceStatus() {
       return publishedStatus;
     },
@@ -277,6 +471,77 @@ export function createSensorStore(options: SensorStoreOptions): SensorStore {
         if (!live) return;
         live = false;
         statusListeners.delete(onChange);
+      };
+    },
+
+    retainHistory(topic, windowMs) {
+      const key = canonical(topic);
+      const record = historyRecord(key);
+      const release = record.demand.retain(windowMs);
+
+      /**
+       * Size the ring to the new demand, and seed it with the one reading we already hold.
+       *
+       * Seeding matters for the first chart on a topic the readouts have been watching: without it,
+       * a chart mounted at second thirty starts from nothing even though a reading is in hand, and
+       * shows an empty plot for one publish interval with no reason a reader could name.
+       */
+      if (record.ring === undefined) {
+        const ring = createTopicRing(record.demand.windowMs);
+        const seed = latest.get(key);
+        if (seed !== undefined) ring.push(seed, now());
+        record.ring = ring;
+      } else {
+        record.ring.setWindow(record.demand.windowMs, now());
+      }
+
+      if (publishHistory(key)) notifyHistory(key);
+
+      let held = true;
+      return () => {
+        if (!held) return; // calling twice is harmless
+        held = false;
+        release();
+
+        const current = retained.get(key);
+        if (current === undefined) return;
+
+        if (current.demand.windowMs === 0) {
+          // The last chart on this topic went away. Drop the readings rather than hold a series for
+          // a chart that may never come back — this is the shrink the derivation exists to allow.
+          current.ring = undefined;
+        } else {
+          // A shorter window is now the longest asked for, so the ring really does get smaller.
+          current.ring?.setWindow(current.demand.windowMs, now());
+        }
+
+        if (publishHistory(key)) notifyHistory(key);
+        forgetHistoryIfIdle(key);
+      };
+    },
+
+    history(topic) {
+      const key = canonical(topic);
+      const record = retained.get(key);
+      // Deliberately does not create a record: reading is not retaining, and a chart that has not
+      // mounted yet must not cost a ring.
+      // A pure read, exactly like `snapshot`: it returns what was last *published* and never mints.
+      // `useSyncExternalStore` rejects a `getSnapshot` that returns a new object on two consecutive
+      // calls, and republishing here would do that the moment a read crossed a whole second.
+      return record === undefined ? NO_HISTORY : record.publishedHistory;
+    },
+
+    subscribeHistory(topic, onChange) {
+      const key = canonical(topic);
+      const record = historyRecord(key);
+      record.historyListeners.add(onChange);
+
+      let live = true;
+      return () => {
+        if (!live) return;
+        live = false;
+        record.historyListeners.delete(onChange);
+        forgetHistoryIfIdle(key);
       };
     },
 

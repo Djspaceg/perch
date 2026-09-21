@@ -39,7 +39,12 @@ import {
   type ReactNode,
 } from 'react';
 import type { SensorMeta, SensorSource, SensorSourceStatus } from '@perch/sensor-contract';
-import { createSensorStore, type SensorSnapshot, type SensorStore } from './sensor-store.js';
+import {
+  createSensorStore,
+  type SensorHistorySnapshot,
+  type SensorSnapshot,
+  type SensorStore,
+} from './sensor-store.js';
 
 /**
  * `null` rather than a default store, deliberately.
@@ -163,6 +168,50 @@ export function useSensor(topic: string): SensorSnapshot {
 export function useSensorMeta(topic: string): SensorMeta | undefined {
   const store = useSensorStore();
   return store.meta(topic);
+}
+
+/**
+ * One topic's recent history, retained for exactly as long as this component is mounted.
+ *
+ * The hook *is* the retention: mounting a chart is what asks the store to keep a window, and
+ * unmounting it is what lets the store stop. Nothing else in the package retains anything, so there
+ * is no way to leave a buffer alive after the last chart that wanted it has gone — which is the
+ * property the whole derived-size design rests on.
+ *
+ * ## Why retention lives in `subscribe`
+ *
+ * `useSyncExternalStore` calls `subscribe` on mount and calls its cleanup on unmount, keyed on the
+ * function's identity — the same lifecycle a retention needs, already correct under StrictMode's
+ * double-invoke and already re-run when the topic or window changes. Retaining from a separate
+ * `useEffect` instead would order the two wrong: the effect runs *after* the first render, so frame
+ * one would read `NO_HISTORY` from a store that had not been asked to keep anything yet, and the
+ * chart would paint an empty box and then immediately repaint with data. Retaining inside
+ * `subscribe` means the retention is in place before the first `getSnapshot`, which is also what
+ * lets `retainHistory` seed the ring from the reading already in hand.
+ *
+ * The order within the callback matters too: subscribe first, then retain. `retainHistory` publishes
+ * a snapshot as it seeds, and a listener registered afterwards would miss that notification.
+ */
+export function useSensorHistory(topic: string, windowMs: number): SensorHistorySnapshot {
+  const store = useSensorStore();
+
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const unsubscribe = store.subscribeHistory(topic, onChange);
+      const release = store.retainHistory(topic, windowMs);
+      return () => {
+        release();
+        unsubscribe();
+      };
+    },
+    [store, topic, windowMs],
+  );
+
+  const getSnapshot = useCallback(() => store.history(topic), [store, topic]);
+
+  // Server snapshot is the same read, which before hydration is `NO_HISTORY` — an empty chart that
+  // says it is waiting, rather than a mismatch between what the server drew and what the client does.
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 /**
