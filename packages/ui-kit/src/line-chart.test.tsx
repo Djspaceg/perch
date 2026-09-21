@@ -117,7 +117,10 @@ function partOf(chart: HTMLElement, part: string): Element {
  * to change.
  */
 function shapeOf(chart: HTMLElement): string[] {
-  return Array.from(chart.querySelectorAll('*'), (node) => `${node.tagName}.${node.getAttribute('class') ?? ''}`);
+  return Array.from(
+    chart.querySelectorAll('*'),
+    (node) => `${node.tagName}.${node.getAttribute('class') ?? ''}`,
+  );
 }
 
 /** How many pen-down runs the series path holds. Two runs is a broken line. */
@@ -129,7 +132,9 @@ afterEach(cleanup);
 
 describe('<LineChart> — nothing yet', () => {
   it('draws the frame, the grid and the scale before any reading exists', () => {
-    mount(<LineChart topic={CPU_TEMP} windowMs={WINDOW} range={[0, 100]} width={400} height={200} />);
+    mount(
+      <LineChart topic={CPU_TEMP} windowMs={WINDOW} range={[0, 100]} width={400} height={200} />,
+    );
 
     const chart = chartNamed(CPU_TEMP);
     expect(chart).toHaveAttribute('data-state', 'empty');
@@ -143,7 +148,9 @@ describe('<LineChart> — nothing yet', () => {
   });
 
   it('draws no series and hides the marker rather than removing it', () => {
-    mount(<LineChart topic={CPU_TEMP} windowMs={WINDOW} range={[0, 100]} width={400} height={200} />);
+    mount(
+      <LineChart topic={CPU_TEMP} windowMs={WINDOW} range={[0, 100]} width={400} height={200} />,
+    );
 
     const chart = chartNamed(CPU_TEMP);
     expect(partOf(chart, 'line').getAttribute('d')).toBe('');
@@ -152,7 +159,9 @@ describe('<LineChart> — nothing yet', () => {
   });
 
   it('is quiet about it, because a panel starting up is not a panel in trouble', () => {
-    mount(<LineChart topic={CPU_TEMP} windowMs={WINDOW} range={[0, 100]} width={400} height={200} />);
+    mount(
+      <LineChart topic={CPU_TEMP} windowMs={WINDOW} range={[0, 100]} width={400} height={200} />,
+    );
 
     const chart = chartNamed(CPU_TEMP);
     expect(chart).toHaveAttribute('data-tone', 'quiet');
@@ -301,9 +310,7 @@ describe('<LineChart> — an entirely stale series', () => {
     // The state attribute is what the sheet keys off — see LINE_CHART_STYLES — so the assertion that
     // the styling can happen is the attribute, which jsdom can see, rather than a computed colour on
     // an SVG node, which it cannot.
-    expect(LINE_CHART_STYLES).toContain(
-      ".perch-chart[data-state='stale'] .perch-chart__line",
-    );
+    expect(LINE_CHART_STYLES).toContain(".perch-chart[data-state='stale'] .perch-chart__line");
     expect(chartNamed(CPU_TEMP)).toHaveAttribute('data-state', 'stale');
   });
 
@@ -524,13 +531,15 @@ describe('<LineChart> — two charts on one topic', () => {
 
 describe('LINE_CHART_STYLES', () => {
   it('reaches the document without the page mounting it', () => {
-    mount(<LineChart topic={CPU_TEMP} windowMs={WINDOW} range={[0, 100]} width={400} height={200} />);
+    mount(
+      <LineChart topic={CPU_TEMP} windowMs={WINDOW} range={[0, 100]} width={400} height={200} />,
+    );
 
     // React 19 hoists `<style href precedence>` to <head> and dedupes by href, which is what lets a
     // chart bring its own styles into a tree nobody edited for it. Falling back to the whole document
     // rather than asserting on <head>, because *where* it landed is React's business and the claim
     // here is that an unedited page gets the sheet at all.
-    const sheets = Array.from(document.querySelectorAll('style'), (node) => node.textContent ?? '');
+    const sheets = Array.from(document.querySelectorAll('style'), (node) => node.textContent);
     expect(sheets.some((sheet) => sheet.includes('.perch-chart__line'))).toBe(true);
   });
 
@@ -557,7 +566,7 @@ describe('LINE_CHART_STYLES', () => {
     );
 
     const ours = Array.from(document.querySelectorAll('style')).filter((node) =>
-      (node.textContent ?? '').includes('.perch-chart__line'),
+      node.textContent.includes('.perch-chart__line'),
     );
     expect(ours).toHaveLength(1);
   });

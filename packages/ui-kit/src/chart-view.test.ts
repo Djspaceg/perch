@@ -173,7 +173,9 @@ describe('chartView: a partial series', () => {
     expect(view.state).toBe('series');
     // A bare `M` paints nothing at all. The zero-length line plus a round linecap paints a dot the
     // width of the stroke, so one reading in a window is visible.
-    expect(view.seriesPath).toBe(`M${String(PLOT.x + PLOT.w)} ${String(PLOT.y + PLOT.h / 2)}L${String(PLOT.x + PLOT.w)} ${String(PLOT.y + PLOT.h / 2)}`);
+    expect(view.seriesPath).toBe(
+      `M${String(PLOT.x + PLOT.w)} ${String(PLOT.y + PLOT.h / 2)}L${String(PLOT.x + PLOT.w)} ${String(PLOT.y + PLOT.h / 2)}`,
+    );
     // No area, though: one point has no width, and a hairline wash would suggest a span.
     expect(view.areaPath).toBe('');
     expect(view.pointCount).toBe(1);
@@ -261,7 +263,7 @@ describe('chartView: gap', () => {
     expect(moves(view.seriesPath)).toBe(2);
   });
 
-  it("holes the area fill too, so the gap is not put back in dispute", () => {
+  it('holes the area fill too, so the gap is not put back in dispute', () => {
     const view = chartView(input({ history: withHole, gap: 'break' }));
     expect(moves(view.areaPath)).toBe(2);
     expect(view.areaPath.split('Z')).toHaveLength(3);
@@ -281,8 +283,12 @@ describe('chartView: gap', () => {
     // to a store configured for thirty. The chart must not invent a second definition of quiet, or it
     // will disagree with the readout beside it about the same publisher.
     const tenSecondSilence = history([ago(30_000, 40), ago(20_000, 41)]);
-    expect(chartView(input({ history: tenSecondSilence, staleAfterMs: 5_000 })).segmentCount).toBe(2);
-    expect(chartView(input({ history: tenSecondSilence, staleAfterMs: 30_000 })).segmentCount).toBe(1);
+    expect(chartView(input({ history: tenSecondSilence, staleAfterMs: 5_000 })).segmentCount).toBe(
+      2,
+    );
+    expect(chartView(input({ history: tenSecondSilence, staleAfterMs: 30_000 })).segmentCount).toBe(
+      1,
+    );
   });
 
   it("breaks across a null reading under 'break', because there is no y for nothing", () => {
