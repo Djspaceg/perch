@@ -2542,3 +2542,177 @@ A new jsdom workspace must do the same.
    change in *both* packages, and nothing said which one owed the fix. The rule this change adopts:
    a widget never demands width and must contain its own text; a page must grant a legible minimum.
    That sentence is missing from `apps/runtime/README.md`, and `ui-kit` has no SPEC to put it in.
+
+# Closing the pipeline: the dashboard reads the relay — decisions
+
+Scope of this change: the page reads real readings over MQTT from the broker the relay
+embeds, *when it is told to*, and the relay's port collision prints the way out. No new
+dependency, no version change, and no source change in any `packages/*` — the diff is
+three files in `apps/agent`, four in `apps/runtime`, and docs.
+
+Evidence for the claims below, all in `.evidence/mqtt/` and untracked:
+`mqtt-capture-report.json` with `mqtt-1920x400-t1.png`, `-t2.png`, `mqtt-1440x900-t2.png`
+and the two `t3-relay-killed` frames; `mock-capture-report.json` with the two `mock-*`
+frames; `eaddrinuse-before.log` against `eaddrinuse-after.log` and
+`eaddrinuse-after-wsport.log`; `broker-tests-red.log` before `broker-tests-green.log`.
+The relay, the embedded broker, the MQTT transport and the browser are real in all of it.
+The **sensor host is replayed**: the live LibreHardwareMonitor machine at
+`192.168.1.3:8085` is powered off, so `lhm-replay-server.mjs` serves
+`fixtures/lhm-data.sample.json` — a verbatim capture of that machine's `/data.json` — and
+the relay polls that. No capture here shows live hardware.
+
+## 1. The seam is conditional on an explicitly set variable, not on a truthy default
+
+`PERCH_BROKER_URL` set selects `createMqttSource`; unset keeps `createMockSource`. The
+gate is not `if (url)` but `resolveBrokerUrl(...).origin === 'env'`:
+
+```ts
+const resolved = resolveBrokerUrl({
+  env: { [RELAY_BROKER_URL_ENV_VAR]: import.meta.env.PERCH_BROKER_URL },
+});
+if (resolved.origin !== 'env') return { source: createMockSource(), identity: { kind: 'mock' } };
+```
+
+Two reasons for going through the resolver rather than reading the string directly.
+First, `resolveBrokerUrl` already owns trimming, `ws:`/`wss:` validation and the
+`TypeError` naming the variable on a malformed *present* override; a second
+implementation in the page would be a second set of bugs. Second, `origin` makes the
+distinction the page actually needs: the resolver's built-in `ws://localhost:9001` is a
+documented trap on this machine — a Homebrew mosquitto answers there, accepts the
+subscription and delivers nothing — so "default" must never select MQTT. `npm run dev`
+with no hardware and no environment stays a mock page, which is the state the sensor host
+is in most days.
+
+## 2. `envPrefix` plus a narrow `ImportMetaEnv`, which are two halves of one mechanism
+
+Vite exposes only prefixed variables to client code, so `apps/runtime/vite.config.ts`
+sets `envPrefix: ['VITE_', 'PERCH_']`. `PERCH_` because the relay's entire configuration
+surface is already `PERCH_*` and `dev:stack` sets those once for both processes; a
+`VITE_PERCH_BROKER_URL` alias would mean the same value under two names. `VITE_` is kept
+so the convention still works.
+
+Vite reads matching variables from the shell as well as from `.env` files, which is what
+makes `PERCH_BROKER_URL=... npm run dev` work with no file on disk — verified in the
+browser, not merely in Node: the captured frames were taken from a Chrome session that
+printed `mqtt · ws://localhost:19001` in the page.
+
+The typing is `apps/runtime/src/vite-env.d.ts`, declaring exactly one optional readonly
+string, rather than the usual `/// <reference types="vite/client" />`. That reference
+brings in an `ImportMetaEnv` with an `any` index signature, which would silently make
+every `import.meta.env.X` an `any` under rules that forbid one.
+
+## 3. The page states which source it is reading, in the page
+
+A header line — `mqtt · ws://localhost:19001` or `mock data · generated here, not
+hardware` — plus `data-perch-source-kind` for a capture script. Not a console line: the
+mock and the relay look identical at a glance, both plausible, moving and correctly
+labelled, and mistaking one for the other means trusting a temperature invented by a
+seeded PRNG.
+
+The URL is shown, not just the word `mqtt`, because on a developer machine the expensive
+failure is connecting to the *wrong* broker on the right-looking port, and the port is
+the only thing that distinguishes them.
+
+`Dashboard` takes this as a prop (`LiveSourceIdentity`) rather than sniffing the source.
+`SensorSource` deliberately exposes no transport, and a page that guessed by looking for
+an MQTT-shaped field would be wrong the first time a third implementation appeared.
+`main.tsx` knows because `main.tsx` chose. Construction stays in `main.tsx` alone; the
+tests keep injecting their own seeded sources and pass an identity explicitly.
+
+## 4. All four statuses get their own sentence, and colour is never the only signal
+
+`SOURCE_STATUS_WORDING` maps each `SensorSourceStatus` to a distinct phrase, because each
+one calls for a different action: `connecting` = give it a second, nothing has failed;
+`live` = believe the numbers; `stale` = the transport is fine and the *publisher* stopped
+(relay up but not polling, or LHM gone behind it); `error` = the link itself is down
+(wrong port, relay not running, machine asleep). A single "no data" for the last three
+would be worse than printing the raw status code. A test asserts the four stay distinct.
+
+The badge is words plus colour, never colour alone — this page is read from across a room
+by whoever walks past, and a red dot is not a sentence.
+
+The page does not poll for this. `SensorProvider`'s store republishes status on its
+recheck interval, so a relay killed with the page open reaches `error` in about a second
+with nothing in `app.tsx` watching a clock.
+
+## 5. The heartbeat moved to `cpu/load`, and the tiles were retuned to the real topic sets
+
+Found empirically over real MQTT, and this is the finding of the change: the page's topics
+were mock-shaped. `sensors/cpu/0/temperature/0` **does not exist** in the captured
+hardware payload — that machine's first CPU temperature is sensor index 2, "Core
+(Tctl/Tdie)" — and neither do `gpu/0/fan/0`, `cooler/*`, `psu/voltage`, `storage/1/*` or
+any `memory` device. LibreHardwareMonitor indexes what it finds, and what it finds is not
+the mock's tidy set. Left alone, the footer read `last published never` and
+`data-perch-ready` stayed `false` on a page that was in fact receiving 213 readings a
+second. A heartbeat that can be silent while the link is healthy is worse than none.
+
+So `HEARTBEAT_TOPIC` is `cpu/load`, and the captions say which source can fill each tile:
+three `live ·` tiles are the mock/hardware intersection (`cpu/load`, `cpu/power`,
+`cpu/factor`), two are `mock only ·`, and one is `hardware only ·`. A caption reading
+`live` on a tile only one source publishes would be a lie in half the runs.
+
+## 6. One `hardware only` tile, because the mode needs a tell that cannot be faked
+
+`gpu/throughput` is on the page for a reason beyond decoration: the relay reads LHM's
+`RawValue`, so throughput arrives as bytes per second — the capture shows `6699008 B/s`,
+labelled "GPU PCIe Rx" — where LHM's own display field says `6.4 MB/s` and loses the unit
+on the way. The mock does not publish `throughput` at all, so a value there is proof the
+MQTT path is the one running, and the mock deliberately stays empty rather than filling
+the one reliable tell with a plausible number.
+
+## 7. The frozen tile stays a mock in both modes, and says so where it is read
+
+A real relay cannot be asked to die on cue to demonstrate the stale rendering, so the
+second source is `createMockSource` whether or not the first is MQTT. That makes it the
+only invented number on screen when the page is reading hardware, so its caption is
+`stale · mock publisher stopped` rather than `stale`. The alternative — dropping the tile
+in MQTT mode — would mean the stale rendering has no capture at all.
+
+## 8. The port collision prints flag, variable, a port to type, and nothing it cannot know
+
+`portInUseGuidance(setting, port)` is a pure function built from the same `RELAY_CLI_FLAGS`
+and `RELAY_ENV_VARS` tables the parser uses, so the advice cannot drift from the parser.
+It names the flag, the variable, `port + 10000` as a concrete suggestion, and `--flag 0`
+as the always-available answer. `suggestedListenPort` degrades to `0` above 65535 instead
+of printing a port number that cannot exist.
+
+Three deliberate limits:
+
+- **Only on `EADDRINUSE`**, tested via `'code' in error && error.code === 'EADDRINUSE'`
+  (the `in` operator narrows; no cast, and the standing rules forbid `any`). A bad
+  `--bind-host` fails with `EADDRNOTAVAIL`, where advice about ports would be confidently
+  wrong, and wrong advice costs more than none. A test asserts the non-collision message
+  contains no flag.
+- **The WebSocket case also names `PERCH_BROKER_URL`**; the MQTT case must not. Moving the
+  WS listener and not the page silently breaks the browser, which dials the port it was
+  told to — trading one afternoon of confusion for another. `--mqtt-port` has nothing to
+  do with the page, and a message that said otherwise would send someone editing the
+  wrong thing.
+- **The defaults do not move.** 1883 is the registered MQTT port and 9001 is what
+  `packages/sensor-sources/src/relay-endpoint.ts` contracts, so the message says *why*
+  it is not offering to change them.
+
+`DASHBOARD_BROKER_URL_ENV_VAR = 'PERCH_BROKER_URL'` is restated in `apps/agent/src/config.ts`
+rather than imported, for the same reason 9001 already is: ARCHITECTURE.md gives
+`apps/agent` exactly one edge, `sensor-contract`, and `RELAY_BROKER_URL_ENV_VAR` lives in
+`sensor-sources`, the browser's package. A string two packages agree on is a cheaper
+coupling than a dependency edge existing only to carry it.
+
+## Found while building, and left alone
+
+1. **A seven-digit value is clipped in a tile at both viewports.** `6699008 B/s` renders
+   as `669…` on screen; the full figure is in the DOM and in the probe reports. That is
+   `Readout`'s documented clipping backstop working as designed — the tile never overflows
+   and never widens its neighbours — but it means the mode tell is legible to a script and
+   not to a reader. Fixing it properly is widget work (fit-to-width, or a display-unit
+   scale in `ui-kit`), and it would touch `packages/ui-kit`, which this change deliberately
+   does not. Recorded rather than half-fixed.
+2. **The mock's topic set is not a subset of any real machine's.** Decision 5 worked around
+   it on this page, but the general problem stands: `createMockSource` invents device
+   indices LHM does not produce, so any layout authored against the mock can be silently
+   empty against hardware. That belongs to `layout-schema` validation or to a mock built
+   from a captured payload; neither exists.
+3. **Nothing specifies what the page shows for `status`.** The four sentences in
+   `SOURCE_STATUS_WORDING` are a product decision made here because the page needed one.
+   `sensor-contract` specifies the four states and `ui-kit` has no SPEC, so there is no
+   file that owns the wording a user reads.

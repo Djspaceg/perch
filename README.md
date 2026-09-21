@@ -22,7 +22,9 @@ npm run dev:stack
 If another MQTT broker already holds 1883 or 9001 — a Homebrew `mosquitto` is
 the usual culprit — `dev:stack` names it and offers to stop it before building
 anything. It only offers for a process it can identify, only on a terminal, and
-never when you have set your own ports.
+never when you have set your own ports. Started on its own, the relay fails with
+the flag, the variable and a suggested port in the error itself — and, for the
+WebSocket listener, the `PERCH_BROKER_URL` the page has to move with it.
 
 **Always set `PERCH_BROKER_URL` explicitly.** Its built-in default is
 `ws://localhost:9001`, and on a developer machine that port is often a
@@ -53,13 +55,44 @@ banana` never silently polls the default port.
 `npm run relay -- --help` prints the same list with resolved values and where
 each one came from.
 
+### Which source the page reads
+
+`PERCH_BROKER_URL` decides, and nothing else does:
+
+| `PERCH_BROKER_URL` | The page reads | Header says |
+|---|---|---|
+| set, e.g. `ws://localhost:9001` | that broker, over MQTT | `mqtt · ws://localhost:9001` |
+| unset | the generated mock | `mock data · generated here, not hardware` |
+
+Only an explicitly set variable selects MQTT. The resolver's built-in default
+(`ws://localhost:9001`) deliberately does **not**, because silently dialling a
+port that on this machine is often someone else's broker is the failure
+described above. `npm run dev` with no hardware and no environment keeps
+working.
+
+Vite hides environment variables from client code unless they carry a known
+prefix, so `apps/runtime/vite.config.ts` sets `envPrefix: ['VITE_', 'PERCH_']`
+and `src/vite-env.d.ts` declares the one variable that reaches
+`import.meta.env`. Vite reads it from the shell as well as from `.env` files,
+which is what makes `PERCH_BROKER_URL=... npm run dev` work.
+
 ### Telling real data from mock
 
-The dashboard currently builds a **mock** source — see the seam documented at
-the top of `apps/runtime/src/main.tsx`. When it is reading live hardware,
-throughput shows a figure like `6699008` rather than `6.4`, because the relay
-reads LibreHardwareMonitor's raw field instead of its display field, which
-rescales its unit with magnitude.
+Four tells, in order of how quickly they settle it:
+
+1. The header names the source and, over MQTT, the URL it dialled.
+2. The badge beside it reads `live`, `connecting`, `stale` (transport up,
+   publisher quiet) or `error` (link down) in words, not colour alone.
+3. The `hardware only · raw bytes/s` tile carries a value only over MQTT. The
+   mock never publishes `gpu/throughput`.
+4. That value is a raw figure like `6699008`, not `6.4`, because the relay reads
+   LibreHardwareMonitor's raw field rather than its display field, which
+   rescales its unit with magnitude.
+
+One tile is captioned `stale · mock publisher stopped`, and it is mock data in
+both modes: a real relay cannot be asked to die on cue to demonstrate the stale
+rendering. It is the only invented number on screen when the page is reading
+hardware, and it says so where it is read.
 
 ### Checks
 

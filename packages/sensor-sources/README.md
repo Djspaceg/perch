@@ -137,6 +137,13 @@ this resolution order exists to prevent. An **absent** config file is not an err
 The tests never dial 9001: the in-process `aedes` broker takes an OS-assigned ephemeral port,
 and the cases about a link that cannot be made use `ws://127.0.0.1:1`.
 
+`apps/runtime/src/main.tsx` takes the trap one step further and uses `origin` as a *switch*
+rather than only a warning: it builds an MQTT source when `origin === 'env'` and the generated
+mock otherwise, so the built-in default never selects MQTT at all. In the browser
+`readProcessEnv()` returns `{}` — there is no `process` — so the page passes the value it read
+from `import.meta.env` in as `env`, which keeps trimming, validation and `origin` reporting in
+this one function rather than reimplemented in the page.
+
 ## Resolved questions
 
 - **Connection config.** Settled: environment variable → config file beside the bundle →
