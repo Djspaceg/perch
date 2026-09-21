@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // A background service on someone else's machine: Node globals, no DOM.
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  // Tests and the helpers only tests use stay out of `dist`: `lhm-fixture.test-support.ts` reads
+  // the capture off disk with `node:fs`, which has no business in a shipped relay.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test-support.ts"],
+  "references": [{ "path": "../../packages/sensor-contract" }]
+}
