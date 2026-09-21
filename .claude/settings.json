@@ -26,7 +26,9 @@
       "Bash(git ls-files:*)",
       "Bash(git rev-parse:*)",
       "Bash(git blame:*)",
-      "Bash(git branch --list:*)"
+      "Bash(git branch --list:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
