@@ -87,7 +87,7 @@ perch/
   packages/                       libraries — things that get imported
     sensor-contract/SPEC.md       what a sensor reading is
     layout-schema/SPEC.md         what a dashboard is
-    ui-kit/README.md              the widgets
+    ui-kit/README.md              the widgets, and the canvas that lays them out
     sensor-sources/README.md      where sensor data enters
   apps/                           deployables — nothing imports these
     runtime/README.md             renders a layout
@@ -108,7 +108,7 @@ leaves" rule structural instead of a convention someone has to remember.
 |---|---|---|---|
 | `sensor-contract` | contract | topic names, sensor value shape, metadata shape, source interface | — |
 | `layout-schema` | contract | layout format, validation, versioning, migration | — |
-| `ui-kit` | core | widgets: readout, gauge, sparkline | `sensor-contract` |
+| `ui-kit` | core | widgets: readout, gauge, sparkline; the widget catalogue; `LayoutCanvas`, which paints a whole layout | `sensor-contract`, `layout-schema` |
 | `sensor-sources` | adapter | implementations of that one interface: mock, mqtt, and later ones | `sensor-contract` |
 
 ### `apps/` — deployables
@@ -123,10 +123,19 @@ leaves" rule structural instead of a convention someone has to remember.
 Dependency rules:
 
 - Contracts depend on nothing. They are leaves, and nothing in them imports
-  anything else in the repo.
+  anything else in the repo. That includes `layout-schema`, which must not import
+  `ui-kit` even though `ui-kit` now imports **it**: the widget vocabulary is
+  *injected* into the validator as a `WidgetRegistry` at the call site, so the
+  edge runs one way only and the two stay acyclic.
 - `ui-kit` cannot live inside `runtime` or `editor`, because **both render it**.
   The editor's canvas must draw the same gauge the runtime draws, or WYSIWYG is
   a lie.
+- `ui-kit` depends on `layout-schema`, and that edge is deliberate. It is what
+  lets **the canvas itself** live in `packages/` rather than in one app: the
+  thing that turns a validated `Layout` into positioned pixels needs the layout
+  types, and both products need that thing to be the same code. The alternative
+  — a third package holding just the canvas — buys nothing at this size and adds
+  a hop between the canvas and the widgets it draws. See DECISIONS.md.
 - `agent`, `runtime`, `editor`, and `caster` are products. Nothing depends on
   them, and they never import each other.
 - `caster` depends on runtime's **built output**, not its source. Artifact

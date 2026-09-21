@@ -3721,3 +3721,178 @@ consumer in the repo today:
 
 No consumer parses a reason string or compares it to a literal, which is what made the wording
 safe to change: the refusal path is identified by `data-perch-problem`, not by its prose.
+
+# One canvas, in `ui-kit`, rendered by both products — decisions
+
+The runtime's `LayoutCanvas` moved into `packages/ui-kit`. Nothing it draws changed; what changed
+is which package owns it, and therefore whether the editor can render the same pixels or has to
+write a second canvas. `ARCHITECTURE.md` says the quiet part already: "`ui-kit` cannot live inside
+`runtime` or `editor`, because **both render it**. The editor's canvas must draw the same gauge the
+runtime draws, or WYSIWYG is a lie." The canvas was on the wrong side of that sentence.
+
+## 1. The tree did not build when this started, and closing that was step one
+
+`main` was red before any of this: `apps/runtime/src/layout-canvas.tsx` failed to compile
+(`ChartElement` not assignable to `never` — the `assertNever` tripwire firing exactly as designed
+on the new fourth element kind) and `apps/runtime/src/layouts.test.ts` asserted
+`layout.schemaVersion === 1` against layouts that migration now reports as 2. Both are call-site
+consequences of the chart/schema-v2 work, and that work's own decisions document names both and
+assigns them elsewhere.
+
+Nothing in the repo built until they closed, so a move could not be verified across them. They are
+a separate first commit, deliberately minimal:
+
+- `case 'chart':` renders the **existing** `.perch-element__failure` box — `no chart renderer yet:
+  <widget>`. Not a chart. `ui-kit` ships no chart component, and inventing one under a refactor
+  would put an undesigned graph on a wall panel. The visible-failure idiom is already the answer to
+  "an element this page cannot paint": say so, rather than leave a blank rectangle.
+- `LAYOUT_SCHEMA_VERSION` replaces the literal `1`, so the assertion tracks the contract instead of
+  being re-edited at every version step.
+
+Neither shipped layout contains a chart, so no pixel on either panel reaches the new branch. That
+is what lets the equivalence claim below stand despite this commit existing.
+
+## 2. `widget-catalogue.tsx` moved too, because a catalogue in one app is the same divergence
+
+The brief names the canvas. The canvas calls `widgetFor`, and leaving the catalogue in
+`apps/runtime` would mean the editor building its own — which is the identical failure one level
+down: the runtime paints a gauge the editor cannot offer, or the editor offers one the runtime
+refuses. Both products now inject *this* registry into `loadLayout`, so "which widgets exist" has
+one answer in the repo rather than one per app.
+
+`drawsScale` stayed out of the components, which was the original file's point and is unchanged: it
+is the registry builder's knowledge, not a prop, so a widget stays usable by a caller holding no
+layout at all.
+
+## 3. `ui-kit` -> `layout-schema`, and not a third package
+
+Taken as recommended. The edge is acyclic and both ends are leaves: `layout-schema` still imports
+nothing, and still learns the widget vocabulary only by injection (`WidgetRegistry` handed to
+`loadLayout` at the call site), which is its SPEC's hard rule 5 and is untouched by this direction
+of edge.
+
+A third package holding only the canvas was considered and rejected. It would buy one thing —
+`ui-kit` keeping a single dependency — at the cost of a package boundary between the canvas and the
+widgets it draws through, for a repo with one widget in it. That is ceremony, not architecture. If
+`layout-schema` ever needs to *not* be reachable from a widget, the split can happen then, with a
+reason.
+
+Declaring the edge needed no `npm install`: the root `node_modules/@perch/layout-schema` symlink
+already exists and `packages/ui-kit/node_modules` does not, so resolution walks up. No dependency
+version was changed and `package-lock.json` is untouched.
+
+## 4. What stayed in `apps/runtime`, and why `index.ts` lost exports rather than gaining wrappers
+
+Staying: the page chrome and its provenance strip, the mock/MQTT source choice, the `layouts/`
+catalogue and the `?layout=` plumbing, the viewport fit, and the refusal page. None of that is the
+pixels of a layout.
+
+`apps/runtime/src/index.ts` **dropped** its `LayoutCanvas` and `WIDGET_REGISTRY` re-exports rather
+than forwarding them. Its old header justified exporting `WIDGET_REGISTRY` as the answer to "what
+widgets does this runtime have — a question the editor will have to ask". That question now has a
+better address, and a pass-through here would preserve the idea that the runtime owns the canvas,
+which is the idea being removed.
+
+## 5. The moved tests lost `createMockSource`, and that is the only assertion-level change
+
+`ui-kit` may not import `sensor-sources`, so the two moved test files could not keep using
+`createMockSource`. They now use the local `fakeSource()` double this package already uses in
+`readout.test.tsx` and `sensor-context.test.tsx`, with the same metadata — `CPU_TEMP` labelled
+`CPU Package`. Every assertion is unchanged, including the one that matters: the readout is labelled
+from the metadata for *that exact topic*, which is how a widget proves it is bound to the topic the
+layout named rather than to whichever topic arrived first. `source.tick()` became an explicit
+`source.emit(CPU_TEMP, ...)`, which is the same publish with the value written down instead of
+generated.
+
+`widget-catalogue.test.tsx` needs no readings at all — it asserts that a registered name renders —
+so it uses a source that never publishes, examining every widget in its no-reading state. That is
+the state in which a missing component shows up.
+
+## 6. Test count: 229 -> 230, and where each test went
+
+| Workspace | Before | After | Files |
+|---|---|---|---|
+| `@perch/ui-kit` | 128 | 151 | 9 -> 11 |
+| `@perch/runtime` | 101 | 79 | 8 -> 6 |
+| total | 229 | 230 | 17 -> 17 |
+
+`layout-canvas.test.tsx` (15) and `widget-catalogue.test.tsx` (7) moved intact, 22 tests, none
+dropped, none rewritten beyond decision 5's double. The +1 is a new `ui-kit`
+`dependency-edges.test.ts` case asserting the `layout-schema` edge resolves — the edge this change
+introduces should be the kind of thing a test notices disappearing.
+
+## 7. Evidence that both shipped layouts render identically
+
+A temporary harness rendered `Dashboard` with the real `LAYOUT_CATALOGUE` at a frozen clock and a
+seeded mock source, and dumped the `.perch-stage` subtree one tag per line. Stage only, deliberately:
+the chrome carries a wall clock, so including it would guarantee a diff that means nothing. It goes
+through `Dashboard`, whose public surface this change does not alter, which is what let the harness
+file itself stay byte-identical across the two runs. Two runs before the move produced identical
+output, so the harness is deterministic and any difference after it would have been real signal.
+
+`diff -r before after`: **identical**, five trees — `desk-1920x400` live and waiting,
+`tower-720x1280` live and waiting, and `invalid/broken-desk`. The refusal still refuses with the
+same nine problems in the same order.
+
+Five real-Chrome screenshots at each end as well: both layouts in capture mode at their exact
+targets (1920x400, 720x1280), both at a normal browser-tab size (1440x900, letterboxed at 0.750x),
+and the refusal page. Identical geometry, tile positions, typography and letterbox; the only
+differences are the mock values and the wall clock, both of which vary by design, which is precisely
+why the deterministic DOM snapshot carries the claim and the screenshots only confirm it to a human.
+
+The honest caveat about "before": `main` did not compile (decision 1), so the before-capture is
+taken **after the unblock commit and before the move**. That is the correct baseline for the move
+itself, and no capture of broken `main` exists or could.
+
+Everything here is mock-driven. The sensor host is offline for roughly 100 hours, so every number in
+every capture was generated locally, and the pages say so themselves — "mock source - generated
+values, not hardware" is rendered chrome, not a caption added afterwards.
+
+## 8. Frame-budget discipline is unchanged, because the file is unchanged
+
+The element skeleton is still fixed, still index-keyed over a fixed array, with no insert, move or
+remove on update; still one `transform: scale()` on the whole canvas with no transition on it; still
+absolute integer rects and `overflow: hidden`. The move did not touch the render path. The chart
+branch added in decision 1 is a `<span>` in a branch no shipped layout reaches.
+
+## 9. Doc rationales that had to be rewritten, because they justified the old location
+
+Three comments were true only while this code lived in `apps/runtime`, and would have become
+confidently wrong in place:
+
+- `MEDIA_FITS_TO_FRAME` said the two fit unions stay separate "because `ui-kit` may not import
+  `layout-schema`". That is now false, and it was never the real reason: `MediaFrame` must stay
+  usable by a caller holding no layout at all. Replaced with that.
+- `CANVAS_TOKEN_DEFAULTS` claimed "`ui-kit` has never heard of either". It has now.
+- "A fourth member of `ELEMENT_KINDS`" became "A new member" — there are four, and `chart` is the
+  one that proved the tripwire works.
+
+A stale rationale is worse than no rationale, because the next reader takes it as a constraint.
+
+## 10. Deliberately not done: adopting `formatScalePercent` in the chrome badge
+
+The preceding change's decision 8 leaves `apps/runtime/src/app.tsx`'s `formatScale` to "whoever next
+has that file", which is this change. It is declined here on purpose. It alters a string a person
+reads in the chrome strip, and this change's entire claim is that nothing a person sees moved. Doing
+both at once would make the equivalence evidence unable to tell a refactor from a formatting change.
+It remains a one-line adoption for a change that is allowed to alter visible output.
+
+## 11. Call sites: everything that reached the moved surface
+
+`LayoutCanvas`, `LAYOUT_CANVAS_STYLES`, `canvasToken`, `CANVAS_TOKEN_DEFAULTS`, `WIDGET_REGISTRY`,
+`WIDGET_NAMES`, `widgetFor`, and the types beside them:
+
+| Call site | Uses | What happened |
+|---|---|---|
+| `packages/ui-kit/src/index.ts` | all of it | now the origin: two new export blocks, and `WidgetCatalogueEntry` had to become `export` for the declaration emit |
+| `packages/ui-kit/src/layout-canvas.tsx` | `widgetFor` | relative import, unchanged in meaning |
+| `apps/runtime/src/app.tsx:49` | `LAYOUT_CANVAS_STYLES`, `LayoutCanvas`, `WIDGET_REGISTRY` | two relative imports folded into the existing `@perch/ui-kit` import |
+| `apps/runtime/src/index.ts` | re-exported both surfaces | re-exports removed, not forwarded (decision 4) |
+| `apps/runtime/src/layouts.test.ts:35` | `WIDGET_REGISTRY` in `LOAD_OPTIONS` | retargeted to `@perch/ui-kit`; still the same registry the page loads with, which is what makes that file's claim hold |
+| `packages/ui-kit/src/widget-catalogue.test.tsx` | `WIDGET_REGISTRY`, `WIDGET_NAMES`, `widgetFor` | moved with the file; source double swapped (decision 5) |
+| `packages/ui-kit/src/layout-canvas.test.tsx` | `LayoutCanvas`, `WIDGET_REGISTRY` | moved with the file; source double swapped (decision 5) |
+| `packages/ui-kit/src/dependency-edges.test.ts` | the new `layout-schema` edge | one case added |
+| `apps/editor/`, `apps/caster/`, `apps/agent/`, `packages/sensor-*`, `packages/layout-schema/` | nothing | no change. The editor is the point of the move and has not been written yet |
+
+Nothing outside `apps/runtime` imported either file, which is the whole reason this move is small:
+the canvas was already only reachable from the one app, and that was the problem.
