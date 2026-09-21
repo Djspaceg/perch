@@ -104,7 +104,7 @@
     {
       "kind": "text",
       "text": "a second gpu is absent from this source · the pump header reports nothing",
-      "rect": { "x": 40, "y": 1224, "w": 640, "h": 36 },
+      "rect": { "x": 40, "y": 1196, "w": 640, "h": 36 },
       "style": {
         "--perch-text-justify": "flex-end",
         "--perch-text-anchor": "flex-end",

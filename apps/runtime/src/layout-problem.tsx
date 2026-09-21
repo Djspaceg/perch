@@ -23,8 +23,11 @@
  * meaning, and the paths inside it (`elements[3].rect.w`) are strings an author will re-read
  * character by character against their file. Reflowing that into paragraphs would lose the alignment
  * that makes twelve issues scannable; splitting it into a list would mean re-implementing the
- * formatting this page was told to use. `overflow: auto` rather than wrapping, so a long message is
- * scrollable instead of rewrapped mid-path.
+ * formatting this page was told to use. It wraps with `pre-wrap` rather than scrolling horizontally,
+ * because the whole point is that the issues are *readable*: a message clipped at the right edge is
+ * unreadable in a screenshot and unreadable on a panel with no scrollbar, and the two longest issue
+ * messages the format emits — the theme-token grammar and the media-path rule — are longer than a
+ * 1280px window. The author's newlines and indent still survive, which is what `pre` is for.
  *
  * The styling is deliberately plain and *not themed*: a refusal must render identically whatever the
  * layout's theme says, because one of the things a layout can be invalid about is its theme.
@@ -141,6 +144,9 @@ export const LAYOUT_PROBLEM_STYLES = `
   flex: 1;
   min-height: 0;
   overflow: auto;
+  /* Wrap only what is too long for the window; the newlines and the indent are the author's. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-family: ui-monospace, monospace;
   font-size: 0.875rem;
   line-height: 1.5;
