@@ -98,6 +98,7 @@ export {
 export {
   describeTargetMismatch,
   fitLayoutTarget,
+  formatScalePercent,
   type OutputCapabilities,
   type TargetFit,
 } from './target.js';

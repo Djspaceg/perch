@@ -3617,3 +3617,107 @@ Outside it, reached and left alone:
   `range` rule needs, and no widget code learned about element kinds.
 - `apps/editor/`, `apps/caster/`, `apps/agent/`, `packages/sensor-contract/`,
   `packages/sensor-sources/` — nothing; they do not read the element union.
+
+# Numbers in a refusal a person reads — decisions
+
+Scope: `packages/layout-schema/src/target.ts` and its test. `fitLayoutTarget`'s `reasons` are
+sentences the page prints for a human (`LayoutProblem`, `data-perch-problem="target-mismatch"`),
+and two of the three interpolated a number raw. `TargetFit.scale` itself is untouched.
+
+Evidence: `red-1-raw-numbers-in-prose.log` (the nine assertions failing against HEAD, with the
+old strings quoted in full), `test.log`, `build.log`, `typecheck.log`, `lint.log`,
+`format-check.log`, and two captures of the rendered refusal —
+`target-mismatch-1366x768.png`, `target-mismatch-1920x400.png`.
+
+## 1. The string rounds; the number does not
+
+`scale` stays `Math.min(...)`, exact and unrounded, because the canvas transform is derived from
+it — rounding it would move rendered geometry to save a printed digit. Only the *rendering*
+rounds, in `formatScalePercent`. `TargetFit.scale`'s doc comment now says this, so the next
+person who wants a shorter number has somewhere to put it other than the field.
+
+## 2. A percentage, not a decimal
+
+`0.7114583333333333` became `71.1%`, not `0.711`. The question a reader has is "how much of the
+canvas am I getting", and a percentage answers it without a conversion step. It also carries
+direction at a glance: `150%` is obviously bigger, where `1.5` has to be compared against 1
+first. The sentence names the direction as well — `scaled down to 71.1%` / `scaled up to 150%` —
+so the reader does not have to do even that comparison.
+
+## 3. One decimal place, extended only to protect the reading of "100%"
+
+One decimal is enough to decide whether a mismatch matters, and more digits are the noise this
+change exists to remove. The exception is a scale near but not equal to 1: `0.999` rendering as
+a flat `100%` would claim the pixel-identical fit that `exact` means, so `formatScalePercent`
+extends precision (to at most six places) until the value stops rounding to 100 — `99.9%`,
+`99.999%`. `100%` is therefore only printed for a scale of exactly 1.
+
+The cost, accepted: a value that is exact at two decimals is still shown at one, so
+`0.3125` prints as `31.3%` rather than `31.25%`. Visible in
+`target-mismatch-1920x400.png`. A percentage is understood to be rounded; a reader deciding
+whether a letterbox matters is not served by the extra digit.
+
+## 4. A scale of exactly 1 is not "scaled by 1"
+
+`scale` can be 1 without the fit being `exact` — a 1920x400 layout in a 3840x400 output is
+full-size with bars. "so the canvas is scaled by 1" described that as scaling. It now reads
+"so the canvas is shown at its declared size", and the letterbox reason that follows says where
+the bars are from.
+
+## 5. Aspect ratios are reduced, not divided out
+
+`aspect ratio differs (1920:400 against 1920:1080)` printed the dimensions a second time and
+left the reader dividing. It now reduces: `24:5 against 16:9`.
+
+Rejected: decimals (`4.8:1 against 1.78:1`). More comparable, but not exact — 1920:1080 and
+1366:768 both round to `1.78:1`, so the sentence would read "aspect ratio differs (1.78:1
+against 1.78:1)" and contradict the cross-product that had just established they differ. That
+pair is a 1080p layout in an ordinary laptop tab, i.e. common. GCD reduction is exact, cannot
+self-contradict, and gives the recognisable form for the pairs this is mostly read for; the
+price is that the awkward pair reads `16:9 against 683:384`. Non-integer dimensions cannot be
+reduced and are printed as they are — nothing here produces one, a CSS-pixel viewport could.
+
+## 6. The frame-rate reason had the same defect, and it was real
+
+`frameRate` is the one `target` field the format allows to be fractional, so it is the one that
+arrives measured: an output reporting `29.97002997002997` printed all seventeen digits. It is
+now `29.97 Hz`. Found by reading the other reasons rather than by a report.
+
+## 7. `?? 0` removed, because it could only ever have lied
+
+The frame-rate reason read `output.frameRate ?? 0`. It was unreachable — an unknown rate is
+honoured, not a shortfall — but had it been reached it would have reported an output that
+"reaches 0 Hz". The condition is now spelled out (`outputFrameRate !== undefined && ... <
+target.frameRate`) so the narrowing is real and the sentence has no rate it has to invent.
+`frameRateHonoured` is unchanged in meaning.
+
+## 8. `formatScalePercent` is exported, because the scale is printed in two places
+
+`apps/runtime/src/app.tsx:390` (`formatScale`) already rounds `fit.fit.scale` for the chrome
+badge, with its own convention — `0.711x`, and a hand-rolled `scale === 1 ? '1'` guard for
+exactly the near-1 problem decision 3 solves. That is the same bug's second instance and the
+reason the formatter is public API rather than a private helper in `target.ts`.
+
+**It is not fixed in this change**, and this is the one thing left undone: a second worker is
+live in `apps/runtime/` and `packages/ui-kit/` moving the layout canvas, and writing to
+`app.tsx` underneath them would collide. The adopting edit is one line —
+`` return formatScalePercent(scale) `` in place of the `toFixed(3)` expression — and belongs to
+whoever next has that file. Left deliberately, named here so it is not lost.
+
+## 9. Call sites: what `layout-schema`'s target surface reaches
+
+`fitLayoutTarget`, `describeTargetMismatch`, `TargetFit` and the new `formatScalePercent`, every
+consumer in the repo today:
+
+| Call site | Uses | Affected by this change |
+|---|---|---|
+| `packages/layout-schema/src/index.ts` | re-exports all four | yes — `formatScalePercent` added to the barrel |
+| `packages/layout-schema/src/target.test.ts` | all four | yes — 10 new tests, 8 of them on rendered strings |
+| `apps/runtime/src/viewport.ts:71,75` | `describeTargetMismatch` for the capture refusal, `fitLayoutTarget` for the scale, `TargetFit` in `CanvasFit` | prose only — passes the sentence through unchanged, and reads `scale` as the exact number it still is |
+| `apps/runtime/src/layout-problem.tsx:97` | the mismatch sentence, via `targetMismatchProblem` | prose only — renders it in a `<pre>`, no parsing |
+| `apps/runtime/src/app.tsx:252,255,268` | `fit.fit.scale` → the canvas transform, `data-perch-scale`, and the chrome badge | `scale` is unchanged, so the transform and the attribute are unchanged. The badge is decision 8's open instance |
+| `apps/runtime/src/viewport.test.ts:22,31,42,64` | asserts `fit.fit.scale` is `1`, `0.5`, `0.75`, `1` | unaffected, and the proof `scale` did not move: green, unedited |
+| `packages/ui-kit/`, `apps/editor/`, `apps/caster/`, `apps/agent/`, `packages/sensor-*` | nothing | no |
+
+No consumer parses a reason string or compares it to a literal, which is what made the wording
+safe to change: the refusal path is identified by `data-perch-problem`, not by its prose.

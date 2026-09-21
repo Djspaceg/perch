@@ -3,14 +3,20 @@
  * honour it refuses cleanly and loudly rather than rendering wrong and being discovered on the
  * panel.
  *
- * `target` is the declaration. These two functions are what a consumer compares it against. They
- * state the *relationship* between a layout and an output and stop there — whether a letterbox is
- * acceptable or a frame-rate shortfall is fatal is the runtime's policy, and baking a refusal in
- * here would put output-adapter behaviour inside a contract.
+ * `target` is the declaration. `fitLayoutTarget` and `describeTargetMismatch` are what a consumer
+ * compares it against. They state the *relationship* between a layout and an output and stop there —
+ * whether a letterbox is acceptable or a frame-rate shortfall is fatal is the runtime's policy, and
+ * baking a refusal in here would put output-adapter behaviour inside a contract.
  *
  * Both follow from coordinate decision 1: the canvas is fixed at `target` size and the *whole*
  * canvas is scaled to fit its viewport, letterboxed. So a size difference is a scale factor, never
  * a reflow, and the only thing an aspect-ratio difference costs is bars.
+ *
+ * `TargetFit.reasons` are sentences a person reads and acts on, so every number in one is *rendered*
+ * rather than interpolated raw: a scale factor is a percentage, an aspect ratio is in lowest terms,
+ * and a frame rate is the rate it is known by. The exact numbers stay on `TargetFit` for callers that
+ * compute with them. `formatScalePercent` is exported because the scale is printed outside this file
+ * too, and one convention beating three is the point.
  */
 
 import type { LayoutTarget } from './layout.js';
@@ -30,7 +36,12 @@ export interface TargetFit {
    * `letterboxed` — different aspect ratio, so scaled to fit with bars on two sides.
    */
   kind: 'exact' | 'scaled' | 'letterboxed';
-  /** Canvas pixels to output pixels. `1` for `exact`; below 1 when the viewport is smaller. */
+  /**
+   * Canvas pixels to output pixels. `1` for `exact`; below 1 when the viewport is smaller.
+   *
+   * Exact, and deliberately unrounded: the canvas transform is derived from it, so rounding here
+   * would move rendered geometry to save a printed digit. `formatScalePercent` is the rounding.
+   */
   scale: number;
   /** Whether the output can reach the declared capture ceiling. `true` when it is unknown. */
   frameRateHonoured: boolean;
@@ -58,19 +69,23 @@ export function fitLayoutTarget(target: LayoutTarget, output: OutputCapabilities
   const reasons: string[] = [];
   if (!exact) {
     reasons.push(
-      `layout declares ${target.width}x${target.height} and the output is ${output.width}x${output.height}, so the canvas is scaled by ${scale}`,
+      `layout declares ${target.width}x${target.height} and the output is ${output.width}x${output.height}, so the canvas is ${describeScaling(scale)}`,
     );
   }
   if (!sameAspect) {
     reasons.push(
-      `aspect ratio differs (${target.width}:${target.height} against ${output.width}:${output.height}), so the canvas is letterboxed`,
+      `aspect ratio differs (${formatAspectRatio(target.width, target.height)} against ${formatAspectRatio(output.width, output.height)}), so the canvas is letterboxed`,
     );
   }
 
-  const frameRateHonoured = output.frameRate === undefined || output.frameRate >= target.frameRate;
-  if (!frameRateHonoured) {
+  const outputFrameRate = output.frameRate;
+  const frameRateHonoured = outputFrameRate === undefined || outputFrameRate >= target.frameRate;
+  // Spelled out rather than written as `!frameRateHonoured` so the narrowing is real: an unknown rate
+  // cannot reach the sentence, so the sentence has no rate it has to invent. It used to say `?? 0`,
+  // which would have reported an output that "reaches 0 Hz" had it ever been reachable.
+  if (outputFrameRate !== undefined && outputFrameRate < target.frameRate) {
     reasons.push(
-      `layout declares a ${target.frameRate} Hz capture ceiling and the output reaches ${output.frameRate ?? 0} Hz`,
+      `layout declares a ${formatDecimal(target.frameRate)} Hz capture ceiling and the output reaches ${formatDecimal(outputFrameRate)} Hz`,
     );
   }
 
@@ -96,4 +111,78 @@ export function describeTargetMismatch(
   if (fit.reasons.length === 0) return null;
 
   return fit.reasons.join('; ');
+}
+
+/**
+ * A scale factor as a percentage, for anywhere a person reads it.
+ *
+ * A percentage rather than a decimal because the question a reader is answering is "how much of the
+ * canvas am I getting", and `71.1%` answers it where `0.7114583333333333` has to be rounded and
+ * converted first. It also makes the direction legible: `150%` is obviously bigger, where `1.5` is a
+ * number you have to compare against 1 to know that.
+ *
+ * Precision is one decimal place, extended only as far as it takes for a scale that is not 1 to avoid
+ * rendering as a flat `100%`. Telling 1 from 0.999 is most of why the number is printed at all: an
+ * exact fit is pixel-identical to the editor and a 99.9% one is resampled.
+ */
+export function formatScalePercent(scale: number): string {
+  if (scale === 1) return '100%';
+
+  const percent = scale * 100;
+  let places = 1;
+  while (places < 6 && Number(percent.toFixed(places)) === 100) places += 1;
+
+  return `${String(Number(percent.toFixed(places)))}%`;
+}
+
+/** What the scale factor does to the canvas, named in the direction it happens. */
+function describeScaling(scale: number): string {
+  if (scale === 1) return 'shown at its declared size';
+
+  return `${scale < 1 ? 'scaled down' : 'scaled up'} to ${formatScalePercent(scale)} of its declared size`;
+}
+
+/**
+ * An aspect ratio in lowest terms: `24:5`, not `1920:400`.
+ *
+ * Reduced rather than divided out to a decimal, because the reduction is exact and a decimal is not:
+ * 1920:1080 and 1366:768 both round to `1.78:1`, and a sentence reading "aspect ratio differs
+ * (1.78:1 against 1.78:1)" contradicts itself where the cross-product above has just established
+ * that they differ. `16:9 against 683:384` is ugly for that pair but true, and the pairs this is
+ * mostly read for — `24:5 against 16:9` — come out in the form people already recognise.
+ *
+ * Non-integer dimensions cannot be reduced, so they are printed as they are. Nothing in this repo
+ * produces one; a viewport measured in CSS pixels could.
+ */
+function formatAspectRatio(width: number, height: number): string {
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
+    return `${formatDecimal(width)}:${formatDecimal(height)}`;
+  }
+
+  const divisor = greatestCommonDivisor(width, height);
+
+  return `${String(width / divisor)}:${String(height / divisor)}`;
+}
+
+function greatestCommonDivisor(a: number, b: number): number {
+  let left = a;
+  let right = b;
+  while (right !== 0) {
+    const remainder = left % right;
+    left = right;
+    right = remainder;
+  }
+
+  return left;
+}
+
+/**
+ * A number as a person would write it: at most two decimals, and no trailing zeroes.
+ *
+ * Two decimals because the fractional quantity these sentences carry is a frame rate — the one
+ * `target` field that may be fractional, and so the one that can arrive measured as
+ * `29.97002997002997` rather than as the `29.97` it is known by.
+ */
+function formatDecimal(value: number): string {
+  return String(Number(value.toFixed(2)));
 }
