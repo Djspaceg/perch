@@ -4002,3 +4002,153 @@ sites, for completeness:
 
 After this change there is one implementation of the scale convention and two call sites printing
 it, which is the state decision 8 of the previous change was aiming at.
+
+# The layout editor, first slice — decisions
+
+Scope of this change: `apps/editor`, previously a placeholder (`index.ts` plus two config tests),
+becomes an editor that lists layouts, previews the selected one on the shared `ui-kit` canvas, edits
+the fields that already exist, and writes a valid layout back out. Narrower than `apps/editor/SPEC.md`
+on purpose — see decision 9 for what was left out and why nobody should think it was missed.
+
+Evidence: `apps/editor` tests (70) pass; `.evidence/editor-preview-desk.png`,
+`.evidence/editor-preview-tower.png`, `.evidence/editor-refuses-invalid.png`,
+`.evidence/editor-saved.png` with `.evidence/editor-capture-report.json` (all mock data);
+`.evidence/editor-save-diff.log` (what a live PUT wrote, then reverted). Root gates in the
+build/test/typecheck log staged with this change.
+
+## 1. Two properties are structural, not remembered
+
+`SPEC.md` hard rule 1 (WYSIWYG) and hard rule 2 (validate before saving) are the whole point of the
+app, so neither is left to discipline:
+
+- **The preview renders what the runtime renders.** `LayoutPreview` contains `LayoutCanvas` from
+  `@perch/ui-kit` and nothing else — there is no element rendering anywhere in `apps/editor`. The
+  widget vocabulary is `WIDGET_REGISTRY` from the same package. `app.test.tsx` proves this the only
+  way it can be proven: it renders `LayoutCanvas` directly with the same layout and scale and asserts
+  the editor's canvas subtree is byte-identical HTML. A local reimplementation that looked right, or a
+  wrapper that added a selection outline or a resize handle, would fail that test.
+- **Nothing reaches disk unvalidated.** Every edit goes through `editDraft` -> `validateLayout`; the
+  save button is gated on `canSave`; and `saveDraft` refuses independently of the button, making no
+  HTTP request at all when there are issues. `save.test.ts`'s central assertion is that negative:
+  an invalid draft produces no request.
+
+## 2. Saving is a Vite dev-server PUT, and the containment rule is pure and tested
+
+Three mechanisms were weighed: a dev-server middleware accepting a `PUT`, the File System Access API,
+and download-and-replace. The PUT won — it writes the file in place with no picker, no second copy in
+`~/Downloads`, and no browser-gated API. The cost, stated in `README.md` rather than implied, is that
+it works only under `npm run dev`; a built `dist/` has no server to answer it.
+
+The security-relevant half — turning a name from a URL into a path under `layouts/` — is not in the
+middleware. It is `resolveSaveTarget` in `src/save-target.ts`, a pure function with a test per refusal
+(`save-target.test.ts`): traversal, absolute paths, both separator spellings, hidden files, a NUL, a
+newline, an over-long name, and the empty name a bare `PUT /__perch/layout/` produces. The middleware
+imports nothing from `@perch/*`; it checks method, name (via that function), file existence (a 404 —
+it edits existing files, it does not create them), body size, and that the body is JSON. Everything
+semantic is the client's, done by `validateLayout` before any request.
+
+This was exercised live: `curl` against a running server returned 405/400/404/400 for wrong method,
+traversal, a nonexistent name, and non-JSON, each with its sentence as the body; a real edit wrote the
+file (`editor-save-diff.log`), which was then reverted so `layouts/` is clean.
+
+## 3. The draft is a typed `Layout`, so ordinary edits exercise the refusal path
+
+`DraftState` carries the typed document the author is editing (`draft`), the last document that
+validated (`rendered`, which the canvas paints), and the current issues. Because `draft` is a real
+`Layout` and the edit functions in `layout-edits.ts` are the operations ordinary controls perform, an
+invalid state is reached the way an author reaches it — a zero width, a cleared number, an emptied
+string, a topic that is not one — not by constructing a shape only a test could build. When an edit
+fails to validate, `rendered` holds the last good document, so the preview freezes on the last thing
+the runtime would have accepted while the control still shows the author their own typed value.
+
+## 4. The preview paints `rendered`, sized in JS from shared constants
+
+The canvas is always the layout's authored `target` size; only a `transform: scale()` changes, capped
+at 1 so the preview never judges an upscaled resample. The scale comes from `fitLayoutTarget` against a
+viewport computed in JavaScript (`preview-viewport.ts`, following the runtime's `useSyncExternalStore`
+pattern) rather than from a `ResizeObserver`, which jsdom does not implement. The three layout numbers
+(header height, inspector width, pane padding) live in one module and are interpolated into the CSS, so
+the box the arithmetic scales for is the box the element is actually in.
+
+`.perch-stage` from `ui-kit` could not be reused for the pane — it is `width: 100vw; height: 100vh`,
+which is correct for a full-screen runtime and useless for an editor pane. See finding A.
+
+## 5. Offered-only listing; `invalid/` openable but unsaveable
+
+`layout-library.ts` is glob-backed. `names` lists only the shipped, valid layouts, sorted. The
+`layouts/invalid/` fixtures are catalogued but not offered, reachable via `?layout=invalid/broken-desk`
+so the editor's own refusal screen can be exercised against a real document — and unsaveable, which
+falls out of `resolveSaveTarget` refusing separators rather than from a special case.
+
+## 6. Range and enum fields edit only what is authored
+
+`RangeFields` appears only when an element already has a `range`; there is no "add a range", and no way
+back from a set `fit`/`gap` to unset. Editing existing fields is this slice; adding and removing
+optional structure is element authoring, which is not (decision 9). Topic suggestions come from
+`createMockSource().topics` via a `<datalist>` — `SPEC.md`'s "picker populated from live topics",
+reduced to what is available with the sensor host off.
+
+## 7. The source is the mock, unconditionally, and the page says so
+
+Unlike the runtime, `apps/editor` has no mock/MQTT seam: `main.tsx` builds `createMockSource()` and
+nothing else. Authoring must not require hardware — the sensor host is off for days — and an editor
+that needed a relay to draw a readout could not be used to lay one out. The header shows
+`mock data - generated here, not hardware` with `data-perch-source-kind="mock"`, the same wording and
+attribute as the runtime's chrome, so no screenshot can be misread as a live panel.
+
+## 8. Opening plus saving a shipped layout upgrades schemaVersion 1 -> 2
+
+Both shipped layouts are version 1; the loader migrates them to 2 on open. The editor carries the
+migration report (`formatMigrationReport`) and prints it in a bar before the save, because it is this
+editor that moves the number and an author should not first meet it in a diff. A save also re-expands
+the hand-collapsed one-line objects in `layouts/*.json`, so the first save of a shipped layout shows a
+large whitespace diff plus the version bump; the bytes still round-trip through the runtime loader
+(`save.test.ts`). Both facts are in `README.md`.
+
+## 9. Left out of this slice, on purpose
+
+Not missed - scoped out, to match the ask ("switch and preview layouts and start customizing them")
+rather than the whole SPEC:
+
+- **Direct manipulation** (drag, resize, snap, align on the canvas). Form editing only this slice.
+- **Creating or deleting elements**, and adding/removing optional fields (`range`, `fit`, `gap`).
+- **Asset management** (a media library, uploads). The editor resolves the assets the bundler found
+  and marks a missing one; it does not add them.
+- **Multi-layout projects and templates.**
+- **An undo stack.** There is none, which is why switching the picker with unsaved edits parks the
+  switch behind an explicit discard rather than silently throwing work away.
+
+## 10. Findings: what was awkward to consume from an editor's side
+
+Recorded rather than fixed, because `ui-kit` and `layout-schema` have other writers this slice and the
+brief said to treat a needed change to them as a finding, not an edit:
+
+- **A. `ui-kit` has no pane-sized stage.** `.perch-stage` is `100vw/100vh`. Both the runtime and the
+  editor want "centre a scaled canvas in the box I give you"; a stage sized from its parent would serve
+  both. The editor copies only the centring and the letterbox token (`canvasToken`) into `PREVIEW_STYLES`.
+- **B. `ui-kit` exports no aggregated stylesheet.** Every consumer must learn each sheet name
+  (`READOUT_STYLES`, `TEXT_BLOCK_STYLES`, `MEDIA_FRAME_STYLES`, `LAYOUT_CANVAS_STYLES`, and whatever the
+  chart widget adds). A single `UI_KIT_STYLES` barrel would mean a new widget's styles arrive without
+  every app editing its `<style>` list. The editor mounts the sheets it knows about.
+- **C. `layout-schema` has no `serializeLayout`.** The loader is the source of truth for reading and
+  the validator for shape, but writing the canonical on-disk form is left to callers, so the editor
+  supplies its own (`save.ts`) and pins the format in `save.test.ts`. If a second writer ever appears,
+  this belongs in the schema.
+- **D. `LOAD_OPTIONS` is duplicated between runtime and editor.** `apps/` may not import `apps/`, so
+  the two apps cannot share the constant; they share its ingredients instead (`WIDGET_REGISTRY` and
+  `normalizeSensorTopic`, both from packages). Both sides name the same two exported values, so this is
+  agreement, not divergence — but it is duplication a shared non-app module would remove.
+
+## 11. Call sites: this change touches no `packages/*` file
+
+Nothing shared changed shape, so there is nothing whose call sites need updating. `apps/editor` is a
+leaf — `SPEC.md` says nothing depends on it, and nothing does. The files this worker owns and wrote,
+all under `apps/editor/` plus this `DECISIONS.md` section:
+
+`src/app.tsx`, `src/main.tsx`, `src/draft.ts`, `src/layout-edits.ts`, `src/layout-library.ts`,
+`src/inspector.tsx`, `src/problems.tsx`, `src/preview.tsx`, `src/preview-viewport.ts`, `src/save.ts`,
+`src/save-target.ts`, `src/index.ts` (rewritten from the placeholder); tests `src/app.test.tsx`,
+`src/draft.test.ts`, `src/layout-library.test.ts`, `src/save.test.ts`, `src/save-target.test.ts`;
+`index.html`, `vite.config.ts`, `package.json`, `vitest.setup.ts`. The other workers' `packages/ui-kit`
+and `apps/runtime` edits, the new `packages/ui-kit` chart/line-chart files, `layouts/trend-1920x400.json`,
+and `.claude/settings.json` were left unstaged.
