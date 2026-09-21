@@ -47,15 +47,17 @@ import {
   type SensorSourceStatus,
 } from '@perch/sensor-contract';
 import {
+  LAYOUT_CANVAS_STYLES,
+  LayoutCanvas,
   MEDIA_FRAME_STYLES,
   READOUT_STYLES,
   SensorProvider,
   TEXT_BLOCK_STYLES,
+  WIDGET_REGISTRY,
   assertNever,
   useSensor,
   useSensorStatus,
 } from '@perch/ui-kit';
-import { LAYOUT_CANVAS_STYLES, LayoutCanvas } from './layout-canvas.js';
 import {
   LAYOUT_PROBLEM_STYLES,
   LayoutProblem,
@@ -64,7 +66,6 @@ import {
   unknownLayoutProblem,
   type LayoutProblemProps,
 } from './layout-problem.js';
-import { WIDGET_REGISTRY } from './widget-catalogue.js';
 import { fitCanvas, useViewport, type PageRequest } from './viewport.js';
 import type { LayoutCatalogue } from './layout-catalogue.js';
 

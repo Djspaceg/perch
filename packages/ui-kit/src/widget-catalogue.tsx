@@ -5,8 +5,11 @@
  *
  * - `@perch/layout-schema` needs a `WidgetRegistry` — which names exist, and which of them draw a
  *   scale and therefore require an authored `range`. It must not import `ui-kit` (its SPEC's hard
- *   rule 5), so the vocabulary is injected from here.
- * - This page needs a name → React component map, to turn a validated `WidgetElement` into pixels.
+ *   rule 5), so the vocabulary is injected from here. That rule is unaffected by this package now
+ *   importing *it*: the edge runs one way, `ui-kit` → `layout-schema`, and the registry is still
+ *   handed to the validator at the call site rather than known by it.
+ * - `LayoutCanvas` needs a name → React component map, to turn a validated `WidgetElement` into
+ *   pixels.
  *
  * Kept as two hand-written lists, those drift, and the drift has one specific shape: a name in the
  * registry with no component. A layout using it **validates and then renders nothing**, which is
@@ -19,12 +22,20 @@
  * unrepresentable — a new widget is one entry carrying both halves, and an entry cannot carry one
  * half, because `render` and `drawsScale` are both required by `WidgetCatalogueEntry`.
  *
- * ## Why `drawsScale` lives here and not in `ui-kit`
+ * ## Why this is in `ui-kit`, and why `drawsScale` is still not a component's business
  *
- * It is the *registry builder's* knowledge, per `layout-schema`'s own note: whether a widget needs
- * a `range` is a statement about the layout format's requirements on an author, not about the
- * component's props. `ui-kit` could grow a gauge without knowing what a layout is; the flag belongs
- * with whoever tells the validator about it. That is this file.
+ * This file moved here with `LayoutCanvas`, and for the same reason: it is the other half of drawing
+ * a layout. A catalogue left in `apps/runtime` would have the editor build its own, and then the two
+ * would disagree about which widgets exist — the runtime painting a gauge the editor cannot offer,
+ * or the editor offering one the runtime refuses. Both apps now inject *this* registry into
+ * `loadLayout`, so "what widgets are there" has one answer in the repo.
+ *
+ * `drawsScale` is still not a prop and still not `Readout`'s business. It is the *registry builder's*
+ * knowledge, per `layout-schema`'s own note: whether a widget needs a `range` is a statement about
+ * the layout format's requirements on an author, not about the component's API. A widget component
+ * stays usable by a caller holding no layout at all; the flag lives out here in the catalogue entry
+ * beside it, which is what `WidgetCatalogueEntry` keeps together — the component and the one fact
+ * the validator needs about it.
  */
 
 import type { ReactNode } from 'react';
@@ -33,10 +44,10 @@ import {
   type WidgetElement,
   type WidgetRegistry,
 } from '@perch/layout-schema';
-import { Readout } from '@perch/ui-kit';
+import { Readout } from './readout.js';
 
 /** One widget: what the validator must know about it, and how it paints. */
-interface WidgetCatalogueEntry {
+export interface WidgetCatalogueEntry {
   /**
    * Whether this widget draws a scale, and so requires an authored `range` in every element that
    * uses it. Passed straight through to the registry.
@@ -50,13 +61,13 @@ interface WidgetCatalogueEntry {
 }
 
 /**
- * Every widget this runtime can paint.
+ * Every widget a layout may name, and `LayoutCanvas` can paint.
  *
  * One entry, and that is the honest state of the project: `ui-kit` ships one widget. The gauge and
  * the sparkline that README.md and the layout format both anticipate are not here because they do
  * not exist — a catalogue entry for a component nobody wrote would be exactly the "validates, then
  * renders nothing" failure this file is built to prevent, with the registry telling authors to use
- * a widget the page cannot draw.
+ * a widget no canvas can draw.
  *
  * `satisfies` rather than an annotation: the object keeps its literal key type, so `WidgetName`
  * below is the exact union of what is here, while every entry is still checked against the shape.
@@ -92,7 +103,7 @@ export const WIDGET_NAMES: readonly WidgetName[] = Object.freeze(
  * A `Map` rather than the object itself, because the lookup key is a `string` from a layout file and
  * `Map.get` answers that honestly with `WidgetCatalogueEntry | undefined`. Indexing the object would
  * need a cast from `string` to `WidgetName` — which is the assertion that a layout's widget name is
- * one this page knows, i.e. exactly the thing being checked.
+ * one this catalogue knows, i.e. exactly the thing being checked.
  */
 const WIDGET_COMPONENTS: ReadonlyMap<string, WidgetCatalogueEntry> = new Map(
   Object.entries(WIDGET_CATALOGUE),
@@ -103,7 +114,7 @@ const WIDGET_COMPONENTS: ReadonlyMap<string, WidgetCatalogueEntry> = new Map(
  *
  * Built at module load and shared: `createWidgetRegistry` freezes its result and sorts `names`, so
  * one instance produces byte-identical error messages everywhere and there is nothing to keep in
- * sync between the page and its tests.
+ * sync between the canvas and its tests.
  */
 export const WIDGET_REGISTRY: WidgetRegistry = createWidgetRegistry(
   Object.fromEntries(

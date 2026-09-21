@@ -15,10 +15,46 @@
 import { act, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { loadLayoutJson, type Layout } from '@perch/layout-schema';
-import { createMockSource, type MockSensorSource } from '@perch/sensor-sources';
+import {
+  sensorTopic,
+  type SensorMeta,
+  type SensorReading,
+  type SensorSource,
+  type SensorTopic,
+} from '@perch/sensor-contract';
 import { SensorProvider } from '@perch/ui-kit';
 import { LayoutCanvas } from './layout-canvas.js';
 import { WIDGET_REGISTRY } from './widget-catalogue.js';
+
+const CPU_TEMP = sensorTopic('cpu', 'temperature');
+
+/**
+ * `ui-kit` may not import `sensor-sources`, so the double lives here.
+ *
+ * This is the one thing that changed when this file moved out of `apps/runtime`: it used to reach for
+ * `createMockSource`, which this package has no edge to. Same idiom as `readout.test.tsx` and
+ * `sensor-context.test.tsx`, and the same metadata — `CPU_TEMP` is labelled `CPU Package`, which is
+ * what lets the widget assertion below still prove the readout is bound to the topic the *layout*
+ * named rather than to whichever topic arrived first.
+ */
+function fakeSource() {
+  const handlers = new Set<(topic: SensorTopic, reading: SensorReading) => void>();
+  const metas = new Map<string, SensorMeta>([[CPU_TEMP, { label: 'CPU Package' }]]);
+
+  return {
+    status: 'live' as const,
+    subscribe(_pattern: string, onReading: (topic: SensorTopic, reading: SensorReading) => void) {
+      handlers.add(onReading);
+      return () => handlers.delete(onReading);
+    },
+    meta(topic: SensorTopic) {
+      return metas.get(topic);
+    },
+    emit(topic: SensorTopic, reading: SensorReading) {
+      for (const handler of [...handlers]) handler(topic, reading);
+    },
+  } satisfies SensorSource & Record<string, unknown>;
+}
 
 /** Every element kind, in one document, in a deliberate paint order. */
 const ALL_KINDS = {
@@ -60,9 +96,9 @@ function loadFixture(document: unknown): Layout {
 function mount(
   document: unknown = ALL_KINDS,
   scale = 1,
-): { source: MockSensorSource; layout: Layout } {
+): { source: ReturnType<typeof fakeSource>; layout: Layout } {
   const layout = loadFixture(document);
-  const source = createMockSource({ seed: 5, autoStart: false });
+  const source = fakeSource();
 
   render(
     <SensorProvider source={source}>
@@ -174,7 +210,7 @@ describe('<LayoutCanvas> — the three kinds', () => {
     const { source } = mount();
 
     const readout = screen.getByRole('group');
-    // Labelled from the metadata the mock retains for that exact topic, which is how a widget proves
+    // Labelled from the metadata the source retains for that exact topic, which is how a widget proves
     // it is bound to the topic the layout named rather than to whichever topic came first.
     expect(readout).toHaveAttribute('aria-label', 'CPU Package');
     expect(readout).toHaveAttribute('data-state', 'waiting');
@@ -182,7 +218,7 @@ describe('<LayoutCanvas> — the three kinds', () => {
     // Inside `act`: the publish happens outside React, so without it the subscriber's setState lands
     // after the assertion and the readout is still `waiting`.
     act(() => {
-      source.tick();
+      source.emit(CPU_TEMP, { value: 61.5, at: Date.now() });
     });
 
     expect(screen.getByRole('group')).toHaveAttribute('data-state', 'value');

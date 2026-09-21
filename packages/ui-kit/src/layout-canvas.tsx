@@ -1,5 +1,18 @@
 /**
- * A validated layout, as pixels: the fixed canvas, the scale, and the three element kinds.
+ * A validated layout, as pixels: the fixed canvas, the scale, and the element kinds.
+ *
+ * ## Why this is in `ui-kit` and not in `runtime`
+ *
+ * It began in `apps/runtime`, which is the only thing that rendered a layout at the time. The
+ * editor renders one too — its canvas *is* this canvas — and `apps/` may not import `apps/`, so
+ * leaving it there meant the editor writing a second one. Two canvases is the specific way the
+ * editor's preview stops matching the runtime's output, which is the failure `ui-kit` exists as its
+ * own package to prevent: "the editor's canvas must draw the same gauge the runtime draws, or
+ * WYSIWYG is a lie" (ARCHITECTURE.md). One canvas makes that structural rather than aspirational.
+ *
+ * What stayed in `runtime` is everything that is not the pixels of a layout: the page chrome and its
+ * provenance strip, the mock/MQTT source choice, the `layouts/` catalogue and the `?layout=`
+ * plumbing, the viewport fit, and the refusal page. This file knows nothing about any of it.
  *
  * ## The coordinate system, and what it refuses to be
  *
@@ -45,17 +58,20 @@ import {
   type TextElement,
   type WidgetElement,
 } from '@perch/layout-schema';
-import { MediaFrame, TextBlock, assertNever, type MediaFrameFit } from '@perch/ui-kit';
+import { assertNever } from './exhaustive.js';
+import { MediaFrame, type MediaFrameFit } from './media-frame.js';
+import { TextBlock } from './text-block.js';
 import { widgetFor } from './widget-catalogue.js';
 
 /**
- * The tokens the *page* reads, as opposed to the ones a widget reads.
+ * The tokens the *canvas* reads, as opposed to the ones a widget reads.
  *
- * `ui-kit` owns the widget vocabulary (`PERCH_TOKEN_DEFAULTS`); these two are the canvas's own, and
- * they belong here because the canvas and the letterbox are this package's pixels — `ui-kit` has
- * never heard of either. Declared as a record with defaults for the same reason `ui-kit` does it: a
- * `var()` whose fallback lives only in a string literal is a fallback nobody can check, and the way
- * you find out it was missing is a layout with `theme: {}` painting a transparent canvas.
+ * `PERCH_TOKEN_DEFAULTS` is the widget vocabulary; these two are the canvas's own, and they stay a
+ * separate record rather than joining it because they are read at a different level — one canvas
+ * element and one stage, not once per widget — and because a layout's `theme` may set either.
+ * Declared as a record with defaults for the same reason `tokens.ts` does it: a `var()` whose
+ * fallback lives only in a string literal is a fallback nobody can check, and the way you find out
+ * it was missing is a layout with `theme: {}` painting a transparent canvas.
  */
 export const CANVAS_TOKEN_DEFAULTS = {
   /** Behind the elements, inside the canvas. A layout's "background colour". */
@@ -117,7 +133,8 @@ export function LayoutCanvas({ layout, scale, resolveAsset }: LayoutCanvasProps)
  * A `switch` closed by `assertNever` rather than a lookup table, because each branch needs the
  * narrowed member: a table keyed by `ElementKind` would hand every renderer the union and need a
  * cast to get its own type back, which is the one thing that could let a media renderer read a text
- * element's fields. A fourth member of `ELEMENT_KINDS` fails to compile here until it has a branch.
+ * element's fields. A new member of `ELEMENT_KINDS` fails to compile here until it has a branch —
+ * which is exactly what `chart` did.
  */
 function renderElement(
   element: LayoutElement,
@@ -141,9 +158,9 @@ function renderElement(
  * A chart element, with no chart to draw it.
  *
  * `layout-schema` version 2 added `chart` to `ELEMENT_KINDS`, which broke this `switch` exactly as
- * its comment promised — and the honest branch today is the failure box, not a renderer. `ui-kit`
- * ships no chart component: inventing one here to close a compile error would put a graph on a wall
- * panel that nobody designed, which is worse than a box saying the widget is missing.
+ * its comment promised — and the honest branch today is the failure box, not a renderer. This
+ * package ships no chart component: inventing one here to close a compile error would put a graph on
+ * a wall panel that nobody designed, which is worse than a box saying the widget is missing.
  *
  * So this reuses the same visible-failure treatment as an unregistered widget and a missing asset,
  * for the same reason: an element the page cannot paint has to *say so* rather than leave a blank
@@ -203,13 +220,17 @@ function renderMedia(
 }
 
 /**
- * The format's fit, as `ui-kit`'s fit.
+ * The format's fit, as `MediaFrame`'s fit.
  *
- * Two independent unions spelling the same two words, because `ui-kit` may not import
- * `layout-schema` (ARCHITECTURE.md's dependency table). This `Record` is what stops them drifting:
- * keyed by the schema's `MediaFit` and valued by `ui-kit`'s `MediaFrameFit`, so either package
- * gaining or renaming a member is a compile error *here*, at the one place that knows both — rather
- * than a silent fallback to `cover` on a panel.
+ * Two independent unions spelling the same two words, and they stay independent now that both are
+ * reachable from one file. `MediaFit` is what a *layout file* may say; `MediaFrameFit` is what the
+ * component accepts, and `MediaFrame` is usable by a caller that has no layout at all. Collapsing
+ * them would make the widget's prop type a re-export of the format's, so `media-frame.tsx` would
+ * start depending on `layout-schema` to describe its own API.
+ *
+ * This `Record` is what stops them drifting: keyed by the schema's `MediaFit` and valued by
+ * `MediaFrameFit`, so either side gaining or renaming a member is a compile error *here*, at the one
+ * place that knows both — rather than a silent fallback to `cover` on a panel.
  */
 const MEDIA_FITS_TO_FRAME: Readonly<Record<MediaFit, MediaFrameFit>> = Object.freeze({
   cover: 'cover',

@@ -32,7 +32,7 @@ import {
 } from '@perch/layout-schema';
 import { MOCK_SENSOR_SPECS } from '@perch/sensor-sources';
 import { normalizeSensorTopic, sensorTopic } from '@perch/sensor-contract';
-import { WIDGET_REGISTRY } from './widget-catalogue.js';
+import { WIDGET_REGISTRY } from '@perch/ui-kit';
 
 /** The same options the page loads with. A layout that passes here passes there. */
 const LOAD_OPTIONS = {

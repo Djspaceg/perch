@@ -9,9 +9,15 @@
  * as arguments: the source, the layout catalogue and the page request are all injected, so an
  * embedder or a test supplies its own without a browser, a relay or a `layouts/` directory.
  *
- * `WIDGET_REGISTRY` is exported because it is the answer to "what widgets does this runtime have",
- * and that is a question the editor will have to ask in order to validate a layout it is editing
- * against the runtime that will show it.
+ * What is *not* here any more: `LayoutCanvas`, `WIDGET_REGISTRY` and the rest of the drawing surface.
+ * They were exported from here so the editor could ask "what does the runtime paint, and with which
+ * widgets" — and the honest answer to that question was never "whatever this app happens to export".
+ * They now live in `@perch/ui-kit`, which both apps render, so the editor imports them from there and
+ * this file does not re-export them. A pass-through here would only reintroduce the idea that the
+ * runtime owns the canvas.
+ *
+ * What is left is what the runtime genuinely owns: the page and its chrome, the `layouts/` catalogue,
+ * the refusal page, and the viewport fit.
  */
 export {
   Dashboard,
@@ -19,14 +25,6 @@ export {
   type DashboardProps,
   type LiveSourceIdentity,
 } from './app.js';
-export {
-  LAYOUT_CANVAS_STYLES,
-  LayoutCanvas,
-  canvasToken,
-  CANVAS_TOKEN_DEFAULTS,
-  type CanvasToken,
-  type LayoutCanvasProps,
-} from './layout-canvas.js';
 export {
   LAYOUT_CATALOGUE,
   createLayoutCatalogue,
@@ -42,7 +40,6 @@ export {
   type LayoutProblemKind,
   type LayoutProblemProps,
 } from './layout-problem.js';
-export { WIDGET_NAMES, WIDGET_REGISTRY, widgetFor, type WidgetName } from './widget-catalogue.js';
 export {
   fitCanvas,
   parsePageRequest,

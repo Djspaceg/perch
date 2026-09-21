@@ -18,9 +18,22 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { loadLayoutJson } from '@perch/layout-schema';
-import { createMockSource } from '@perch/sensor-sources';
+import type { SensorSource } from '@perch/sensor-contract';
 import { SensorProvider } from '@perch/ui-kit';
 import { WIDGET_NAMES, WIDGET_REGISTRY, widgetFor } from './widget-catalogue.js';
+
+/**
+ * A source that never publishes. `ui-kit` may not import `sensor-sources`, and this file does not
+ * need readings anyway: what it asserts is that a registered name *renders*, so every widget below
+ * is examined in its no-reading state. That is the state where a missing component shows up.
+ */
+const SILENT_SOURCE: SensorSource = {
+  status: 'live',
+  subscribe: () => () => {
+    // Nothing was ever subscribed, so there is nothing to tear down.
+  },
+  meta: () => undefined,
+};
 
 describe('the widget catalogue', () => {
   it('registers exactly the names it can render, in both directions', () => {
@@ -84,11 +97,7 @@ describe('the catalogue against the validator that shares it', () => {
       // Rendered through the same `widgetFor` the canvas uses: a registered name that validates
       // must also produce pixels, which is the whole claim.
       const entry = widgetFor(element.widget);
-      render(
-        <SensorProvider source={createMockSource({ seed: 3, autoStart: false })}>
-          {entry?.render(element)}
-        </SensorProvider>,
-      );
+      render(<SensorProvider source={SILENT_SOURCE}>{entry?.render(element)}</SensorProvider>);
 
       expect(screen.getByRole('group')).toBeInTheDocument();
     }

@@ -2,7 +2,7 @@
   "name": "@perch/ui-kit",
   "version": "0.0.0",
   "private": true,
-  "description": "The widgets. Rendered by both the runtime and the editor.",
+  "description": "The widgets, and the canvas that lays them out. Rendered by both the runtime and the editor.",
   "license": "GPL-3.0-only",
   "type": "module",
   "main": "./dist/index.js",
@@ -23,6 +23,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@perch/layout-schema": "0.0.0",
     "@perch/sensor-contract": "0.0.0"
   },
   "peerDependencies": {
