@@ -13,6 +13,9 @@
     "apps/*"
   ],
   "scripts": {
+    "dev": "npm run dev -w @perch/runtime",
+    "relay": "npm run build -w @perch/agent && npm start -w @perch/agent",
+    "dev:stack": "node tools/dev-stack.mjs",
     "build": "npm run build --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
     "typecheck": "tsc -b && tsc -p tsconfig.tests.json",
