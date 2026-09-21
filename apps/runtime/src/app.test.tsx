@@ -14,19 +14,33 @@
 import { act, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockSource, type MockSensorSource } from '@perch/sensor-sources';
-import { sensorTopic } from '@perch/sensor-contract';
-import { Dashboard, type DashboardSources } from './app.js';
+import {
+  SENSOR_SOURCE_STATUSES,
+  sensorTopic,
+  type SensorSource,
+  type SensorSourceStatus,
+  type Unsubscribe,
+} from '@perch/sensor-contract';
+import {
+  Dashboard,
+  SOURCE_STATUS_WORDING,
+  type DashboardSources,
+  type LiveSourceIdentity,
+} from './app.js';
 
 /** Seeded and idle: it publishes only when a test says so. */
 const idleSource = (seed: number): MockSensorSource => createMockSource({ seed, autoStart: false });
 
-function mount(): {
+/** What `main.tsx` passes when it built the mock, which is the default the tests run under. */
+const MOCK_IDENTITY: LiveSourceIdentity = { kind: 'mock' };
+
+function mount(identity: LiveSourceIdentity = MOCK_IDENTITY): {
   sources: DashboardSources & { live: MockSensorSource; frozen: MockSensorSource };
 } {
   const live = idleSource(7);
   const frozen = idleSource(1);
 
-  render(<Dashboard sources={{ live, frozen }} />);
+  render(<Dashboard sources={{ live, frozen }} liveSource={identity} />);
 
   return { sources: { live, frozen } };
 }
@@ -66,9 +80,22 @@ describe('<Dashboard> — the tiles it hard-codes', () => {
     });
 
     expect(readoutIn('live')).toHaveAttribute('data-state', 'value');
-    expect(readoutIn('live · 0 decimals')).toHaveAttribute('data-state', 'value');
-    expect(readoutIn('live · indexed topic')).toHaveAttribute('data-state', 'value');
+    expect(readoutIn('live · 2 decimals')).toHaveAttribute('data-state', 'value');
     expect(readoutIn('live · dimensionless')).toHaveAttribute('data-state', 'value');
+    expect(readoutIn('mock only · 0 decimals')).toHaveAttribute('data-state', 'value');
+  });
+
+  it('leaves the hardware-only tile empty under the mock, rather than inventing a number for it', () => {
+    const { sources } = mount();
+
+    act(() => {
+      sources.live.tick();
+    });
+
+    // `gpu/throughput` is the tile that tells the two modes apart: the relay publishes it from
+    // LibreHardwareMonitor's raw field and the mock does not publish it at all. A mock that filled
+    // it in would make the one reliable tell useless.
+    expect(readoutIn('hardware only · raw bytes/s')).toHaveAttribute('data-state', 'waiting');
   });
 
   it('shows nothing at all until something publishes', () => {
@@ -86,7 +113,7 @@ describe('<Dashboard> — the tiles it hard-codes', () => {
 
     // Both are "no number", and the page has to tell them apart: one sensor is present and
     // reporting null, the other is a topic nothing publishes.
-    expect(readoutIn('null · reports nothing')).toHaveAttribute('data-state', 'no-reading');
+    expect(readoutIn('mock only · reports nothing')).toHaveAttribute('data-state', 'no-reading');
     expect(readoutIn('waiting · no metadata label')).toHaveAttribute('data-state', 'waiting');
   });
 
@@ -122,13 +149,13 @@ describe('<Dashboard> — the two sources', () => {
 
     // `gpu/temperature` is published by both sources, so a tile reading from the wrong provider
     // would look correct here — except that only the frozen source has been silent.
-    expect(readoutIn('stale · publisher stopped')).toHaveAttribute('data-state', 'waiting');
+    expect(readoutIn('stale · mock publisher stopped')).toHaveAttribute('data-state', 'waiting');
 
     act(() => {
       sources.frozen.tick();
     });
 
-    expect(readoutIn('stale · publisher stopped')).toHaveAttribute('data-state', 'value');
+    expect(readoutIn('stale · mock publisher stopped')).toHaveAttribute('data-state', 'value');
   });
 
   it('marks the frozen tile stale once its publisher goes quiet, and leaves the live tiles alone', () => {
@@ -146,10 +173,104 @@ describe('<Dashboard> — the two sources', () => {
       vi.advanceTimersByTime(3_000);
     });
 
-    expect(readoutIn('stale · publisher stopped')).toHaveAttribute('data-state', 'stale');
-    expect(readoutIn('stale · publisher stopped')).toHaveTextContent(/stale \ds/);
+    expect(readoutIn('stale · mock publisher stopped')).toHaveAttribute('data-state', 'stale');
+    expect(readoutIn('stale · mock publisher stopped')).toHaveTextContent(/stale \ds/);
     // The live provider keeps the real 5 s default, so 3 s has not aged it out.
     expect(readoutIn('live')).toHaveAttribute('data-state', 'value');
+  });
+});
+
+/**
+ * A source stuck in one status, for the two statuses a mock cannot reach.
+ *
+ * `createMockSource` has no transport, so by design it can report `connecting`, `live` and
+ * `stale` but never `error` — and the page's whole reason for showing the status is the case
+ * where the link to the relay dies. That case needs a source that can say so.
+ */
+function sourceStuckAt(status: SensorSourceStatus): SensorSource {
+  return {
+    // Nothing ever publishes: this source exists to hold a status, and the page has to render
+    // that status with no readings at all, which is exactly the situation it describes.
+    subscribe: (): Unsubscribe => () => undefined,
+    meta: () => undefined,
+    status,
+  };
+}
+
+function mountWith(live: SensorSource, identity: LiveSourceIdentity = MOCK_IDENTITY): void {
+  render(<Dashboard sources={{ live, frozen: idleSource(1) }} liveSource={identity} />);
+}
+
+/** The badge, found by what it is rather than by the words it happens to carry. */
+const badge = (): HTMLElement => screen.getByTestId('perch-status');
+
+describe('<Dashboard> — what the source is doing', () => {
+  it('says nothing has arrived yet before anything has', () => {
+    mount();
+
+    expect(badge()).toHaveAttribute('data-perch-status', 'connecting');
+    // Not "no data" and not an empty badge: the distinction being drawn is that the page is
+    // waiting, which is a different fact from the link having failed.
+    expect(badge()).toHaveTextContent(/waiting for the first reading/i);
+  });
+
+  it('says readings are arriving once they are', () => {
+    const { sources } = mount();
+
+    act(() => {
+      sources.live.tick();
+    });
+
+    expect(badge()).toHaveAttribute('data-perch-status', 'live');
+    expect(badge()).toHaveTextContent(/readings arriving/i);
+  });
+
+  it('says the publisher went quiet when the transport is still up', () => {
+    mountWith(sourceStuckAt('stale'));
+
+    expect(badge()).toHaveAttribute('data-perch-status', 'stale');
+    expect(badge()).toHaveTextContent(/connected/i);
+    expect(badge()).not.toHaveTextContent(/unreachable/i);
+  });
+
+  it('says the link is down when the source reports an error', () => {
+    mountWith(sourceStuckAt('error'));
+
+    expect(badge()).toHaveAttribute('data-perch-status', 'error');
+    expect(badge()).toHaveTextContent(/unreachable/i);
+  });
+
+  it('gives each status its own wording, so no two are read as the same problem', () => {
+    // The fixes differ — "the relay stopped polling" versus "the relay is gone" versus "give it a
+    // second" — so a single "no data" for all of them would be worse than the status code alone.
+    const wordings = SENSOR_SOURCE_STATUSES.map((status) => SOURCE_STATUS_WORDING[status]);
+
+    expect(new Set(wordings).size).toBe(SENSOR_SOURCE_STATUSES.length);
+  });
+});
+
+describe('<Dashboard> — which source is on screen', () => {
+  it('names the mock as a mock, in the page rather than only in a console', () => {
+    mount();
+
+    const provenance = screen.getByTestId('perch-source');
+
+    expect(provenance).toHaveAttribute('data-perch-source-kind', 'mock');
+    expect(provenance).toHaveTextContent(/mock/i);
+    // The one sentence this page exists to make impossible to miss.
+    expect(provenance).toHaveTextContent(/not hardware/i);
+  });
+
+  it('names the broker it is reading from when it is reading from one', () => {
+    mountWith(idleSource(7), { kind: 'mqtt', url: 'ws://localhost:19001' });
+
+    const provenance = screen.getByTestId('perch-source');
+
+    expect(provenance).toHaveAttribute('data-perch-source-kind', 'mqtt');
+    // The URL, not just the word "mqtt": on this machine the wrong broker on the wrong port is
+    // the failure that looks like success, so the page has to show which one it dialled.
+    expect(provenance).toHaveTextContent('ws://localhost:19001');
+    expect(provenance).not.toHaveTextContent(/mock/i);
   });
 });
 
@@ -158,6 +279,23 @@ describe('<Dashboard> — the heartbeat', () => {
     mount();
 
     expect(screen.getByText(/last published never/)).toBeInTheDocument();
+  });
+
+  it('watches a topic both the mock and real hardware publish', () => {
+    const { sources } = mount();
+
+    act(() => {
+      sources.live.tick();
+    });
+
+    // `cpu/load`, not `cpu/temperature`. The fixture captured from the live machine has no
+    // `sensors/cpu/0/temperature/0` at all — its first CPU temperature is sensor index 2 — so a
+    // heartbeat on that topic reads "last published never" forever over MQTT, on a page that is
+    // in fact receiving 213 readings a second. The heartbeat has to be a topic both sides publish.
+    expect(screen.getByText(/cpu\/load last published/)).toHaveAttribute(
+      'data-perch-ready',
+      'true',
+    );
   });
 
   it('signals ready only once a reading has arrived', () => {

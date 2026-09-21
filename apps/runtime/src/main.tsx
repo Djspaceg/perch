@@ -2,29 +2,73 @@
  * Browser entry point. Builds the sources, mounts the page, and nothing else.
  *
  * This is the **only** file in the repo that constructs a sensor source. Everything downstream —
- * the page, the provider, the store, the widgets — receives one. Swapping the mock for MQTT is
- * therefore a change to the two `createMockSource` calls below and to nothing else:
+ * the page, the provider, the store, the widgets — receives one, and `app.test.tsx` injects its
+ * own seeded pair without this file being involved at all.
  *
- * ```ts
- * const live = createMqttSource({ url: await resolveBrokerUrlAsync() });
+ * ## The seam is conditional, and that is the point
+ *
+ * ```text
+ * PERCH_BROKER_URL set    ->  createMqttSource, reading the real relay
+ * PERCH_BROKER_URL unset  ->  createMockSource, generated here
  * ```
  *
- * Keeping construction here also keeps it out of the test for `app.tsx`, which injects its own
- * seeded sources and never touches a timer it did not start.
+ * Not "MQTT now, mock deleted": the machine this dashboard watches is off most of the time, and
+ * `npm run dev` has to keep drawing a page with no relay, no broker and no hardware — that is how
+ * the widgets get worked on at all. Equally it must never quietly *substitute* the mock for
+ * hardware, so the identity of whichever source was built is passed to the page and printed there.
+ *
+ * ## How the variable reaches the browser
+ *
+ * `resolveBrokerUrl` reads an environment record, and `readProcessEnv()` deliberately returns `{}`
+ * in a browser — there is no `process` in a page, so a value can only arrive if the bundler put it
+ * there. Vite replaces `import.meta.env.PERCH_BROKER_URL` at build time with the value the shell
+ * had, and it will only do that for a name matching `envPrefix` — hence `PERCH_` in
+ * `vite.config.ts`, and the narrow `ImportMetaEnv` in `vite-env.d.ts` that keeps the value
+ * `string | undefined` rather than `any`.
+ *
+ * The value is then handed to the package's own `resolveBrokerUrl` rather than used directly, so
+ * the trimming, the `ws:`/`wss:` validation and the "a malformed override throws with the
+ * variable's name in it" rule are the same in the browser as everywhere else. What this file adds
+ * is one decision the package cannot make for it: *only* `origin === 'env'` selects MQTT. Falling
+ * back to `ws://localhost:9001` because that is the built-in default is precisely the trap
+ * `broker-url.ts` documents — on this machine that port is a Homebrew Mosquitto, which accepts the
+ * connection, accepts the subscriptions and delivers nothing, leaving a page that looks connected
+ * and stays empty.
  */
 
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createMockSource } from '@perch/sensor-sources';
-import { Dashboard } from './app.js';
+import {
+  RELAY_BROKER_URL_ENV_VAR,
+  createMockSource,
+  createMqttSource,
+  resolveBrokerUrl,
+} from '@perch/sensor-sources';
+import type { SensorSource } from '@perch/sensor-contract';
+import { Dashboard, type LiveSourceIdentity } from './app.js';
 
 /**
  * The live source. **This is the mock/MQTT seam.**
  *
- * Unseeded, so the values differ run to run and the page looks like a machine rather than a
- * fixture — a seeded page invites reading the same numbers back as proof that it works.
+ * The mock is unseeded, so the values differ run to run and the page looks like a machine rather
+ * than a fixture — a seeded page invites reading the same numbers back as proof that it works.
  */
-const live = createMockSource();
+function buildLiveSource(): { source: SensorSource; identity: LiveSourceIdentity } {
+  // One key, read through the package's resolver: `origin` is what the decision turns on, and a
+  // malformed `PERCH_BROKER_URL` throws here rather than silently becoming the mock.
+  const resolved = resolveBrokerUrl({
+    env: { [RELAY_BROKER_URL_ENV_VAR]: import.meta.env.PERCH_BROKER_URL },
+  });
+
+  if (resolved.origin !== 'env') {
+    return { source: createMockSource(), identity: { kind: 'mock' } };
+  }
+
+  return {
+    source: createMqttSource({ url: resolved.url, origin: resolved.origin }),
+    identity: { kind: 'mqtt', url: resolved.url },
+  };
+}
 
 /** How often the short-lived source publishes before it dies. */
 const FROZEN_PUBLISH_INTERVAL_MS = 200;
@@ -46,9 +90,13 @@ const FROZEN_LIFETIME_MS = 700;
  * to render. Modelling a dead publisher with an actually dead publisher beats faking a clock: the
  * age the widget prints is a true age.
  *
- * Seeded, because this one's job is to be reproducible in a screenshot.
+ * A mock in **both** modes, deliberately — a running relay cannot be asked to die on cue for a
+ * demonstration — which is why its tile is captioned as mock data even when everything else on the
+ * page is hardware. Seeded, because this one's job is to be reproducible in a screenshot.
  */
 const frozen = createMockSource({ seed: 1, intervalMs: FROZEN_PUBLISH_INTERVAL_MS });
+
+const { source: live, identity } = buildLiveSource();
 
 const host = document.getElementById('perch-root');
 if (host === null) {
@@ -57,7 +105,7 @@ if (host === null) {
 
 createRoot(host).render(
   <StrictMode>
-    <Dashboard sources={{ live, frozen }} />
+    <Dashboard sources={{ live, frozen }} liveSource={identity} />
   </StrictMode>,
 );
 

@@ -28,6 +28,30 @@ export default defineConfig({
    */
   resolve: { alias: perchAliases },
 
+  /**
+   * Which environment variables reach the browser.
+   *
+   * Vite exposes nothing to client code by default except variables whose names start with
+   * `VITE_`; everything else stays in the build process, because the bundle is public and an
+   * accidental `AWS_SECRET_ACCESS_KEY` in it is unrecoverable. That default is why
+   * `readProcessEnv()` in `sensor-sources` returns `{}` in a browser: there is no `process` there,
+   * and the value has to be *injected* at build time to exist at all.
+   *
+   * `PERCH_` is added because the relay's whole configuration surface is already spelled that way
+   * — `PERCH_BROKER_URL`, `PERCH_LHM_HOST`, `PERCH_WS_PORT` — and `npm run dev:stack` sets those
+   * once for both halves of the stack. Requiring `VITE_PERCH_BROKER_URL` for the page and
+   * `PERCH_BROKER_URL` for the relay would mean one value under two names, which is the kind of
+   * near-duplicate that gets set in one place and forgotten in the other.
+   *
+   * `VITE_` is kept alongside it rather than replaced: dropping it would silently disable the
+   * prefix every Vite plugin and example assumes.
+   *
+   * Vite reads these from `.env` files *and* from the shell environment of the process running it,
+   * which is what makes `PERCH_BROKER_URL=ws://localhost:19001 npm run dev` work with no file on
+   * disk.
+   */
+  envPrefix: ['VITE_', 'PERCH_'],
+
   build: {
     /**
      * `dist/page`, not `dist`.

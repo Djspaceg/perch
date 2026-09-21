@@ -67,11 +67,37 @@ The module script is simply never executed. If the page looks empty, check the U
 scheme before looking anywhere else.
 
 What the page deliberately demonstrates, rather than waiting for it to occur: every
-readout state (live, a sensor reporting `null`, stale, and never-published), driven by
-**two injected mock sources** — a live one and a second that publishes briefly and then
-stops, so the stale rendering ages a real reading against a real clock. `src/main.tsx`
-is the only file in the repo that constructs a source; everything downstream receives
-one, so the mock→MQTT swap is a change to those two calls and nothing else.
+readout state (live, a sensor reporting `null`, stale, and never-published). The stale
+one is driven by a **second, injected mock source** that publishes briefly and then
+stops, so the rendering ages a real reading against a real clock — and it stays a mock
+even when the page is reading hardware, because a relay cannot be asked to die on cue.
+Its tile is captioned `stale · mock publisher stopped` for that reason.
+
+### Mock or MQTT, chosen at load
+
+`src/main.tsx` is the only file in the repo that constructs a source, and it picks one:
+
+```sh
+npm run dev -w @perch/runtime                                    # mock
+PERCH_BROKER_URL=ws://localhost:19001 npm run dev -w @perch/runtime   # real broker
+```
+
+Set → `createMqttSource`. Unset → `createMockSource`. Only an *explicitly set* value
+selects MQTT: `main.tsx` feeds it to `resolveBrokerUrl` and requires `origin === 'env'`,
+so the resolver's built-in `ws://localhost:9001` can never quietly point the page at
+whatever else is on 9001. The sensor host is off most of the time; `npm run dev` has to
+keep working with no hardware and no environment.
+
+The variable reaches the browser through `envPrefix: ['VITE_', 'PERCH_']` in
+`vite.config.ts` — Vite exposes only prefixed variables to `import.meta.env`, and reads
+them from the shell as well as from `.env` files. `src/vite-env.d.ts` declares that one
+variable rather than referencing `vite/client`, whose `ImportMetaEnv` carries an `any`
+index signature the repo's TypeScript rules forbid.
+
+Which source is live is printed in the page header, with the URL when there is one, and
+the source's `status` sits beside it in words: `connecting` (nothing yet), `live`,
+`stale` (transport up, publisher quiet) and `error` (link down). Mock data must never be
+readable as hardware, and a colour alone is not a sentence on a wall panel.
 
 The canvas is **fluid**, not the letterboxed fixed canvas described under *Windowed*
 above. That is temporary and load-bearing for now: it means a browser tab and a
