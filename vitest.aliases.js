@@ -5,9 +5,11 @@
  * rather than to its built `dist/`, so `npm test` needs no prior `npm run build`
  * and a test always exercises the code in the working tree.
  *
- * Plain JS on purpose: Vite loads config files through esbuild, and a `.js`
- * specifier here resolves identically whether or not the config importing it is
- * TypeScript.
+ * Plain JS on purpose: Vite transpiles config files before loading them — Oxc
+ * since Vite 8, esbuild before it — and a `.js` specifier here resolves
+ * identically whether or not the config importing it is TypeScript. Naming the
+ * transpiler rather than assuming it is the point: the guarantee this file relies
+ * on is the specifier, which survived that swap.
  */
 import { fileURLToPath } from 'node:url';
 

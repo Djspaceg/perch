@@ -2716,3 +2716,160 @@ coupling than a dependency edge existing only to carry it.
    `SOURCE_STATUS_WORDING` are a product decision made here because the page needed one.
    `sensor-contract` specifies the four states and `ui-kit` has no SPEC, so there is no
    file that owns the wording a user reads.
+
+# Taking the toolchain to the latest versions the ecosystem allows — decisions
+
+The instruction was "the latest possible versions of everything, all dependencies." Five
+majors moved at once, so this was treated as a migration and researched before anything was
+installed. Every number below was measured, not read off a changelog.
+
+Measured against `1e4ec6c`: **909 tests before, 909 after**, and `build`, `typecheck`,
+`test`, `lint` and `format:check` each exit `0` both before and after. **No source file
+changed** — the entire diff is three manifests plus a regenerated lockfile. An earlier
+baseline of 892 in the brief was taken at `32218d6`; the difference is the runtime and agent
+work committed between those two commits, not this change.
+
+## 1. What moved, and what it resolved to
+
+```
+typescript            5.9.3  -> 6.0.3
+vitest                3.2.7  -> 5.0.1
+vite                  7.3.6  -> 8.3.0      root, runtime, editor: one installed copy
+@vitejs/plugin-react  5.2.0  -> 6.1.1
+jsdom                26.1.0  -> 30.1.0
+@types/node         22.20.4  -> 26.6.2
+```
+
+Everything else the sweep covered was **already at latest** and was verified rather than
+assumed: `react` and `react-dom` 19.3.0, `prettier` 3.9.8, `typescript-eslint` 8.70.0,
+`eslint-plugin-react` 7.37.5, `eslint-plugin-react-hooks` 7.1.1, `eslint-config-prettier`
+10.1.8, `globals` 17.12.0, `mqtt` 5.16.0, `aedes` 1.2.0, `ws` 8.21.3, `@testing-library/react`
+16.3.3, `@testing-library/jest-dom` 7.0.1, and the `@types/*` for react, react-dom and ws.
+
+## 2. TypeScript stops at 6.0.3, because TypeScript 7 ships no compiler API
+
+`typescript@7.0.2` is the native port, and it does not carry the JavaScript API that tooling
+builds programs with. Installed and inspected rather than inferred: the `typescript`
+entrypoint resolves to `lib/version.cjs`, the package exports exactly `version` and
+`versionMajorMinor`, `createProgram` is `undefined`, and `lib/typescript.js` does not exist.
+Everything else is behind explicitly-named `unstable/*` entrypoints.
+
+So `typescript-eslint` cannot run on it. That is not a conservative peer range — there is no
+API to call. Every `typescript-eslint` release caps `typescript` at `<6.1.0`, including the
+`canary` (`8.70.1-alpha.28`), and its TS 7 support is tracking issue #10940, still open, with
+no linked implementation and async-parser support in ESLint core named as a blocker.
+
+`6.0.3` is a stable release, it sits inside `>=4.8.4 <6.1.0`, and it keeps the full API
+(2248 exports, `createProgram` present). So the ceiling is 6.0.3, not 5.9.3 — a real gain
+rather than a stalemate.
+
+Worth recording for whoever revisits this: **`tsc` 7 itself is fine.** A probe config with all
+of this repo's strict flags — `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,
+`noImplicitReturns`, `noPropertyAccessFromIndexSignature`, `noUncheckedSideEffectImports`,
+`erasableSyntaxOnly`, `noImplicitOverride`, `noFallthroughCasesInSwitch`,
+`verbatimModuleSyntax` and the rest — compiles clean under 7.0.2. The blocker is the API that
+type-aware linting needs, nothing about the flags. When typescript-eslint can consume tsgo,
+this stops being a choice.
+
+## 3. Nothing was relaxed to buy the green, and that was checked rather than asserted
+
+No strict flag was touched, no `eslint-disable` added, no test skipped or deleted, and
+`--max-warnings 0` is untouched. Because "the checks still pass" is worth nothing if the
+checks quietly stopped checking, each tier was probed with code that must fail:
+
+- `noUncheckedIndexedAccess` still reports a `Record` read as `string | undefined` (TS2322).
+- `exactOptionalPropertyTypes` still rejects an explicit `undefined` (TS2375).
+- `types: []` still withholds the DOM lib from a package project (TS2584).
+- Type-aware ESLint still fires: `@typescript-eslint/no-floating-promises` and
+  `strict-boolean-expressions` both reported. These need a built program, so they prove the
+  type information survived the TypeScript bump.
+- The React tier still fires: `react-hooks/rules-of-hooks` and `react/jsx-key` both reported.
+
+The probe files were removed; they exist in the captured logs, not in the tree.
+
+## 4. Vite 8 is the one change here with behavioural risk
+
+The other bumps are version numbers. Vite 8 replaces Rollup with **Rolldown** and esbuild with
+**Oxc**, so what actually produces `dist/page` is different code. `esbuild` leaves the
+dependency tree entirely. The runtime page builds (34 modules) and its tests pass, and Vite 8
+emits one advisory about `build.rolldownOptions.output.codeSplitting` which is informational
+and was not acted on.
+
+Nothing in `apps/runtime/vite.config.ts` needed changing: `resolve.alias` as a plain string map,
+`envPrefix`, `build.outDir`, `build.sourcemap` and `server.strictPort` all carry over. Only
+`resolve.alias[].customResolver` was deprecated, which this repo does not use.
+
+## 5. The Vite constraint is gone, and the two-majors defect with it
+
+Earlier notes recorded an open item: `vite@6.4.3` at the root for Vitest and `vite@7.3.6` under
+`runtime` and `editor`, because Vitest 3 pinned its own Vite and `@vitejs/plugin-react` 6
+required Vite 8. **That constraint no longer exists.** Vitest 5 peers `vite: ^6.4.0 || ^7.0.0
+|| ^8.0.0` and plugin-react 6 wants `^8.0.0`, so they agree on 8.
+
+`vite` is now declared at the root as well — Vitest 5's `vite` peer is non-optional — and that
+declaration is what dedupes the tree. `npm ls vite` shows a single `vite@8.3.0` for root,
+`runtime`, `editor` and `@vitest/mocker`. The open item is closed.
+
+## 6. ESLint stays at 9, and that is a decision for the human rather than a limit
+
+`eslint@10.11.0` is blocked by `eslint-plugin-react@7.37.5`, which is the latest release — the
+only higher `dist-tag` is `next`, an ancient `7.8.0-rc.0` peering ESLint `^3 || ^4`. Its peer
+range stops at `^9.7`, so a plain install fails `ERESOLVE`. `typescript-eslint` and
+`eslint-plugin-react-hooks` both already accept `^10`; the React plugin alone is the blocker.
+
+It is reachable, and the cost was measured rather than guessed. Three routes were tried:
+
+1. **`--legacy-peer-deps`** installs, but degrades peer resolution tree-wide and produces 60
+   "type cannot be resolved" errors. A control run — ESLint **9** with the same flag — produced
+   the same 60, so that damage is the flag, not ESLint 10.
+2. **A surgical `overrides` entry** (`{"eslint-plugin-react": {"eslint": "$eslint"}}`) installs
+   cleanly with full peer resolution intact and no `ERESOLVE`. With the config left as-is the
+   lint lane then **crashes**, exit 2:
+   `TypeError: ... 'react/display-name': contextOrFilename.getFilename is not a function`.
+   ESLint 10 removed `context.getFilename()`, and `settings: { react: { version: 'detect' } }`
+   walks straight into the plugin's version detection.
+3. **That override plus `react: { version: '19.3.0' }`** lints **clean**, and the full lane set
+   is green: 909 tests, all five lanes exit 0.
+
+So route 3 works. It is not taken here because it buys latest with a declaratively unsupported
+tree, and a plugin that already calls one removed ESLint 10 API on a path this repo hits may
+call others on code not yet written — the failure mode is a crash mid-lane, not a lint error.
+Pinning the React version is not itself a weakened check: every React rule still runs. Left as
+the human's call, with the cost stated, rather than defaulted either way.
+
+## 7. Call sites: what a root manifest change reaches
+
+The root `package.json` is shared by every workspace, so the upgrade's blast radius is all of
+them. Each was built, typechecked, tested and linted individually rather than through the
+aggregate wrapper, and each lane's own exit code recorded:
+
+| Workspace | Tests | Consumes from this change |
+| --- | --- | --- |
+| `packages/sensor-contract` | 260 | typescript, vitest |
+| `packages/layout-schema` | 334 | typescript, vitest |
+| `packages/ui-kit` | 84 | typescript, vitest, **jsdom**, testing-library |
+| `packages/sensor-sources` | 75 | typescript, vitest |
+| `apps/runtime` | 25 | typescript, vitest, **jsdom**, **vite 8**, **plugin-react 6** |
+| `apps/editor` | 3 | typescript, vitest, **jsdom**, **vite 8**, **plugin-react 6** |
+| `apps/agent` | 126 | typescript, vitest, `@types/node` |
+| `apps/caster` | 2 | typescript, vitest |
+
+`jsdom` crossing four majors (26 to 30) was the risk to `ui-kit`, `runtime` and `editor`, since
+their tests lean on it through `@testing-library`. All three pass unchanged, including the
+`jest-dom` matchers registered in each `vitest.setup.ts`.
+
+## 8. Held back, with the constraint named
+
+| Package | Latest | Landed | Constraint |
+| --- | --- | --- | --- |
+| `typescript` | 7.0.2 | **6.0.3** | TS 7 ships no classic compiler API, so `typescript-eslint` cannot build a program. Every release including canary caps `typescript` at `<6.1.0`. Reaching 7 costs type-aware linting outright. |
+| `eslint` | 10.11.0 | **9.39.5** | `eslint-plugin-react@7.37.5` (latest) peers at `^9.7`. Reachable via an `overrides` entry plus pinning `settings.react.version`; unsupported tree, so left as a decision. |
+| `@eslint/js` | 10.0.1 | **9.39.5** | Peers `eslint@^10`; must move with `eslint` or not at all. |
+
+## 9. Noted and not acted on: `engines` is now looser than the tree
+
+The root declares `node >=22`, but `jsdom@30` requires `^22.22.2 || ^24.15.0 || >=26.0.0`. A
+developer on 22.0 satisfies the repo's own declaration and then fails on a transitive engine
+check. Tightening `engines` to match would be strictly more strict, not less — but it is a
+change to what the repo accepts rather than part of taking dependencies to latest, so it is
+recorded here rather than folded in silently.

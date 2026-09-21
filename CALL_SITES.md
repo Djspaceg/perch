@@ -446,12 +446,19 @@ re-splits those two arrays would re-open the hole.
 - **Do not add `eslint-plugin-prettier`.** `eslint-config-prettier` is last in the chain precisely
   so ESLint has no formatting opinions. Adding the plugin gives you two tools formatting the same
   characters, and the slower one reports through the lint gate.
-- **Do not bump ESLint past 9.** `eslint-plugin-react@7.37.5` peers at `^9.7`. ESLint 10 silently
-  costs you the React rules. The `npm warn deprecated eslint@9.39.5` notice is known and accepted.
-- **Two Vite majors are currently installed** — `vite@6.4.3` at the root, which Vitest uses, and
-  `vite@7.3.6` under `runtime` and `editor`. Whoever wires Vite into `apps/runtime` owns collapsing
-  this to one pairing. Note that `@vitejs/plugin-react` 6 wants Vite 8 and collides with Vitest 3's
-  Vite, so the constraint is real and not a matter of picking the newest.
+- **ESLint stays on 9 unless someone accepts an override.** `eslint-plugin-react@7.37.5` is the
+  latest release and peers at `^9.7`, so a plain `npm install` of ESLint 10 fails `ERESOLVE`. It
+  *is* reachable — an `overrides` entry plus pinning `settings.react.version` lints clean — but
+  that tree is declaratively unsupported, so it is a decision rather than a bump. Leaving
+  `version: 'detect'` in place under ESLint 10 crashes the lint lane outright, because the plugin
+  calls the `context.getFilename()` that ESLint 10 removed. The
+  `npm warn deprecated eslint@9.39.5` notice is known and accepted.
+- **Vite is one major again.** The root, `runtime` and `editor` all declare `vite@^8.3.0` and
+  resolve to a single installed copy; the root declares it because Vitest 5 has a non-optional
+  `vite` peer. This retires the old "two Vite majors" hazard: the Vitest-3-pins-an-older-Vite
+  constraint that forced the split is gone, since Vitest 5 accepts `^6.4 || ^7 || ^8` and
+  `@vitejs/plugin-react` 6 wants Vite 8. Vite 8 also means Rolldown and Oxc rather than Rollup
+  and esbuild.
 - **`--max-warnings 0` is deliberate.** `react-hooks`'s recommended set ships rules at `warn`. If a
   future rule produces noise, fix the code or turn that rule off with a stated reason — do not raise
   the threshold, which turns every hooks rule into a no-op at once.
@@ -548,8 +555,7 @@ them for one source.
   with its unit needs ~189px and eight readouts across 1920px get 182px each, so the ellipsis
   backstop fired on ordinary readings. Raising it again re-opens that, and the page's
   `.perch-tile { min-width: 13rem }` floor is calibrated against it.
-- **The repo is on Vite 7.** `apps/runtime` and `apps/editor` declare `vite@^7.3.6` with
-  `@vitejs/plugin-react@^5.2.0`, and that is the sanctioned major. The root `package.json` still
-  declares `^6.4.3` for Vitest's use; aligning it is bookkeeping that rides with the next
-  `npm install`, and is not a second major in play by choice. This supersedes the "Two Vite
-  majors are currently installed" hazard in the section above.
+- **The repo is on Vite 8.** `apps/runtime` and `apps/editor` declare `vite@^8.3.0` with
+  `@vitejs/plugin-react@^6.1.1`, and the root declares `vite@^8.3.0` as well, so there is one
+  installed copy rather than two majors. The alignment that earlier notes deferred to "the next
+  `npm install`" has happened.

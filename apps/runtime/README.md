@@ -47,8 +47,15 @@ They **hard-code their widgets** — a fixed list of tiles in `LIVE_TILES` — b
 `layout-schema` does not exist yet. Reading a layout, the two modes above, and the
 ready signal all land later; nothing here should be mistaken for them.
 
-The repo settles on **Vite 7**. `apps/runtime` and `apps/editor` both declare
-`vite@^7.3.6` with `@vitejs/plugin-react@^5.2.0`, and that is the sanctioned major.
+The repo settles on **Vite 8**. `apps/runtime` and `apps/editor` both declare
+`vite@^8.3.0` with `@vitejs/plugin-react@^6.1.1`, and the root declares `vite` too
+because Vitest 5 has a non-optional `vite` peer — so all three resolve to a single
+installed copy rather than the two majors this repo used to carry.
+
+Vite 8 bundles with **Rolldown** and transpiles with **Oxc** instead of Rollup and
+esbuild. That is a real change in what produces `dist/page`, not a version bump: if
+a built page ever misbehaves in a way the dev server does not, the bundler swap is
+the first place to look.
 
 ```sh
 npm run dev -w @perch/runtime       # vite, http://127.0.0.1:5173 (strictPort)
