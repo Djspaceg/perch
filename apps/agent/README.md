@@ -115,7 +115,26 @@ captured payload is one unpopulated fan header. `0 °C` is a plausible reading; 
 A failed poll publishes **nothing at all**. It does not publish `null` for every sensor, because
 `null` already means "this sensor is present and reporting nothing" and overloading it with "the
 relay cannot reach LHM" would destroy the distinction. Staleness is `at`'s job, and the failure
-goes to the log every time it happens.
+is reported to the log — once, plus the lines that say something new.
+
+## What it logs while the source is down
+
+The source here is a machine a human switches off for days, so "log every failure" is 86 400
+identical lines a day and the two lines that carry information drown in them. A run of failures
+collapses to:
+
+| line | when |
+| --- | --- |
+| `poll failed: GET http://host:8085/data.json failed: ...` | the first failure of an outage, in full |
+| `poll failure reason changed after 2m 30s and 151 failed attempts: <new> (was: <old>)` | the reason changes — `ECONNREFUSED` becoming a timeout is "host up, nothing listening" becoming "host gone" |
+| `poll still failing after 10m 30s (631 consecutive failures since <ISO>): <reason>` | on an escalating interval: 10 s, 30 s, 1 m 10 s, 2 m 30 s, 5 m 10 s, 10 m 30 s, 21 m, 42 m, then hourly |
+| `poll recovered after 4h 02m 11s, 14 531 failed attempts, last failure: <reason>; 213 readings published` | the source answers again |
+
+Nothing is downgraded and nothing is dropped: failures stay on `error`, and there is no flag that
+hides them. A reader tailing the log can always answer *is it still broken, since when, and why*
+from the last line they can see, and is never more than an hour from a fresh confirmation. A
+defect in the loop itself (`tick aborted unexpectedly`) is collapsed the same way, because it runs
+at the same cadence. See `src/failure-log.ts` and DECISIONS.md.
 
 ### `RawValue`, not `Value`
 
@@ -151,5 +170,6 @@ mosquitto_sub -h 127.0.0.1 -p 11883 -t 'sensors/#' -v
 | `src/lhm-tree.ts` | the tree walk, the topic mapping, and the duplicate-identifier decision |
 | `src/broker.ts` | `aedes` plus the TCP and WebSocket listeners |
 | `src/relay.ts` | the poll loop: what to publish, what to log, and when not to |
+| `src/failure-log.ts` | collapsing a repeating failure into the lines that say something new |
 | `src/cli.ts` | argv and streams in, a running relay or an exit code out |
 | `src/main.ts` | the only file that touches `process`: argv, env, signals, exit |
