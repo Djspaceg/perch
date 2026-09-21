@@ -35,6 +35,7 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 import {
+  type ChartElement,
   type Layout,
   type LayoutElement,
   type MediaElement,
@@ -129,9 +130,33 @@ function renderElement(
       return renderText(element);
     case 'media':
       return renderMedia(element, resolveAsset);
+    case 'chart':
+      return renderChart(element);
     default:
       return assertNever(element, 'layout element kind');
   }
+}
+
+/**
+ * A chart element, with no chart to draw it.
+ *
+ * `layout-schema` version 2 added `chart` to `ELEMENT_KINDS`, which broke this `switch` exactly as
+ * its comment promised — and the honest branch today is the failure box, not a renderer. `ui-kit`
+ * ships no chart component: inventing one here to close a compile error would put a graph on a wall
+ * panel that nobody designed, which is worse than a box saying the widget is missing.
+ *
+ * So this reuses the same visible-failure treatment as an unregistered widget and a missing asset,
+ * for the same reason: an element the page cannot paint has to *say so* rather than leave a blank
+ * rectangle the author reads as their own mistake. Neither shipped layout contains a chart, so
+ * nothing on screen reaches this today.
+ *
+ * Replacing this with a real branch is the chart widget's work, not this file's — see
+ * `layout-schema`'s own call-site note, which assigns it there.
+ */
+function renderChart(element: ChartElement): ReactNode {
+  return (
+    <span className="perch-element__failure">{`no chart renderer yet: ${element.widget}`}</span>
+  );
 }
 
 /**

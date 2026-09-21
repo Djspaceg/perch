@@ -24,6 +24,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  LAYOUT_SCHEMA_VERSION,
   loadLayoutJson,
   type Layout,
   type TextElement,
@@ -104,7 +105,12 @@ describe.each(SHIPPED)('layouts/%s.json', (name) => {
   it('validates against the registry the runtime injects', () => {
     // `loadShipped` throws with the issue list if it does not, so reaching here is the assertion —
     // stated anyway so the failure names this property rather than appearing as a module error.
-    expect(layout.schemaVersion).toBe(1);
+    //
+    // `LAYOUT_SCHEMA_VERSION`, not a literal: the files on disk are still `"schemaVersion": 1` and
+    // `loadShipped` migrates them, so what is asserted is "a loaded layout is at the current
+    // version" — which is the durable claim. Pinning the number instead is what made this fail when
+    // the chart element took the format to 2.
+    expect(layout.schemaVersion).toBe(LAYOUT_SCHEMA_VERSION);
   });
 
   it('declares the target its filename claims', () => {
