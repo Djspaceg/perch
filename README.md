@@ -6,25 +6,75 @@ A web server, service, and tooling to make and display web pages that show senso
 ```sh
 npm install
 
-npm run dev          # just the dashboard, mock data, no hardware needed
-npm run relay        # just the relay: polls LHM, serves its own MQTT broker
-npm run dev:stack    # both, one terminal, prefixed output
+npm run dev          # the editor and the dashboard, one terminal, mock data
 ```
 
-Point the relay at your LibreHardwareMonitor host, and the page at the relay:
+That is the whole loop: author a layout in the editor, save, and the dashboard
+tab reloads, because the save writes the real `layouts/<name>.json` and the
+dashboard's dev server watches it. It prints both URLs once both servers have
+answered:
+
+```
+perch dev stack
+
+  editor    http://localhost:5402/
+  runtime   http://localhost:5173/
+            Author in the editor and save; the runtime tab reloads, because the save
+            writes the real layouts/<name>.json and the runtime watches it.
+
+  layouts   desk-1920x400, tower-720x1280, trend-1920x400
+            Add ?layout=<name> to either URL for a specific one; without it each page
+            opens desk-1920x400.
+
+  relay     Not started: PERCH_BROKER_URL is unset, so the page reads generated mock
+            data and nothing would read the relay. Add --relay to start it anyway, or
+            set PERCH_BROKER_URL=ws://localhost:9001 to point the page at it.
+
+  Ctrl-C stops everything this started.
+```
+
+`npm run dev:stack` is the same command under its older name. `npm run dev --
+--help` lists the options; the ones worth knowing are `--editor-port` and
+`--runtime-port`, which move this stack off a port another checkout is holding.
+Both servers use a fixed port on purpose — a capture has to navigate to a known
+URL — so a held port stops startup and names the process holding it rather than
+drifting to the next free one.
+
+```sh
+npm run relay                          # just the relay, no pages
+npm run dev:runtime                    # just the dashboard
+npm run dev:editor                     # just the editor (saves work here too)
+npm run dev -- --runtime-port 5502     # when something else holds 5173
+```
+
+### Against real hardware
+
+Point the relay at your LibreHardwareMonitor host and the page at the relay, and
+the same one command brings all three up:
 
 ```sh
 PERCH_LHM_HOST=192.168.1.3 \
 PERCH_BROKER_URL=ws://localhost:9001 \
-npm run dev:stack
+npm run dev
 ```
 
+The relay is started **only** when `PERCH_BROKER_URL` or `PERCH_LHM_HOST` is
+set, because `PERCH_BROKER_URL` decides what the page reads and nothing else
+does: with it unset the page reads its generated mock, so a relay would be
+serving a broker this stack's own page will not dial. `--relay` starts it
+anyway; `--no-relay` never does.
+
+With the sensor host switched off the relay still comes up — it serves its
+broker, logs one `poll failed` line and then a summary on a widening interval,
+and keeps retrying. Startup says so before the line appears, so it does not read
+as a failed start.
+
 If another MQTT broker already holds 1883 or 9001 — a Homebrew `mosquitto` is
-the usual culprit — `dev:stack` names it and offers to stop it before building
+the usual culprit — the stack names it and offers to stop it before building
 anything. It only offers for a process it can identify, only on a terminal, and
-never when you have set your own ports. Started on its own, the relay fails with
-the flag, the variable and a suggested port in the error itself — and, for the
-WebSocket listener, the `PERCH_BROKER_URL` the page has to move with it.
+never when you have set your own ports. Otherwise the relay fails with the flag,
+the variable and a suggested port in the error itself — and, for the WebSocket
+listener, the `PERCH_BROKER_URL` the page has to move with it.
 
 **Always set `PERCH_BROKER_URL` explicitly.** Its built-in default is
 `ws://localhost:9001`, and on a developer machine that port is often a

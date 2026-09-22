@@ -4302,3 +4302,160 @@ Mock-driven throughout; the sensor host is offline. Under `.evidence/chart-widge
 at scale 1, `.evidence/chart-trend-1440x900-tab.png` letterboxed at 75%), `chart-capture-report.json`
 (the machine-readable twin), and the root-gate logs. No adversarial-review file and no `code-review.md`,
 per the standing rule.
+
+# One command for the editing loop, and startup failures that read — decisions
+
+`npm run dev` now brings up the editor and the runtime together and prints where to go. The relay
+joins them when something would read it. Every startup failure that could be caused on this machine
+was caused, and each one now says what it is and what to do in one read.
+
+## 1. `npm run dev` *is* the stack; `dev:stack` is the same script under its older name
+
+The instruction was fewest commands to remember, and the way to honour that is not a fourth script
+or a flag on the third — it is the command everyone already types doing the obvious thing. So
+`npm run dev` runs `tools/dev-stack.mjs`, and `dev:stack` stays pointed at the same file so nothing
+already written down or in muscle memory breaks. The single-app loops did not disappear, they moved
+to `dev:runtime` and `dev:editor`, which are escape hatches rather than a choice anybody has to make
+at the start of a session.
+
+Nothing new was added to run the two servers: a flag on `dev:stack` would have meant remembering a
+flag, and a `dev:editor+runtime` script would have meant choosing between three.
+
+## 2. The editor and the runtime are one command because they are one loop
+
+The editor's save endpoint writes the real `layouts/<name>.json` and exists **only** under
+`npm run dev` (`apps/editor/vite.config.ts` says why), and the runtime's dev server globs that same
+directory. So a save in one tab reloads the other — proven in the evidence log: `PUT
+/__perch/layout/desk-1920x400` answered 204 and both dev servers logged `page reload
+.../layouts/desk-1920x400.json`. Two terminals made "the editor cannot save" something you could
+arrange by accident, by starting the editor from a built bundle or forgetting it entirely.
+
+## 3. The relay starts only when something would read it
+
+This is the one behaviour change worth arguing. `PERCH_BROKER_URL` decides which source the page
+reads and nothing else does — README.md states it, `sensor-sources` implements it — so with it unset
+the page reads its generated mock and a relay is a broker this stack's own page will not dial. It
+costs a `tsc -b`, it can prompt about somebody's Mosquitto, and against a sensor host that is
+switched off it writes `[error] poll failed` into the first screen of a startup that worked. Three
+costs, no reader.
+
+So in `auto` (the default), the relay starts when `PERCH_BROKER_URL` or `PERCH_LHM_HOST` is set.
+`--relay` starts it regardless and says plainly that the page is still on mock data; `--no-relay`
+never does, and warns if `PERCH_BROKER_URL` is set, because then the page will show its error badge.
+The alternative — always start it and label the noise — was rejected because the honest label is
+"this is running for nobody".
+
+## 4. A dev-server port clash is a message problem, not a behaviour problem
+
+Both dev servers set `strictPort`, and that is correct: a capture navigates to a fixed URL, and a
+server that drifts to 5174 turns a screenshot into a picture of whatever else was listening. What
+Vite gives you for it is `Error: Port 5173 is already in use` over six stack frames, naming neither
+the holder nor a way out — and with three worktrees of this repo on one machine, "which one is it"
+is the actual question. So the ports are checked before anything is built, by *binding* them (the
+same question Vite is about to ask, so an IPv4/IPv6 split cannot make the check disagree with the
+failure), and a clash prints the port, what wanted it, the holding pid, that process's **full
+command line** — which is what identifies the checkout — and three pasteable ways on: `kill <pid>`,
+`--runtime-port <a port that is free right now>`, or the matching `PERCH_RUNTIME_PORT`.
+
+`--editor-port` / `--runtime-port` (and `PERCH_EDITOR_PORT` / `PERCH_RUNTIME_PORT`) are passed to
+Vite on its command line rather than written into either `vite.config.ts`, so `strictPort` keeps
+meaning what it says — the URL is fixed for this run — while a second worktree can still have a port.
+Resolution is flag then variable then default, the order the relay's own config already documents.
+
+## 5. The unreachable sensor host is announced before the relay complains about it
+
+The usual state of this machine is the sensor host switched off, and the relay reports that
+correctly — one `[error] poll failed` line, then a summary on a widening interval. Correct and, as
+the first thing under a banner, indistinguishable from a startup that failed. So when the relay is
+starting, `localhost:8085` is probed and the banner says what the log is about to say and that it is
+not a failure. A *probe* rather than a guess: with no answer from the probe (no resolver, no
+permission) nothing is claimed.
+
+## 6. The banner is printed last, and only after both servers answer
+
+The complaint was that startup tells you nothing about where to go. A banner printed before Vite's
+own output has scrolled away by the time the servers are up, so it waits for an HTTP response from
+each URL and prints after — which also means the URLs in it have been checked rather than predicted.
+If one never answers, that is said, naming the tag its output is under.
+
+## 7. `layouts/` is listed, and an unparseable file is flagged — parseability only
+
+The banner lists what `?layout=` accepts, mirroring `apps/runtime/src/layout-catalogue.ts` exactly
+(`layouts/*.json`, sorted, first is the default), because a list that disagreed with the picker would
+be worse than no list. A file that is not parseable JSON is listed *and* flagged with the parse
+error, since the picker lists it too.
+
+**Parseability and nothing deeper.** A document can be JSON and still not be a layout, and that check
+is `loadLayoutJson` against `WIDGET_REGISTRY`, which lives in a React package: importing it here
+would couple startup to `ui-kit` running outside a browser and to a prior `tsc -b`.
+`apps/editor/vite.config.ts` refuses the same import for the same reason. The pages already put
+schema issues on screen (`layout-problem.tsx`, `data-perch-problem="invalid-layout"`); what they
+cannot do is warn you before you pick the file.
+
+## 8. The broker-port courtesy was judged and left alone
+
+1883/9001 held by a Homebrew `mosquitto` was caused: the existing offer-to-stop reads well, and
+non-interactively it names the pid and the two variables and stops there without touching anyone's
+service. When the ports are set explicitly the check is skipped and the relay's own bind failure
+reports it — and that message is better than anything this script would write, naming the port, a
+free one to move to, `--mqtt-port 0`, and why the default is not the thing to change. Pre-flighting
+it here would mean re-deriving the relay's whole flag/variable/default resolution in the launcher.
+The cost of leaving it is that the failure arrives after the relay's build; that is one `tsc -b`.
+
+## 9. A stack that died reported success — fixed
+
+Found by running it. `shutdown()` set the exit code inside an `unref`ed timer, so once the last
+child's streams closed Node exited before the timer fired: `npm run dev -- --relay` against this
+machine's Mosquitto printed `exited (1) — stopping the stack` and exited **0**. `process.exitCode` is
+now set the moment shutdown begins. Pre-existing, and only visible because the relay was made to
+fail on purpose. (Both captured logs are in the evidence directory, the 0 and the 1.)
+
+One thing deliberately not changed: the relay dying still takes the whole stack down. It is the
+existing documented policy — a half-stack that looks alive but cannot work is worse to debug — and
+with `PERCH_BROKER_URL` set the pages really are broken without it.
+
+## 10. The tested part is separated from the part that needs a socket
+
+`tools/dev-startup.mjs` holds everything decided before a child is spawned — argument parsing, the
+relay decision, and the **wording** of every message — as functions of their arguments, imported by
+`dev-stack.mjs` and by `tools/dev-startup.test.mjs`. The wording is the deliverable here, so it has
+to be assertable; `dev-stack.mjs` is a script with top-level `await` and cannot be imported without
+starting a stack. `tools/` is not a workspace, so the root `test` script runs
+`vitest run --root tools` after the workspace fan-out rather than making it one (which would mean a
+`package-lock.json` change for two dependency-free files).
+
+Still stdlib-only, and `dev-startup.mjs` imports nothing at all. No process runner, no argument
+parser, no word wrapper — the wrapper is ten lines.
+
+## 11. A clean stop said `npm error code 143` fourteen times — silenced
+
+Also found by running it. Ctrl-C signals both dev servers, `npm run` treats a signalled script as a
+failed one, and each wrapper prints a seven-line post-mortem: a deliberate stop ended in fourteen
+lines of `npm error`, which is a success that reads as two failures — the same defect this task is
+about, arriving at the end of it. Once shutdown begins, a child's output is no longer forwarded. The
+exception is the child whose death *started* the shutdown, because its diagnostic can still be
+flushing and it is the reason the stack is stopping: the Mosquitto run still prints the relay's own
+`cannot listen on 0.0.0.0:1883` message in full, and still exits 1.
+
+## Call sites
+
+No `packages/*` symbol was touched, so there are no cross-package call sites. What changed outside
+`tools/`:
+
+- `package.json` — `dev` now runs the stack; `dev:stack` is an alias of it; `dev:runtime` and
+  `dev:editor` are new; `test` gained `&& npm run test:tools`. No dependency added, `package-lock.json`
+  untouched.
+- `README.md` — the running section, rewritten around the one command.
+- `apps/editor`, `apps/runtime`, `packages/*`, `layouts/`, every MQTT topic: unchanged. The port
+  override reaches Vite through its own CLI precedence, so neither `vite.config.ts` needed an edit.
+
+## Evidence
+
+Under `.evidence/dev-startup/`: `startup-default.log` (the one command on its default ports, both
+URLs answering 200, and the save-to-reload round trip), `startup-failures.log` (every failure caused
+rather than imagined: both dev-server ports held by another instance, six argument refusals, an
+unparseable `layouts/desk-1920x400.json`, the relay against a live Mosquitto before and after the
+exit-code fix, the relay with no sensor host), `red-first.log` (six reverted-hunk probes, each
+turning the suite red on exactly the claim it removes, the file restored byte-identical each time)
+and the root `build.log` / `test.log`. No screenshots: nothing rendered changed. No `code-review.md`
+and no adversarial review, per the standing rule.

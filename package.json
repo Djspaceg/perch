@@ -13,11 +13,14 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w @perch/runtime",
-    "relay": "npm run build -w @perch/agent && npm start -w @perch/agent",
+    "dev": "node tools/dev-stack.mjs",
     "dev:stack": "node tools/dev-stack.mjs",
+    "dev:runtime": "npm run dev -w @perch/runtime",
+    "dev:editor": "npm run dev -w @perch/editor",
+    "relay": "npm run build -w @perch/agent && npm start -w @perch/agent",
     "build": "npm run build --workspaces --if-present",
-    "test": "npm test --workspaces --if-present",
+    "test": "npm test --workspaces --if-present && npm run test:tools",
+    "test:tools": "vitest run --root tools",
     "typecheck": "tsc -b && tsc -p tsconfig.tests.json",
     "clean": "npm run clean --workspaces --if-present",
     "lint": "eslint . --max-warnings 0",
