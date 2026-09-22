@@ -1,34 +1,19 @@
 {
-  "permissions": {
+  "autoMode": {
     "allow": [
-      "Bash(npm run build)",
-      "Bash(npm run build:*)",
-      "Bash(npm test)",
-      "Bash(npm test:*)",
-      "Bash(npm run test:*)",
-      "Bash(npm run typecheck)",
-      "Bash(npm run typecheck:*)",
-      "Bash(npm run lint)",
-      "Bash(npm run lint:*)",
-      "Bash(npm run format)",
-      "Bash(npm run format:*)",
-      "Bash(npm run clean)",
-      "Bash(npm run clean:*)",
-      "Bash(npx tsc:*)",
-      "Bash(npx vitest:*)",
-      "Bash(npx eslint:*)",
-      "Bash(npx prettier:*)",
-      "Bash(npm ls:*)",
-      "Bash(git status:*)",
-      "Bash(git diff:*)",
-      "Bash(git log:*)",
-      "Bash(git show:*)",
-      "Bash(git ls-files:*)",
-      "Bash(git rev-parse:*)",
-      "Bash(git blame:*)",
-      "Bash(git branch --list:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "$defaults",
+      "Deleting package-lock.json so npm can regenerate it from the manifests"
+    ]
+  },
+  "permissions": {
+    "allow": ["Bash"],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh release:*)",
+      "Bash(npm publish:*)",
+      "Bash(sudo:*)"
     ]
   }
 }
