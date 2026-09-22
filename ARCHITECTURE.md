@@ -157,6 +157,25 @@ design constraint on the widgets themselves, not an afterthought:
 `runtime` therefore has two modes: a normal windowed mode, and a capture mode
 with a fixed viewport, no scrollbars, and that ready signal.
 
+## Why `agent` polls, and carries the broker
+
+`agent` exists, and it polls. The question was whether the sensor host already
+enumerates sensors and emits them on a tick — in which case perch would have
+needed a bridge rather than a poller. It does not: `agent` reads
+LibreHardwareMonitor's `/data.json` on its own interval and maps each reading onto
+the topic grammar. Nothing upstream pushes, so something has to pull.
+
+The broker runs inside that same process — `aedes`, fronted by native MQTT on TCP
+and MQTT over WebSockets. That is an install-story decision, not a transport one:
+an external Mosquitto is a user-facing prerequisite (install it, write a
+`listener 9001` block, enable `protocol websockets`, run it as a service), and
+perch does not add one — so the relay executable is the whole install beyond
+LibreHardwareMonitor itself. Two listeners because a browser cannot open a TCP
+socket and the dashboard is a browser; **one** `aedes` behind both, so a retained
+message is visible on either. None of this breaches "not a message broker" above.
+Perch still does not implement MQTT; it embeds an implementation, the same way it
+consumes sensor readings without discovering hardware. See DECISIONS.md.
+
 ## V1 slice
 
 The smallest thing that proves the pipeline end to end:
@@ -210,9 +229,6 @@ between them. This is the case that justifies MQTT over a plain WebSocket.
 
 ## Open questions
 
-- **Does `agent` need to exist?** If the panel host already enumerates sensors
-  and emits them on a tick, perch may only need an MQTT bridge rather than its
-  own poller. Decide before building `agent`.
 - **Is the target panel driveable at all?** Unresolved hardware question,
   upstream of every panel decision. Nothing else in this document depends on it.
 
