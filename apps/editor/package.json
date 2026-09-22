@@ -19,7 +19,9 @@
     "@perch/sensor-sources": "0.0.0",
     "@perch/ui-kit": "0.0.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-colorful": "^5.8.1",
+    "react-dom": "^19.3.0",
+    "react-rnd": "^10.5.3"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",

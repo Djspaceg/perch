@@ -56,11 +56,13 @@ import {
   WIDGET_NAMES,
   WIDGET_REGISTRY,
 } from '@perch/ui-kit';
+import type { Rect } from '@perch/layout-schema';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { CANVAS_HANDLES_STYLES } from './canvas-handles.js';
 import { canSave, draftSaved, editDraft, isDirty, openDraft, type DraftState } from './draft.js';
 import { INSPECTOR_STYLES, Inspector } from './inspector.js';
 import type { LayoutLibrary } from './layout-library.js';
-import type { LayoutUpdate } from './layout-edits.js';
+import { setElementRect, type LayoutUpdate } from './layout-edits.js';
 import { LAYOUT_PROBLEMS_STYLES, LayoutProblems } from './problems.js';
 import { LayoutPreview, PREVIEW_STYLES, describePreviewFit } from './preview.js';
 import {
@@ -186,6 +188,9 @@ export function Editor({
       <style href="perch-editor-preview" precedence="default">
         {PREVIEW_STYLES}
       </style>
+      <style href="perch-editor-handles" precedence="default">
+        {CANVAS_HANDLES_STYLES}
+      </style>
       <style href="perch-editor-inspector" precedence="default">
         {INSPECTOR_STYLES}
       </style>
@@ -257,6 +262,14 @@ function EditorShell({
     // edit is on disk. The edit clears it.
     setNotice('');
   }, []);
+
+  /** A dragged or resized element's rect, as one edit. The same `editDraft` path as the field form. */
+  const onRect = useCallback(
+    (index: number, rect: Rect) => {
+      onEdit(setElementRect(index, rect));
+    },
+    [onEdit],
+  );
 
   const onPick = useCallback(
     (name: string) => {
@@ -426,6 +439,9 @@ function EditorShell({
               resolveAsset={library.resolveAsset}
               viewport={viewport}
               stale={opened.state.issues.length > 0}
+              selected={selected}
+              onSelect={setSelected}
+              onRect={onRect}
             />
           ) : (
             <p className="perch-editor-empty" data-testid="perch-editor-unopened">

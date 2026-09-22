@@ -24,6 +24,7 @@ export {
   setElementFit,
   setElementGap,
   setElementRangeBound,
+  setElementRect,
   setElementRectField,
   setElementSrc,
   setElementStyleToken,
@@ -47,6 +48,14 @@ export {
 } from './layout-library.js';
 
 export { INSPECTOR_STYLES, Inspector, describeElement, type InspectorProps } from './inspector.js';
+
+export {
+  CANVAS_HANDLES_STYLES,
+  CanvasHandles,
+  rectFromDrag,
+  rectFromResize,
+  type CanvasHandlesProps,
+} from './canvas-handles.js';
 
 export { LAYOUT_PROBLEMS_STYLES, LayoutProblems, type LayoutProblemsProps } from './problems.js';
 

@@ -49,6 +49,7 @@ import {
 } from '@perch/layout-schema';
 import { assertNever } from '@perch/ui-kit';
 import { useState, type ReactNode } from 'react';
+import { HexColorPicker } from 'react-colorful';
 import type { DraftState } from './draft.js';
 import {
   numberFromInput,
@@ -606,7 +607,24 @@ function ChoiceField<Value extends string>({
   );
 }
 
-/** One CSS custom property: its value, and a way to remove it. */
+/** A `#rgb` or `#rrggbb` literal — the one token value shape a colour picker can drive. */
+function isHexColor(value: string): boolean {
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value.trim());
+}
+
+/**
+ * One CSS custom property: its value, a way to remove it, and — when the value is a hex colour — a
+ * picker.
+ *
+ * The text input stays the primary control, for the reason the whole form is text inputs (see the
+ * module comment): it shows exactly what is in the document, including a value the picker cannot
+ * represent, and `validateLayout` keeps the guarantee. The picker is an *addition* on top of it, shown
+ * only when the current value already reads as a hex colour, so it never reinterprets a token it does
+ * not understand. `react-colorful` emits `#rrggbb`, which is already a legal token value, straight into
+ * the same `onValue` the text input uses — so a drag is the same edit as a keystroke, validated the
+ * same way. It is folded away behind a swatch by default because a 2-D picker per token would bury the
+ * form; the swatch doubles as the current-colour indicator.
+ */
 function TokenRow({
   label,
   value,
@@ -618,22 +636,43 @@ function TokenRow({
   readonly onValue: (value: string) => void;
   readonly onRemove: () => void;
 }): ReactNode {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const colour = isHexColor(value);
+
   return (
-    <div className="perch-editor-token">
-      <TextField label={label} value={value} onValue={onValue} />
-      {/*
-       * Remove, not blank. `layout-schema` rejects an empty token value and says "remove the key
-       * instead of setting it empty", so a control that cleared the field would be teaching a spelling
-       * the format refuses.
-       */}
-      <button
-        type="button"
-        className="perch-editor-remove"
-        aria-label={`remove ${label}`}
-        onClick={onRemove}
-      >
-        remove
-      </button>
+    <div className="perch-editor-token-group">
+      <div className="perch-editor-token">
+        <TextField label={label} value={value} onValue={onValue} />
+        {colour ? (
+          <button
+            type="button"
+            className="perch-editor-swatch"
+            data-testid="perch-editor-swatch"
+            aria-label={`${pickerOpen ? 'hide' : 'show'} colour picker for ${label}`}
+            aria-expanded={pickerOpen}
+            style={{ background: value.trim() }}
+            onClick={() => {
+              setPickerOpen((open) => !open);
+            }}
+          />
+        ) : null}
+        {/*
+         * Remove, not blank. `layout-schema` rejects an empty token value and says "remove the key
+         * instead of setting it empty", so a control that cleared the field would be teaching a spelling
+         * the format refuses.
+         */}
+        <button
+          type="button"
+          className="perch-editor-remove"
+          aria-label={`remove ${label}`}
+          onClick={onRemove}
+        >
+          remove
+        </button>
+      </div>
+      {colour && pickerOpen ? (
+        <HexColorPicker className="perch-editor-colour" color={value.trim()} onChange={onValue} />
+      ) : null}
     </div>
   );
 }
@@ -715,7 +754,21 @@ export const INSPECTOR_STYLES = `
 }
 .perch-editor-input--number { font-variant-numeric: tabular-nums; }
 .perch-editor-input:focus-visible { outline: 2px solid #8fb7e8; outline-offset: 0; }
+.perch-editor-token-group { display: flex; flex-direction: column; gap: 6px; }
 .perch-editor-token { display: flex; align-items: flex-end; gap: 6px; }
+.perch-editor-swatch {
+  flex: none;
+  align-self: flex-end;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #262c36;
+  border-radius: 3px;
+  padding: 0;
+  cursor: pointer;
+}
+.perch-editor-swatch:focus-visible { outline: 2px solid #8fb7e8; outline-offset: 0; }
+/* Fit react-colorful into the column. Two class selectors, to beat its own .react-colorful rule. */
+.perch-editor-token-group .perch-editor-colour { width: 100%; height: 150px; }
 .perch-editor-remove, .perch-editor-add {
   flex: none;
   border: 1px solid #262c36;

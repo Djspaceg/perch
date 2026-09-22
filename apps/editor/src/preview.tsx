@@ -41,9 +41,11 @@ import {
   formatScalePercent,
   type Layout,
   type LayoutTarget,
+  type Rect,
 } from '@perch/layout-schema';
 import { LayoutCanvas, canvasToken } from '@perch/ui-kit';
 import type { ReactNode } from 'react';
+import { CanvasHandles } from './canvas-handles.js';
 import type { PreviewViewport } from './preview-viewport.js';
 
 /** How a layout's canvas is shown in the pane. */
@@ -87,14 +89,29 @@ export interface LayoutPreviewProps {
    * silently not moving is indistinguishable from an edit that had no visual effect.
    */
   readonly stale: boolean;
+  /** Which element the handle layer draws as selected. Shared with the inspector's element list. */
+  readonly selected: number;
+  readonly onSelect: (index: number) => void;
+  /** Commit a dragged or resized element's rect. Threaded to `editDraft`, so it is validated. */
+  readonly onRect: (index: number, rect: Rect) => void;
 }
 
-/** The pane, with the shared canvas inside it. */
+/**
+ * The pane: the shared canvas, and a handle layer laid over it.
+ *
+ * The two are siblings, deliberately. `CanvasHandles` is a transparent overlay, not a wrapper, so
+ * `LayoutCanvas` renders exactly as the runtime renders it and the "one renderer" property holds; see
+ * that file's comment. The handles are given the same `layout` and the same `scale` as the canvas, so
+ * they sit on top of it pixel for pixel.
+ */
 export function LayoutPreview({
   layout,
   resolveAsset,
   viewport,
   stale,
+  selected,
+  onSelect,
+  onRect,
 }: LayoutPreviewProps): ReactNode {
   const fit = previewFit(layout.target, viewport);
 
@@ -109,6 +126,13 @@ export function LayoutPreview({
       style={{ width: `${viewport.width}px`, height: `${viewport.height}px` }}
     >
       <LayoutCanvas layout={layout} scale={fit.scale} resolveAsset={resolveAsset} />
+      <CanvasHandles
+        layout={layout}
+        scale={fit.scale}
+        selected={selected}
+        onSelect={onSelect}
+        onRect={onRect}
+      />
     </div>
   );
 }

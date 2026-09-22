@@ -113,6 +113,19 @@ export function setElementRectField(index: number, field: RectField, value: numb
   return mapElement(index, (element) => withRect(element, { ...element.rect, [field]: value }));
 }
 
+/**
+ * Replace an element's whole rect in one edit.
+ *
+ * The four-at-once counterpart to `setElementRectField`, for direct manipulation: a drag moves `x` and
+ * `y` together and a resize moves all four, and writing them one field at a time would run the
+ * validator on three intermediate rects nobody authored. The caller (the canvas overlay) has already
+ * rounded to integers in layout space; this makes no claim about the values beyond that they replace
+ * the rect wholesale, so `validateLayout` still names anything wrong with them.
+ */
+export function setElementRect(index: number, rect: Rect): LayoutUpdate {
+  return mapElement(index, (element) => withRect(element, rect));
+}
+
 /** Replace a text element's string. A no-op on any other kind. */
 export function setElementText(index: number, text: string): LayoutUpdate {
   return mapElement(index, (element) => (element.kind === 'text' ? { ...element, text } : element));
