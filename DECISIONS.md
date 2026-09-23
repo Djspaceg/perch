@@ -4597,3 +4597,73 @@ owns. So a custom token appears on Developer under its raw name, honestly marked
 the Developer tab sets no labels at all in this slice. The cost of changing that is the schema field
 plus a migration plus the editing surface; the question it raises first is whether a custom token
 should be labelled in one layout and not in another.
+
+# Colour first, and two removals that are not the same act — decisions
+
+The swatch now leads a colour row and the hex literal follows, in both panes, since both panes are one
+component. Customize's "name" disclosure is gone, and the fact it carried — what an overridden row goes
+back to — survives as quiet text beside the control. Both removals became icons, and revert and delete
+are deliberately not the same icon. Presentation only: same document in, same document out. No
+`layout-schema` change, no topic change, no dependency, `package-lock.json` untouched.
+
+## Decisions to evaluate
+
+D1 The removal icon is a revert arrow (U+21BA), not the requested minus. Why: a minus reads as "take
+this away", and nothing is taken away — one layer is, and the ui-kit default takes over. If overruled:
+swap the glyph; the accessible name already says what happens.
+
+D2 A custom token's removal is a cross (U+2715) on a red border. Why: ui-kit declares no default for
+it, so removal really is deletion, and one glyph for both is last slice's confusion a layer down. If
+overruled: `DeveloperRow` stops branching on `isKnownToken`.
+
+D3 Deleting a custom token asks once, inline; dropping an override does not. Why: no undo in this
+slice, so a misaimed delete is unrecoverable until reload, while a dropped override is one click from
+retyped. Inline, not `window.confirm`, which cannot name the token. If overruled: drop
+`DeleteControl`'s confirming branch.
+
+D4 Customize's reset is also an icon. Supersedes "Customize keeps the word reset", because the default
+value this slice adds made that row head wider than the one the space complaint was about, and the
+brief's own screenshot list asks for the icon and the default value together. The word moves into the
+accessible name. If overruled: render label text in `CustomizeRow`, icon in Developer only.
+
+D5 A row promises `inherited ?? knownTokenDefault(name)`, never the package default alone. Why: this is
+`7c5b5a5`'s correction — the element pane said `#f2f4f8` while `#e8f1ff` painted. If overruled:
+nothing; a non-regression, not a preference.
+
+D6 Every `data-testid` is scoped by pane id. Why: the bare token name collided across the two panes,
+the residual the last slice left. If overruled: revert `rowTestId`.
+
+## Open questions
+
+Q1 The brief says the desk layout already holds a custom token. It does not — 94 theme and style keys
+across the three shipped layouts, 28 distinct, every one a known `--perch-*` name. Default taken: the
+capture adds `--brand-hue: 210deg` live through the pane's own add control, in the draft only; nothing
+saved, no layout file changed.
+
+Q2 The icon is a 20px square, under the 24px touch target. Default taken: kept, with a comment, since
+this is a dense desktop inspector.
+
+## Call sites
+
+None. `packages/*` is unmodified — `tokens.ts` and `token-labels.ts` were read to check D1/D2's
+premise, not edited. The diff is `apps/editor/src/token-pane.tsx` and its test.
+
+## Evidence
+
+Under `.evidence/perch-editor-theme-polish/`: `build.log`, `test.log` (editor 101 → 109, the pane's own
+suite 25 → 33), `typecheck.log`, `lint.log`, `format.log`, all exit 0. `red-token-pane.log` is the
+red-first capture — exit 1, 24 failed / 8 passed of the 32 that existed at that point.
+
+At 1920x400 and 1440x900 both: `customize-colour-rows-*.png` (swatch before hex, an overridden row
+with its icon and `default #f2f4f8`, a row at its default showing nothing extra),
+`style-pane-inherited-*.png` (the element pane reporting `layout theme #7f8da3`, which is D5 on
+screen), `developer-custom-token-*.png` (revert arrows beside one red cross),
+`developer-delete-confirm-*.png`, and `editor-customize-*.png`.
+
+No adversarial review, per the standing rule; `code-review.md` sits in the same directory and says so.
+
+## Residuals
+
+The confirm wraps to its own line at 1920x400, pushing the value field down a row. It reads correctly
+and is transient, but a fixed width would stop the reflow. No shipped layout has a custom token, so
+that path's only exercise is the tests and the capture draft.

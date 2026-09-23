@@ -22,18 +22,35 @@
  *   or not, under the label `ui-kit` gives it, with a control that fits the token's type — a picker
  *   for a colour, a number and a unit for a size, a closed select for `text-transform`. It shows which
  *   values are the layout's own and offers a reset for exactly those. It cannot add a name and cannot
- *   delete a token: there is nothing here whose effect is unrecoverable.
+ *   delete a token: there is nothing here whose effect is unrecoverable. It also never prints a raw
+ *   `--perch-...` name, in text or in a tooltip — a consumer who needs one is on the other tab.
  * - **Developer** is the document. Only the keys actually present, by raw name, each marked with
- *   whether `ui-kit` knows it, add and remove available, and the two removals worded for their two
- *   different consequences.
+ *   whether `ui-kit` knows it, add available, and the two removals shaped for their two different
+ *   consequences.
  *
- * ## A disclosure, not a tooltip
+ * ## Colour first, notation second
  *
- * The raw token name is behind a per-row disclosure button rather than a `title` tooltip. A `title` is
- * invisible to a keyboard and to a touch screen, it cannot be copied, and it can hold one string —
- * whereas what is worth revealing is two facts, the token name *and* the value it defaults to. A
- * button with `aria-expanded` is reachable by Tab, works on a phone, and the revealed name is real
- * selectable text an author can paste into a layout file.
+ * Wherever a colour is edited the swatch leads and the hex literal follows. An author who came to
+ * change a colour is looking for the colour; `#e8f1ff` is how the value is *written*, which matters
+ * once they are already at the right row. Both colour rows in this file are ordered that way — a
+ * Customize row and a Developer row — because two panes that disagree about which half of a colour
+ * control comes first read as two products.
+ *
+ * ## One fact from the old disclosure, kept
+ *
+ * An earlier form put the token name and its default behind a per-row disclosure in Customize. The
+ * name is gone from this tab entirely; the default value is not, because it answers one question the
+ * value field cannot: *what do I get back if I reset this*. That question only exists on a row this
+ * surface overrides — a row at its default already shows the default in its own control — so the value
+ * is printed as quiet text beside the reset, on overridden rows only, and nowhere else.
+ *
+ * ## The removals, as icons
+ *
+ * Every removal in this pane is an icon button, because the words were the widest thing in a row and a
+ * row is where the space was wanted. The meaning did not leave with them: each carries a full sentence
+ * as both its `aria-label` and its `title`, naming the value that takes over. Two glyphs, not one — `↺`
+ * where something underneath takes over, `✕` where nothing does — and the `✕` asks before it acts. See
+ * `DeveloperRow` for the whole argument, including why the requested `-` was not the glyph used.
  *
  * ## Effective value in, override out
  *
@@ -170,6 +187,7 @@ export function TokenPane({
       >
         {tab === 'customize' ? (
           <CustomizeTab
+            pane={id}
             tokens={tokens}
             inherited={inherited}
             known={known}
@@ -178,6 +196,7 @@ export function TokenPane({
           />
         ) : (
           <DeveloperTab
+            pane={id}
             title={title}
             tokens={tokens}
             inherited={inherited}
@@ -190,14 +209,27 @@ export function TokenPane({
   );
 }
 
+/**
+ * A row's `data-testid`, scoped to the pane it is in.
+ *
+ * The inspector renders two of these panes at once — the layout's `theme`, and the selected element's
+ * `style` — and both list `--perch-fg`. A testid that was the bare token name therefore appeared twice
+ * in one document, which is a query that either throws or silently answers about the wrong pane.
+ */
+function rowTestId(pane: string, name: string): string {
+  return `perch-editor-token-${pane}-${name}`;
+}
+
 /** The vocabulary, grouped, with a type-appropriate control per token. */
 function CustomizeTab({
+  pane,
   tokens,
   inherited,
   known,
   onSet,
   onRemove,
 }: {
+  readonly pane: string;
   readonly tokens: Readonly<Record<string, string>>;
   readonly inherited: Readonly<Record<string, string>> | undefined;
   readonly known: readonly string[];
@@ -216,6 +248,7 @@ function CustomizeTab({
             {names.map((name) => (
               <CustomizeRow
                 key={name}
+                pane={pane}
                 name={name}
                 entry={labelOf(name)}
                 override={tokens[name]}
@@ -245,16 +278,22 @@ function labelOf(name: string): TokenLabel {
  * One token, label first.
  *
  * `override` is `undefined` when this surface does not set the token, which is the case that decides
- * almost everything visible here: whether the row says it is overridden, and whether it offers a
- * reset. The control is bound to the effective value either way.
+ * almost everything visible here: whether the row says it is overridden, whether it offers a reset, and
+ * whether it prints what that reset would uncover. The control is bound to the effective value either
+ * way.
  *
  * `inherited` is what the surface one level up sets, and it changes only what the row *says*: the
  * effective value under an element's own override is the layout's, not the package's, and a reset here
- * uncovers the layout's value rather than the default. Both numbers stay reachable — the disclosure
- * prints the layout's value and the `ui-kit` default side by side, since "what does this fall back to"
- * and "what does the package think this should be" are two different questions an author asks.
+ * uncovers the layout's value rather than the package default. So `fallback` — not `declared` — is what
+ * the row prints and what the reset's accessible name promises. Printing the package default beside a
+ * reset that will not produce it is the exact defect the previous slice removed, one control along.
+ *
+ * The `ui-kit` default *behind* an inherited value is deliberately not shown. It is a fact about the
+ * package rather than about this document, nobody can reach it from this row without first clearing the
+ * layout's value too, and this tab is where the raw vocabulary does not belong.
  */
 function CustomizeRow({
+  pane,
   name,
   entry,
   override,
@@ -262,6 +301,7 @@ function CustomizeRow({
   onSet,
   onRemove,
 }: {
+  readonly pane: string;
   readonly name: string;
   readonly entry: TokenLabel;
   readonly override: string | undefined;
@@ -269,19 +309,19 @@ function CustomizeRow({
   readonly onSet: (name: string, value: string) => void;
   readonly onRemove: (name: string) => void;
 }): ReactNode {
-  const [shown, setShown] = useState(false);
   const inputId = useId();
-  const detailId = useId();
-  const declared = knownTokenDefault(name) ?? '';
-  const fallback = inherited ?? declared;
+  const fallback = inherited ?? knownTokenDefault(name) ?? '';
   const value = override ?? fallback;
   const isOverride = override !== undefined;
   const source = inherited === undefined ? 'the ui-kit default' : 'the layout theme value';
+  // "default #f2f4f8", or "layout theme #e8f1ff". Two words and a value: enough for the number to be
+  // attributed, short enough to sit in a row beside a button without becoming the row's subject.
+  const revertsTo = `${inherited === undefined ? 'default' : 'layout theme'} ${fallback}`;
 
   return (
     <div
       className="perch-editor-token-row"
-      data-testid={`perch-editor-token-${name}`}
+      data-testid={rowTestId(pane, name)}
       data-perch-overridden={isOverride ? 'true' : 'false'}
     >
       <div className="perch-editor-token-row__head">
@@ -289,7 +329,7 @@ function CustomizeRow({
           {entry.label}
         </label>
         {isOverride ? (
-          <span className="perch-editor-flag" data-testid={`perch-editor-override-${name}`}>
+          <span className="perch-editor-flag" data-testid={`perch-editor-override-${pane}-${name}`}>
             set by this layout
           </span>
         ) : (
@@ -298,54 +338,34 @@ function CustomizeRow({
           </span>
         )}
         <span className="perch-editor-spacer" />
-        <button
-          type="button"
-          className="perch-editor-disclose"
-          aria-expanded={shown}
-          aria-controls={detailId}
-          aria-label={`${shown ? 'hide' : 'show'} the token name for ${entry.label}`}
-          onClick={() => {
-            setShown((open) => !open);
-          }}
-        >
-          {shown ? 'hide name' : 'name'}
-        </button>
         {isOverride ? (
-          <button
-            type="button"
-            className="perch-editor-reset"
-            aria-label={`reset ${entry.label} to ${source} ${fallback}`}
-            onClick={() => {
-              onRemove(name);
-            }}
-          >
-            reset
-          </button>
+          <>
+            {/*
+              Quiet, and next to the control it belongs to rather than under the label: it is not a
+              fact about the token, it is the consequence of pressing the button beside it.
+            */}
+            <span className="perch-editor-reverts">{revertsTo}</span>
+            {/*
+              The same `↺` the Developer tab uses, because it is the same edit, and icon-only for the
+              same reason: the word `reset` plus this row's new quiet text would make the head wider
+              than the one that prompted the complaint. What differs between the tabs is the sentence
+              in the accessible name — this one says `reset` and names the token by its label, that one
+              says `remove this layout's value` and names it by its raw property — and that difference
+              is the two readers, not two actions. There is no `✕` here at all: this tab cannot delete.
+            */}
+            <IconButton
+              className="perch-editor-icon perch-editor-icon--reset"
+              glyph="↺"
+              label={`reset ${entry.label} to ${source} ${fallback}`}
+              onClick={() => {
+                onRemove(name);
+              }}
+            />
+          </>
         ) : null}
       </div>
 
       <p className="perch-editor-token-row__about">{entry.description}</p>
-
-      {shown ? (
-        <dl className="perch-editor-token-row__detail" id={detailId}>
-          <dt>token</dt>
-          <dd>
-            <code>{name}</code>
-          </dd>
-          {inherited === undefined ? null : (
-            <>
-              <dt>layout theme</dt>
-              <dd>
-                <code>{inherited}</code>
-              </dd>
-            </>
-          )}
-          <dt>default</dt>
-          <dd>
-            <code>{declared}</code>
-          </dd>
-        </dl>
-      ) : null}
 
       <TokenControl
         id={inputId}
@@ -476,7 +496,15 @@ function ValueInput({
   );
 }
 
-/** A hex colour: the literal, a swatch that is also the current colour, and a picker behind it. */
+/**
+ * A hex colour: the swatch that is also the current colour and the picker behind it, then the literal.
+ *
+ * Colour first. The swatch is the thing an author scanning a column of rows recognises, and it is also
+ * the control that does the editing they came to do; `#e8f1ff` is the notation, and notation is what
+ * you read once you are already at the right row. The literal stays a real editable field and stays in
+ * sync both ways — typing into it moves the picker, dragging the picker rewrites it — because the two
+ * are one value and an author who knows the hex they want should not have to find it on a wheel.
+ */
 function ColourControl({
   id,
   label,
@@ -493,7 +521,6 @@ function ColourControl({
   return (
     <div className="perch-editor-token-group">
       <div className="perch-editor-token">
-        <ValueInput id={id} value={value} onValue={onValue} />
         <button
           type="button"
           className="perch-editor-swatch"
@@ -505,6 +532,7 @@ function ColourControl({
             setOpen((shown) => !shown);
           }}
         />
+        <ValueInput id={id} value={value} onValue={onValue} />
       </div>
       {open ? (
         <HexColorPicker className="perch-editor-colour" color={value.trim()} onChange={onValue} />
@@ -569,12 +597,14 @@ function LengthControl({
 
 /** The document's own keys, by raw name, with add and remove. */
 function DeveloperTab({
+  pane,
   title,
   tokens,
   inherited,
   onSet,
   onRemove,
 }: {
+  readonly pane: string;
   readonly title: string;
   readonly tokens: Readonly<Record<string, string>>;
   readonly inherited: Readonly<Record<string, string>> | undefined;
@@ -586,7 +616,7 @@ function DeveloperTab({
   return (
     <>
       {entries.length === 0 ? (
-        <p className="perch-editor-empty" data-testid="perch-editor-token-empty">
+        <p className="perch-editor-empty" data-testid={`perch-editor-token-empty-${pane}`}>
           {`nothing here sets a ${title} token, so every token falls back to ${
             inherited === undefined
               ? 'the ui-kit default'
@@ -597,6 +627,7 @@ function DeveloperTab({
         entries.map(([name, value]) => (
           <DeveloperRow
             key={name}
+            pane={pane}
             name={name}
             value={value}
             inherited={inherited?.[name]}
@@ -613,18 +644,40 @@ function DeveloperTab({
 /**
  * One key as the document spells it.
  *
- * The removal is the one control in this pane whose meaning depends on the token, so the button says
- * which it is: `remove override` for a name `ui-kit` declares, because the default underneath takes
- * over and the dashboard keeps painting; `delete` for a name it does not, because there is nothing
- * underneath and the value is gone. They are also different colours, since the two sit in one column.
+ * ## The removal, as an icon, still carrying two meanings
+ *
+ * The words are out of the row — `remove override` was the widest thing in a list of monospace names,
+ * and a raw-document list is where space is scarcest. What did *not* come out is the distinction the
+ * words existed to draw, because the two removals still have two different consequences:
+ *
+ * - For a name `ui-kit` declares, the value underneath takes over — the layout's value above it if this
+ *   is an element's map, the package's default otherwise — and the dashboard keeps painting. `↺`, the
+ *   revert glyph, deliberately not the `-` that was asked for: a minus reads as *take this away*, which
+ *   is the implication that is wrong here. Nothing is taken away; one layer is.
+ * - For a name it does not declare there is no layer underneath, so the value is gone. `✕`, in the red
+ *   the row's left border already uses, **and** a confirm: with the word `delete` replaced by a glyph,
+ *   a second deliberate click is what is left to carry the deliberateness the word carried, and this
+ *   editor has no undo (see `app.tsx`) so a misaimed click is unrecoverable until a reload.
+ *
+ * A different glyph, a different colour, a different accessible name and a different number of clicks.
+ * Colour alone would not do it — it is the one difference a reader may not be able to see.
+ *
+ * ## An accessible name and a tooltip, not a tooltip alone
+ *
+ * Each button's whole sentence is its `aria-label`, and the same string is its `title`. A `title` alone
+ * is invisible to a keyboard and to a touch screen, which for an icon-only control means the meaning is
+ * reachable only by a mouse-user who happens to hover. The glyph itself is `aria-hidden`, so a screen
+ * reader reads the sentence rather than the character.
  */
 function DeveloperRow({
+  pane,
   name,
   value,
   inherited,
   onSet,
   onRemove,
 }: {
+  readonly pane: string;
   readonly name: string;
   readonly value: string;
   readonly inherited: string | undefined;
@@ -632,6 +685,7 @@ function DeveloperRow({
   readonly onRemove: (name: string) => void;
 }): ReactNode {
   const inputId = useId();
+  const [confirming, setConfirming] = useState(false);
   const entry = tokenLabel(name);
   // What actually takes over, which on an element's map is the layout's value before the package's. The
   // Customize tab says the same thing in the same words; a name is not a different fact in a raw list.
@@ -643,7 +697,7 @@ function DeveloperRow({
   return (
     <div
       className="perch-editor-token-row"
-      data-testid={`perch-editor-token-${name}`}
+      data-testid={rowTestId(pane, name)}
       data-perch-known={entry === undefined ? 'false' : 'true'}
     >
       <div className="perch-editor-token-row__head">
@@ -659,38 +713,33 @@ function DeveloperRow({
         )}
         <span className="perch-editor-spacer" />
         {entry === undefined ? (
-          <button
-            type="button"
-            className="perch-editor-remove perch-editor-remove--delete"
-            aria-label={`delete ${name}. ui-kit declares no default for it, so nothing takes over: the value is gone.`}
-            onClick={() => {
+          <DeleteControl
+            name={name}
+            confirming={confirming}
+            onAsk={() => {
+              setConfirming(true);
+            }}
+            onCancel={() => {
+              setConfirming(false);
+            }}
+            onConfirm={() => {
+              setConfirming(false);
               onRemove(name);
             }}
-          >
-            delete
-          </button>
+          />
         ) : (
-          <button
-            type="button"
-            className="perch-editor-remove"
-            aria-label={`remove the override for ${name}. ${takesOver} takes over.`}
+          <IconButton
+            className="perch-editor-icon"
+            glyph="↺"
+            label={`remove this layout's value for ${name}, back to ${takesOver}`}
             onClick={() => {
               onRemove(name);
             }}
-          >
-            remove override
-          </button>
+          />
         )}
       </div>
 
       <div className="perch-editor-token">
-        <ValueInput
-          id={inputId}
-          value={value}
-          onValue={(next) => {
-            onSet(name, next);
-          }}
-        />
         {isHexColor(value) ? (
           <span
             className="perch-editor-swatch perch-editor-swatch--static"
@@ -698,8 +747,99 @@ function DeveloperRow({
             style={{ background: value.trim() }}
           />
         ) : null}
+        <ValueInput
+          id={inputId}
+          value={value}
+          onValue={(next) => {
+            onSet(name, next);
+          }}
+        />
       </div>
     </div>
+  );
+}
+
+/**
+ * An icon-only button whose meaning lives in its accessible name.
+ *
+ * One component rather than an `aria-label` written at each call site, because the rule that makes an
+ * icon button legitimate — the sentence is the `aria-label` *and* the `title`, and the glyph is hidden
+ * from assistive technology — is a rule that holds for all of them and gets forgotten at the second.
+ */
+function IconButton({
+  className,
+  glyph,
+  label,
+  onClick,
+}: {
+  readonly className: string;
+  readonly glyph: string;
+  readonly label: string;
+  readonly onClick: () => void;
+}): ReactNode {
+  return (
+    <button type="button" className={className} aria-label={label} title={label} onClick={onClick}>
+      <span aria-hidden="true">{glyph}</span>
+    </button>
+  );
+}
+
+/**
+ * The destructive removal, which asks first.
+ *
+ * The confirm is inline and made of ordinary buttons rather than `window.confirm`: a native dialog
+ * cannot be styled to say which token it is about, blocks the whole page, and is not reachable by the
+ * tests that are supposed to prove this control behaves. Both states say the token's name, because a
+ * confirm that asks "are you sure?" about an unnamed thing is a confirm nobody reads.
+ */
+function DeleteControl({
+  name,
+  confirming,
+  onAsk,
+  onCancel,
+  onConfirm,
+}: {
+  readonly name: string;
+  readonly confirming: boolean;
+  readonly onAsk: () => void;
+  readonly onCancel: () => void;
+  readonly onConfirm: () => void;
+}): ReactNode {
+  const gone = `ui-kit declares no default for it, so nothing takes over: the value is gone.`;
+
+  if (!confirming) {
+    return (
+      <IconButton
+        className="perch-editor-icon perch-editor-icon--delete"
+        glyph="✕"
+        label={`delete ${name}. ${gone}`}
+        onClick={onAsk}
+      />
+    );
+  }
+
+  return (
+    <span className="perch-editor-confirm" role="group" aria-label={`delete ${name}?`}>
+      <span className="perch-editor-hint">delete? nothing takes over.</span>
+      <button
+        type="button"
+        className="perch-editor-icon perch-editor-icon--delete"
+        aria-label={`confirm: delete ${name}. ${gone}`}
+        title={`confirm: delete ${name}. ${gone}`}
+        onClick={onConfirm}
+      >
+        delete
+      </button>
+      <button
+        type="button"
+        className="perch-editor-icon"
+        aria-label={`keep ${name}`}
+        title={`keep ${name}`}
+        onClick={onCancel}
+      >
+        keep
+      </button>
+    </span>
   );
 }
 
@@ -786,7 +926,7 @@ export const TOKEN_PANE_STYLES = `
 .perch-editor-swatch:focus-visible { outline: 2px solid #8fb7e8; outline-offset: 0; }
 /* Fit react-colorful into the column. Two class selectors, to beat its own .react-colorful rule. */
 .perch-editor-token-group .perch-editor-colour { width: 100%; height: 150px; }
-.perch-editor-remove, .perch-editor-add {
+.perch-editor-add {
   flex: none;
   border: 1px solid #262c36;
   border-radius: 3px;
@@ -863,7 +1003,7 @@ export const TOKEN_PANE_STYLES = `
   white-space: nowrap;
 }
 .perch-editor-flag--custom { border-color: #5e4a23; background: #261e10; color: #e8c98f; }
-.perch-editor-disclose, .perch-editor-reset {
+.perch-editor-icon {
   flex: none;
   border: 1px solid #262c36;
   border-radius: 3px;
@@ -874,12 +1014,37 @@ export const TOKEN_PANE_STYLES = `
   padding: 1px 6px;
   cursor: pointer;
 }
-.perch-editor-reset { border-color: #2e4665; color: #8fb7e8; }
-.perch-editor-disclose:focus-visible, .perch-editor-reset:focus-visible {
-  outline: 2px solid #8fb7e8;
-  outline-offset: 0;
+.perch-editor-icon--reset { border-color: #2e4665; color: #8fb7e8; }
+.perch-editor-icon:focus-visible { outline: 2px solid #8fb7e8; outline-offset: 0; }
+/*
+  An icon button is square and tall enough to hit. 20px is under the 24px a touch target wants, and
+  said so on purpose: this is a dense desktop inspector and the row it sits in is 22px, so the honest
+  claim is that it is a pointer-and-keyboard control, which is what this editor is.
+*/
+.perch-editor-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 0.8125rem;
+  line-height: 1;
 }
-.perch-editor-remove--delete { border-color: #5e2323; background: #241010; color: #e8a08f; }
+.perch-editor-icon--delete { border-color: #5e2323; background: #241010; color: #e8a08f; }
+/* The confirm's two buttons carry words, so they are not square. */
+.perch-editor-confirm { display: inline-flex; align-items: center; gap: 4px; }
+.perch-editor-confirm .perch-editor-icon { width: auto; padding: 1px 6px; font-size: 0.625rem; }
+/*
+  What a reset uncovers. Quiet: it is the consequence of the button beside it, not a fact competing
+  with the row's own value.
+*/
+.perch-editor-reverts {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.625rem;
+  color: #6b7889;
+  white-space: nowrap;
+}
 .perch-editor-input--unit { flex: none; width: 4.5em; }
 .perch-editor-swatch--static { cursor: default; }
 .perch-editor-token--add { align-items: flex-end; margin-top: 4px; }
