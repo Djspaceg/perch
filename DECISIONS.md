@@ -4459,3 +4459,141 @@ exit-code fix, the relay with no sensor host), `red-first.log` (six reverted-hun
 turning the suite red on exactly the claim it removes, the file restored byte-identical each time)
 and the root `build.log` / `test.log`. No screenshots: nothing rendered changed. No `code-review.md`
 and no adversarial review, per the standing rule.
+
+# Two intents for one token map: Customize and Developer — decisions
+
+The theme pane listed the keys a document happened to hold, under their raw `--perch-...` names, with
+a text box each and a button marked `remove`. It is now two tabs: **Customize**, the whole vocabulary
+under readable labels with a control per token type, and **Developer**, the document's own keys by raw
+name. Presentation only — same document in, same document out. No `layout-schema` change, no MQTT
+topic change, no dependency added, `package-lock.json` untouched.
+
+## 1. "Remove" was useful and misnamed — confirmed in the code and in a browser
+
+A token map is a map of **overrides**. `packages/ui-kit/src/tokens.ts` declares 29 widget tokens with
+default values and every reference to one goes through `token()`, which emits
+`var(--perch-fg, #f2f4f8)` — the default is written into the stylesheet, not into the layout. So
+dropping a key from `theme` does not leave the token unset; the declared default takes over. That is
+also why blanking a value is refused rather than treated as removal (`validateTokenMap` rejects an
+empty value and says to remove the key), which the old form's comment already recorded.
+
+Verified in the running editor rather than only read: resetting `--perch-fg` on `desk-1920x400`
+cleared the inline custom property on the canvas (`fgOverride: ""`) and the readout's computed colour
+moved from `rgb(232, 241, 255)` to `rgb(242, 244, 248)` — `#f2f4f8`, the value `tokens.ts` declares.
+Nothing went unstyled. So the control stays, it is named **reset**, and it belongs in Customize: it is
+the only removal a consumer needs and the only one that cannot lose anything.
+
+## 2. The vocabulary is 31 tokens, and 12 of them are colours
+
+Two corrections to the numbers this work started from. It is **31**, not 29: `tokens.ts` declares 29
+and `layout-canvas.tsx` declares two more, `--perch-canvas-bg` and `--perch-letterbox-bg`, which all
+three shipped layouts set in `theme`. A labels table that covered only `tokens.ts` would have left two
+tokens every real layout uses without a label.
+
+And colour is **12** of the 31, not eight: `--perch-fg`, `--perch-dim`, `--perch-faint`,
+`--perch-stale`, `--perch-warn`, `--perch-alert`, `--perch-text-color`, `--perch-chart-series`,
+`--perch-chart-grid`, `--perch-chart-surface`, and the canvas' two. The remaining 19 are 8 lengths
+(sizes in `rem`), 5 unitless numbers (two weights, two opacities, a line height), 4 enumerated values
+(`text-transform`, `justify-content`, `align-items`, `text-align`), and 2 open text — the font stack,
+and `--perch-text-tracking`, which is a length *or* the keyword `normal` and so cannot be a stepper.
+
+The human's point survives the correction intact: a text box for all 31 types blind over half the
+theme. Each token now carries its control kind, and `token-labels.test.ts` holds the invariant that
+keeps a wrong one from shipping — **every declared control must be able to hold the default this
+package ships for that token**. A colour control on `--perch-font` fails the build.
+
+## 3. The labels live in `ui-kit`, in a sibling module rather than inside `tokens.ts`
+
+`ui-kit` owns the token vocabulary, so it owns the words for it; the editor would otherwise name a
+vocabulary it does not own, and a token added here would arrive there unlabelled. The layout file was
+rejected outright: that is a schema field, a migration, and a per-layout copy of a name identical in
+every layout.
+
+The one deviation is which file. The table is `packages/ui-kit/src/token-labels.ts`, not an addition to
+`tokens.ts`, for a reason that is mechanical rather than aesthetic: it must describe **both** defaults
+records, and merging `CANVAS_TOKEN_DEFAULTS` into `tokens.ts` would break `tokens.test.ts`'s standing
+invariant that every declared token is referenced by some sheet — the canvas tokens are referenced by
+`LAYOUT_CANVAS_STYLES`, which that test's `SHEETS` map does not include. `tokens.test.ts` is untouched
+and still green; the joined lookup `PERCH_KNOWN_TOKEN_DEFAULTS` is built in the new module.
+
+## 4. A disclosure, not a tooltip
+
+The raw token name is behind a per-row button with `aria-expanded`, not a `title`. A `title` is
+invisible to a keyboard and to a touch screen, cannot be selected or copied, and holds one string —
+whereas what is worth revealing is more than one fact: the token name, the value it falls back to, and
+on an element's map where that fallback comes from. The revealed name is real text an author can paste
+into a layout file.
+
+## 5. Customize shows every token, not only the colours — a default taken, not a decision given
+
+This was explicitly not mine to decide, and it is not settled by having been built. Customize shows all
+31 (29 at element scope) with a type-appropriate control, grouped colour / type / placement. Narrowing
+it to colour later is one `filter` and a group title; widening it from colour would have meant building
+the type-appropriate controls that are the substance of this slice. So the reversible direction was
+built first. The counter-argument is real: twelve colours is a pane you skim, and thirty-one rows is a
+pane you scroll.
+
+## 6. The same removal, two sentences, because it has two consequences
+
+On Developer a known name offers **remove override** and says what takes over; a name `ui-kit` does not
+declare offers **delete** and says that nothing does, so the value is gone. Different words, different
+colours, and the custom row is flagged `no label · ui-kit does not declare this token` rather than
+hidden — a layout may legally hold any well-formed custom property, and a pane that dropped those rows
+would hide part of the document.
+
+## 7. An element's `style` sits under the layout's `theme`, and the pane says so
+
+Found by looking at the element-level capture, not by reasoning: the first build of the pane answered
+"default `#f2f4f8`" for `--perch-fg` on a text element while the author could see `#e8f1ff` painting,
+because the layout's theme sets it one level up. Naming the package's number for a value the layout
+owns is the exact failure this pane exists to prevent, so `TokenPane` takes an `inherited` map — the
+layout's `theme`, passed down by `StyleFields`. A row the element does not set now reads **from the
+layout theme**, its control is bound to the layout's value, its reset says the layout's value takes
+over, and the disclosure prints the layout's value and the `ui-kit` default side by side. A token
+neither sets still reads `default`. The element pane also drops the canvas' two tokens, which an
+element box cannot change: `5 of 29 set`, against the theme's `13 of 31 set`.
+
+## Call sites — `packages/ui-kit`
+
+Additions only; nothing existing changed behaviour. The new module's exports
+(`PERCH_TOKEN_LABELS`, `PERCH_KNOWN_TOKENS`, `PERCH_KNOWN_TOKEN_DEFAULTS`, `TOKEN_GROUPS`,
+`isKnownToken`, `tokenLabel`, `knownTokenDefault`, and the types) are read by exactly four files:
+`packages/ui-kit/src/index.ts` (re-export), `packages/ui-kit/src/token-labels.test.ts`,
+`apps/editor/src/token-pane.tsx`, `apps/editor/src/token-pane.test.tsx`. `tokens.ts`,
+`layout-canvas.tsx`, `tokens.test.ts` and every other consumer of `ui-kit` are unmodified —
+`apps/runtime` does not import any of it.
+
+## What did not change
+
+`packages/layout-schema` (no field, no validator), every MQTT topic, the bytes a saved layout holds,
+`package-lock.json`, and `apps/editor/src/app.test.tsx`'s byte-identical-markup assertion. The two
+dependencies the pane uses, `react-colorful` and `react-rnd`, were already in `apps/editor`.
+
+## Evidence
+
+Under `.evidence/perch-editor-theme-tabs/`: `build.log`, `test.log`, `typecheck.log`, `lint.log` (all
+exit 0; 101 editor tests, 277 in `ui-kit`), and three red-first captures —
+`red-1-no-modules.log` (both new suites unresolved), `red-2-pane-unimplemented.log` (19 failures
+against a stub), `red-3-inherited.log` (the five inherited-value assertions failing before decision 7
+existed, with the sixth already passing as a regression guard).
+
+Captures at 1920x400 and 1440x900: `customize-overridden-1920x400.png` /
+`customize-overridden-1440x900.png` (an overridden row with its `set by this layout` flag, its reset,
+the revealed token name and default, and the picker open), `developer-1920x400.png` /
+`developer-1440x900.png` (raw names, and `--brand-hue` beside `--perch-fg` with the two different
+removals), `element-style-inherited-1440x900.png` / `element-style-inherited-1920x400.png` and
+`element-developer-1440x900.png` (decision 7 in the running editor). `browser-drive.log` and
+`browser-drive-element.log` record what was read from the page at each step, including the computed
+colour before and after the reset.
+
+No `code-review.md` and no adversarial review, per the standing rule.
+
+## Residual: a custom token cannot be given a label
+
+Deliberately not built. A developer-set label for a name `ui-kit` does not declare has nowhere to live
+that is not the layout file, which means a `layout-schema` field — a cross-component interface change,
+a migration for three shipped layouts, and a second owner for a kind of name the package otherwise
+owns. So a custom token appears on Developer under its raw name, honestly marked as unlabelled, and
+the Developer tab sets no labels at all in this slice. The cost of changing that is the schema field
+plus a migration plus the editing surface; the question it raises first is whether a custom token
+should be labelled in one layout and not in another.

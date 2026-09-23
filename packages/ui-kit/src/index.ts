@@ -100,6 +100,29 @@ export {
 export { PERCH_TOKENS, PERCH_TOKEN_DEFAULTS, token, type PerchToken } from './tokens.js';
 
 /**
+ * The same vocabulary, described for a person: a label, a sentence, and which control fits.
+ *
+ * Exported because the editor puts a form in front of these tokens and the names in that form are
+ * this package's to give — see `token-labels.ts` for why they are not the editor's and not a layout
+ * field. Nothing in `ui-kit` reads this table; it is output, for a consumer that shows a theme to
+ * somebody rather than painting one.
+ */
+export {
+  PERCH_KNOWN_TOKENS,
+  PERCH_KNOWN_TOKEN_DEFAULTS,
+  PERCH_TOKEN_LABELS,
+  TOKEN_GROUPS,
+  isKnownToken,
+  knownTokenDefault,
+  tokenLabel,
+  type KnownToken,
+  type TokenControl,
+  type TokenGroup,
+  type TokenLabel,
+  type TokenScope,
+} from './token-labels.js';
+
+/**
  * The widget vocabulary, and the canvas that arranges a layout of them.
  *
  * These two are the reason this package has an edge to `@perch/layout-schema`. They are a level up

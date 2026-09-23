@@ -35,6 +35,15 @@
  *
  * `fit` and `gap` *are* closed selects, because their vocabularies are closed in the format itself
  * (`MEDIA_FITS`, `CHART_GAPS`) and the sets have two members each.
+ *
+ * ## The two token maps are one component, twice
+ *
+ * A layout's `theme` and an element's `style` are not rendered here. Both go through `TokenPane`, at
+ * `layout` and `element` scope — see `token-pane.tsx`. They are one component because they are one
+ * thing at two levels: a map of overrides of the defaults `@perch/ui-kit` declares. The pane is where
+ * the labels, the per-type controls, the reset affordance and the Customize/Developer split live, and
+ * keeping them in one place is what stops "remove" meaning something different in the theme section
+ * from what it means in the element section.
  */
 
 import {
@@ -48,8 +57,7 @@ import {
   type MediaFit,
 } from '@perch/layout-schema';
 import { assertNever } from '@perch/ui-kit';
-import { useState, type ReactNode } from 'react';
-import { HexColorPicker } from 'react-colorful';
+import type { ReactNode } from 'react';
 import type { DraftState } from './draft.js';
 import {
   numberFromInput,
@@ -71,6 +79,7 @@ import {
   type LayoutUpdate,
   type RectField,
 } from './layout-edits.js';
+import { TokenPane } from './token-pane.js';
 
 /** The four rect components, in the order a person reads a rect. */
 const RECT_FIELDS: readonly RectField[] = ['x', 'y', 'w', 'h'];
@@ -128,7 +137,12 @@ export function Inspector({
       {element === undefined ? (
         <p className="perch-editor-empty">select an element to edit it</p>
       ) : (
-        <ElementFields element={element} index={selected} onEdit={onEdit} />
+        <ElementFields
+          element={element}
+          index={selected}
+          theme={state.draft.theme}
+          onEdit={onEdit}
+        />
       )}
     </div>
   );
@@ -167,31 +181,27 @@ function TargetFields({ state, onEdit }: Pick<InspectorProps, 'state' | 'onEdit'
   );
 }
 
-/** The theme: CSS custom properties applied to the whole canvas. */
+/**
+ * The theme: CSS custom properties applied to the whole canvas.
+ *
+ * Both tabs and every control live in `token-pane.tsx`, because a `theme` and an element's `style` are
+ * the same kind of map — overrides of the defaults `ui-kit` declares — and the two surfaces reading
+ * differently is how an author learns that `remove` means one thing here and another there.
+ */
 function ThemeFields({ state, onEdit }: Pick<InspectorProps, 'state' | 'onEdit'>): ReactNode {
-  const tokens = Object.entries(state.draft.theme);
-
   return (
-    <Section title={`theme · ${tokens.length} ${tokens.length === 1 ? 'token' : 'tokens'}`}>
-      {tokens.map(([name, value]) => (
-        <TokenRow
-          key={name}
-          label={name}
-          value={value}
-          onValue={(next) => {
-            onEdit(setThemeToken(name, next));
-          }}
-          onRemove={() => {
-            onEdit(removeThemeToken(name));
-          }}
-        />
-      ))}
-      <AddToken
-        onAdd={(name, value) => {
-          onEdit(setThemeToken(name, value));
-        }}
-      />
-    </Section>
+    <TokenPane
+      id="theme"
+      title="theme"
+      scope="layout"
+      tokens={state.draft.theme}
+      onSet={(name, value) => {
+        onEdit(setThemeToken(name, value));
+      }}
+      onRemove={(name) => {
+        onEdit(removeThemeToken(name));
+      }}
+    />
   );
 }
 
@@ -236,10 +246,13 @@ function ElementList({
 function ElementFields({
   element,
   index,
+  theme,
   onEdit,
 }: {
   readonly element: LayoutElement;
   readonly index: number;
+  /** The layout's theme, which this element's own style sits on top of. Passed to `StyleFields`. */
+  readonly theme: Readonly<Record<string, string>> | undefined;
   readonly onEdit: (update: LayoutUpdate) => void;
 }): ReactNode {
   return (
@@ -259,7 +272,7 @@ function ElementFields({
 
       <KindFields element={element} index={index} onEdit={onEdit} />
       <RangeFields element={element} index={index} onEdit={onEdit} />
-      <StyleFields element={element} index={index} onEdit={onEdit} />
+      <StyleFields element={element} index={index} theme={theme} onEdit={onEdit} />
     </Section>
   );
 }
@@ -422,44 +435,45 @@ function RangeFields({
  *
  * Absent for a media element, which carries no `style` in the format — so there is no control for it
  * rather than a control that quietly does nothing.
+ *
+ * The same pane as the theme, at `element` scope: an element's `style` overrides the canvas' theme
+ * exactly as the theme overrides the ui-kit default, so the override-and-reset wording has to read the
+ * same here. The scope drops the canvas' own two tokens, which an element box cannot change — see
+ * `token-pane.tsx`. The pane is keyed by index so switching selection resets its tabs and disclosures
+ * rather than carrying one element's open rows onto another's.
+ *
+ * The theme goes in as `inherited`, and it is not decoration: a token the layout sets and this element
+ * does not is painting the layout's value, so a pane without it would answer "default" with the
+ * package's number while the author is looking at the layout's.
  */
 function StyleFields({
   element,
   index,
+  theme,
   onEdit,
 }: {
   readonly element: LayoutElement;
   readonly index: number;
+  readonly theme: Readonly<Record<string, string>> | undefined;
   readonly onEdit: (update: LayoutUpdate) => void;
 }): ReactNode {
   if (element.kind === 'media') return null;
 
-  const tokens = Object.entries(element.style ?? {});
-
   return (
-    <div className="perch-editor-subsection">
-      <h4 className="perch-editor-subtitle">{`style · ${tokens.length}`}</h4>
-      {tokens.map(([name, value]) => (
-        <TokenRow
-          key={name}
-          // Prefixed so an element token and a theme token of the same name are two different labels.
-          // They routinely share names — that is how an element overrides the canvas.
-          label={`style ${name}`}
-          value={value}
-          onValue={(next) => {
-            onEdit(setElementStyleToken(index, name, next));
-          }}
-          onRemove={() => {
-            onEdit(removeElementStyleToken(index, name));
-          }}
-        />
-      ))}
-      <AddToken
-        onAdd={(name, value) => {
-          onEdit(setElementStyleToken(index, name, value));
-        }}
-      />
-    </div>
+    <TokenPane
+      key={index}
+      id={`style-${index}`}
+      title="style"
+      scope="element"
+      tokens={element.style ?? {}}
+      inherited={theme}
+      onSet={(name, value) => {
+        onEdit(setElementStyleToken(index, name, value));
+      }}
+      onRemove={(name) => {
+        onEdit(removeElementStyleToken(index, name));
+      }}
+    />
   );
 }
 
@@ -607,110 +621,6 @@ function ChoiceField<Value extends string>({
   );
 }
 
-/** A `#rgb` or `#rrggbb` literal — the one token value shape a colour picker can drive. */
-function isHexColor(value: string): boolean {
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value.trim());
-}
-
-/**
- * One CSS custom property: its value, a way to remove it, and — when the value is a hex colour — a
- * picker.
- *
- * The text input stays the primary control, for the reason the whole form is text inputs (see the
- * module comment): it shows exactly what is in the document, including a value the picker cannot
- * represent, and `validateLayout` keeps the guarantee. The picker is an *addition* on top of it, shown
- * only when the current value already reads as a hex colour, so it never reinterprets a token it does
- * not understand. `react-colorful` emits `#rrggbb`, which is already a legal token value, straight into
- * the same `onValue` the text input uses — so a drag is the same edit as a keystroke, validated the
- * same way. It is folded away behind a swatch by default because a 2-D picker per token would bury the
- * form; the swatch doubles as the current-colour indicator.
- */
-function TokenRow({
-  label,
-  value,
-  onValue,
-  onRemove,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly onValue: (value: string) => void;
-  readonly onRemove: () => void;
-}): ReactNode {
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const colour = isHexColor(value);
-
-  return (
-    <div className="perch-editor-token-group">
-      <div className="perch-editor-token">
-        <TextField label={label} value={value} onValue={onValue} />
-        {colour ? (
-          <button
-            type="button"
-            className="perch-editor-swatch"
-            data-testid="perch-editor-swatch"
-            aria-label={`${pickerOpen ? 'hide' : 'show'} colour picker for ${label}`}
-            aria-expanded={pickerOpen}
-            style={{ background: value.trim() }}
-            onClick={() => {
-              setPickerOpen((open) => !open);
-            }}
-          />
-        ) : null}
-        {/*
-         * Remove, not blank. `layout-schema` rejects an empty token value and says "remove the key
-         * instead of setting it empty", so a control that cleared the field would be teaching a spelling
-         * the format refuses.
-         */}
-        <button
-          type="button"
-          className="perch-editor-remove"
-          aria-label={`remove ${label}`}
-          onClick={onRemove}
-        >
-          remove
-        </button>
-      </div>
-      {colour && pickerOpen ? (
-        <HexColorPicker className="perch-editor-colour" color={value.trim()} onChange={onValue} />
-      ) : null}
-    </div>
-  );
-}
-
-/**
- * The add-a-token control.
- *
- * The only place in this form with local state, and it needs it: a name and a value are two fields
- * that are meaningless apart, and writing the name into the document as it is typed would create
- * `--p`, then `--pe`, then `--per` as tokens — each one a validation error the author did not make.
- * So the pair is held here until both are present, and only then becomes an edit.
- */
-function AddToken({ onAdd }: { readonly onAdd: (name: string, value: string) => void }): ReactNode {
-  const [name, setName] = useState('');
-  const [value, setValue] = useState('');
-  const ready = name.trim() !== '' && value.trim() !== '';
-
-  return (
-    <div className="perch-editor-token">
-      <TextField label="new token" value={name} onValue={setName} />
-      <TextField label="new value" value={value} onValue={setValue} />
-      <button
-        type="button"
-        className="perch-editor-add"
-        disabled={!ready}
-        onClick={() => {
-          if (!ready) return;
-          onAdd(name.trim(), value.trim());
-          setName('');
-          setValue('');
-        }}
-      >
-        add
-      </button>
-    </div>
-  );
-}
-
 export const INSPECTOR_STYLES = `
 .perch-editor-inspector {
   display: flex;
@@ -754,33 +664,6 @@ export const INSPECTOR_STYLES = `
 }
 .perch-editor-input--number { font-variant-numeric: tabular-nums; }
 .perch-editor-input:focus-visible { outline: 2px solid #8fb7e8; outline-offset: 0; }
-.perch-editor-token-group { display: flex; flex-direction: column; gap: 6px; }
-.perch-editor-token { display: flex; align-items: flex-end; gap: 6px; }
-.perch-editor-swatch {
-  flex: none;
-  align-self: flex-end;
-  width: 26px;
-  height: 26px;
-  border: 1px solid #262c36;
-  border-radius: 3px;
-  padding: 0;
-  cursor: pointer;
-}
-.perch-editor-swatch:focus-visible { outline: 2px solid #8fb7e8; outline-offset: 0; }
-/* Fit react-colorful into the column. Two class selectors, to beat its own .react-colorful rule. */
-.perch-editor-token-group .perch-editor-colour { width: 100%; height: 150px; }
-.perch-editor-remove, .perch-editor-add {
-  flex: none;
-  border: 1px solid #262c36;
-  border-radius: 3px;
-  background: #171b22;
-  color: #9aa4b2;
-  font: inherit;
-  font-size: 0.6875rem;
-  padding: 3px 8px;
-  cursor: pointer;
-}
-.perch-editor-add:disabled { color: #4c586b; cursor: not-allowed; }
 .perch-editor-elements { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .perch-editor-element {
   display: flex;

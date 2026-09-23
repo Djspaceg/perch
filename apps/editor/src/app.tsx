@@ -65,6 +65,7 @@ import type { LayoutLibrary } from './layout-library.js';
 import { setElementRect, type LayoutUpdate } from './layout-edits.js';
 import { LAYOUT_PROBLEMS_STYLES, LayoutProblems } from './problems.js';
 import { LayoutPreview, PREVIEW_STYLES, describePreviewFit } from './preview.js';
+import { TOKEN_PANE_STYLES } from './token-pane.js';
 import {
   HEADER_HEIGHT,
   INSPECTOR_WIDTH,
@@ -193,6 +194,9 @@ export function Editor({
       </style>
       <style href="perch-editor-inspector" precedence="default">
         {INSPECTOR_STYLES}
+      </style>
+      <style href="perch-editor-token-pane" precedence="default">
+        {TOKEN_PANE_STYLES}
       </style>
       <style href="perch-editor-problems" precedence="default">
         {LAYOUT_PROBLEMS_STYLES}
