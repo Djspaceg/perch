@@ -6,6 +6,14 @@
  * ten components. These are the *editor's* variables (`--ed-*`), deliberately a different prefix from
  * the layout's `--perch-*` tokens: nothing here styles a dashboard, and a layout's theme cannot reach
  * the inspector.
+ *
+ * ## The scrollbar
+ *
+ * Thumb and track are chrome colours like any other. `scrollbar-color` inherits, so declared on the
+ * root it reaches every scroller in the editor — the sidebar, the problems list, a textarea, a
+ * picker's list — with none of them opting in. Safari reads only the `::-webkit-scrollbar`
+ * pseudo-elements, which do not inherit, so those are unscoped; Chromium ignores them wherever the
+ * standard properties apply, so the two never fight.
  */
 export const CHROME_STYLES = `
 :root {
@@ -49,7 +57,24 @@ export const CHROME_STYLES = `
   --ed-axis-y: #72a85a;
   --ed-axis-w: #5b8fd0;
   --ed-axis-h: #c8a04e;
+
+  --ed-scroll-size: 10px;
+  --ed-scroll-thumb: #2e3542;
+  --ed-scroll-thumb-hover: #4c586b;
+  --ed-scroll-track: #0a0c10;
+
+  scrollbar-color: var(--ed-scroll-thumb) var(--ed-scroll-track);
+  scrollbar-width: thin;
 }
+::-webkit-scrollbar { width: var(--ed-scroll-size); height: var(--ed-scroll-size); }
+::-webkit-scrollbar-track { background-color: var(--ed-scroll-track); }
+::-webkit-scrollbar-thumb {
+  background-color: var(--ed-scroll-thumb);
+  border: 2px solid var(--ed-scroll-track);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover { background-color: var(--ed-scroll-thumb-hover); }
+::-webkit-scrollbar-corner { background-color: var(--ed-scroll-track); }
 .perch-sr-only {
   position: absolute;
   width: 1px;

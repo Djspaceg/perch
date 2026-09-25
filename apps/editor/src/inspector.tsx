@@ -258,11 +258,17 @@ function SelectionHeader({
         {KIND_GLYPH[element.kind]}
       </span>
       <span className="perch-selection__text">
-        <span className="perch-selection__name">{name}</span>
+        <span className="perch-selection__name" title={name}>
+          {name}
+        </span>
         <span className="perch-selection__meta">
           <span className="perch-selection__kind">{element.kind}</span>
           <span>{`elements[${index}]`}</span>
-          {detail === undefined ? null : <span className="perch-selection__detail">{detail}</span>}
+          {detail === undefined ? null : (
+            <span className="perch-selection__detail" title={detail}>
+              {detail}
+            </span>
+          )}
         </span>
       </span>
       <button
@@ -404,7 +410,9 @@ function ElementList({
               {KIND_GLYPH[element.kind]}
             </span>
             <span className="perch-editor-element__kind">{element.kind}</span>
-            <span className="perch-editor-element__summary">{describeElement(element)}</span>
+            <span className="perch-editor-element__summary" title={describeElement(element)}>
+              {describeElement(element)}
+            </span>
           </button>
         </li>
       ))}
@@ -434,12 +442,21 @@ export const INSPECTOR_STYLES = `
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+  min-width: 0;
+  /*
+   * Scroll, not auto: the gutter is allocated whether or not the content overflows, so folding a
+   * section never moves every row sideways by a scrollbar's width. scrollbar-gutter says the same
+   * thing the modern way, for an engine with overlay scrollbars. Never sideways: nothing inside is
+   * wider than the column (see controls/section.tsx and controls/property-row.tsx).
+   */
+  overflow-y: scroll;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   background: var(--ed-bg);
   font-size: var(--ed-font);
   color: var(--ed-text);
 }
-.perch-editor-group { display: flex; flex-direction: column; scroll-margin-top: 0; }
+.perch-editor-group { display: flex; flex-direction: column; min-width: 0; scroll-margin-top: 0; }
 .perch-editor-group + .perch-editor-group { border-top: 1px solid #262c36; }
 .perch-editor-group__bar {
   display: flex;
@@ -461,6 +478,7 @@ export const INSPECTOR_STYLES = `
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   padding: 4px var(--ed-pad-x) 6px;
   background: var(--ed-bg-recessed);
 }
@@ -495,7 +513,7 @@ export const INSPECTOR_STYLES = `
   white-space: nowrap;
 }
 .perch-selection__kind { color: var(--ed-accent); }
-.perch-selection__detail { overflow: hidden; text-overflow: ellipsis; }
+.perch-selection__detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .perch-selection__deselect {
   flex: none;
   width: 20px;
@@ -532,6 +550,6 @@ export const INSPECTOR_STYLES = `
 .perch-editor-element__index { flex: 0 0 1.4em; text-align: right; font-variant-numeric: tabular-nums; color: var(--ed-faint); }
 .perch-editor-element__glyph { flex: 0 0 1em; color: var(--ed-quiet); text-align: center; }
 .perch-editor-element__kind { flex: 0 0 3.6em; color: var(--ed-quiet); }
-.perch-editor-element__summary { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.perch-editor-element__summary { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .perch-editor-empty { margin: 0; padding: 6px var(--ed-pad-x); font-size: var(--ed-font-small); color: var(--ed-quiet); }
 `;

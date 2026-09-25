@@ -71,7 +71,13 @@ export type ControlSpec =
       readonly kind: 'select';
       readonly options: readonly { readonly value: string; readonly label: string }[];
     }
-  | { readonly kind: 'text'; readonly numeric?: true; readonly list?: string };
+  | {
+      readonly kind: 'text';
+      readonly numeric?: true;
+      readonly list?: string;
+      /** Prose rather than a token: a textarea that grows a few rows with what it holds. */
+      readonly multiline?: true;
+    };
 
 /** Few enough options to lay out as segments in a row. */
 const MAX_SEGMENTS = 4;
@@ -259,7 +265,9 @@ const TEXT: ScalarProperty<LayoutElement> = {
   id: 'text',
   label: 'text',
   description: 'What the text element says.',
-  spec: { kind: 'text' },
+  // A textarea: this is prose an author writes, often a sentence or two, and a one-line input showed
+  // a sliver of it. The other free-text fields (src, topic, widget) are identifiers and stay one line.
+  spec: { kind: 'text', multiline: true },
   get: (element) => (element.kind === 'text' ? element.text : ''),
   write: (text, index) => setElementText(index, text),
 };

@@ -10,6 +10,10 @@
  * `forceOpen` shows the body without touching what is remembered; a search uses it, so clearing the
  * search puts every section back the way the author left it.
  *
+ * The bar never widens its column. The title keeps its width and the summary takes what is left,
+ * truncating with an ellipsis: a summary is often authored text — a text element's whole prose — and
+ * one that could not shrink once painted over the title and pushed the sidebar sideways.
+ *
  * `AdvancedSection` is the same thing quieter, for inside a section: the rarely tuned fields, folded
  * by default, with a count of what it hides that is set.
  */
@@ -52,7 +56,13 @@ export function Section({
   const Heading = `h${level}` as const;
   const summaryNode =
     summary === undefined || summary === null || summary === '' ? null : (
-      <span className="perch-section__summary" data-perch-active={summaryActive ? 'true' : 'false'}>
+      <span
+        className="perch-section__summary"
+        data-perch-active={summaryActive ? 'true' : 'false'}
+        // A summary is one line that truncates, so the whole of it is the tooltip. Only for text: a
+        // node has no string form worth showing.
+        {...(typeof summary === 'string' ? { title: summary } : {})}
+      >
         {summary}
       </span>
     );
@@ -118,9 +128,10 @@ export function AdvancedSection({
 }
 
 export const SECTION_STYLES = `
-.perch-section { display: flex; flex-direction: column; }
+.perch-section { display: flex; flex-direction: column; min-width: 0; }
 .perch-section__bar {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 6px;
   min-height: var(--ed-row-h);
@@ -129,7 +140,7 @@ export const SECTION_STYLES = `
   border-top: 1px solid var(--ed-bar-edge);
   border-bottom: 1px solid var(--ed-bar-shadow);
 }
-.perch-section__heading { flex: 1 1 auto; min-width: 0; margin: 0; font: inherit; }
+.perch-section__heading { flex: 1 0 auto; margin: 0; font: inherit; }
 .perch-section__toggle {
   display: flex;
   align-items: center;
@@ -160,7 +171,10 @@ export const SECTION_STYLES = `
 .perch-section__toggle:hover { color: #ffffff; }
 .perch-section__toggle:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: -2px; }
 .perch-section__summary {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: var(--ed-font-small);
   font-weight: 400;
   color: var(--ed-quiet);

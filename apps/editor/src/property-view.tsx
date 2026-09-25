@@ -175,6 +175,7 @@ export function SpecControl({
           onValue={onValue}
           numeric={spec.numeric === true}
           list={spec.list}
+          multiline={spec.multiline === true}
         />
       );
 
@@ -185,6 +186,27 @@ export function SpecControl({
 
 function assertNeverSpec(spec: never): never {
   throw new Error(`unhandled control spec: ${JSON.stringify(spec)}`);
+}
+
+/** Fewest and most rows a multi-line text field shows before it scrolls. */
+export const TEXT_ROWS_MIN = 2;
+export const TEXT_ROWS_MAX = 5;
+
+/** Roughly how many characters fit on one row of the value column at the sidebar's width. */
+const CHARS_PER_ROW = 34;
+
+/**
+ * How many rows a multi-line field shows for `value`: its lines, each counted by how many rows it
+ * wraps to, clamped to a few. An estimate from the text rather than a measurement, so it holds in
+ * every engine and in jsdom — `field-sizing: content` would measure, but not in every browser this
+ * editor is opened in. Past the maximum the field scrolls.
+ */
+export function textRows(value: string): number {
+  const rows = value
+    .split('\n')
+    .reduce((total, line) => total + Math.max(1, Math.ceil(line.length / CHARS_PER_ROW)), 0);
+
+  return Math.min(TEXT_ROWS_MAX, Math.max(TEXT_ROWS_MIN, rows));
 }
 
 /**
@@ -198,6 +220,7 @@ export function TextControl({
   numeric = false,
   list,
   mono = false,
+  multiline = false,
 }: {
   readonly ids: RowIds;
   readonly value: string;
@@ -205,7 +228,24 @@ export function TextControl({
   readonly numeric?: boolean;
   readonly list?: string | undefined;
   readonly mono?: boolean;
+  readonly multiline?: boolean;
 }): ReactNode {
+  if (multiline) {
+    return (
+      <textarea
+        id={ids.controlId}
+        className="perch-input perch-input--multiline"
+        spellCheck
+        rows={textRows(value)}
+        value={value}
+        {...(ids.describedBy === undefined ? {} : { 'aria-describedby': ids.describedBy })}
+        onChange={(event) => {
+          onValue(event.target.value);
+        }}
+      />
+    );
+  }
+
   return (
     <input
       id={ids.controlId}
@@ -285,6 +325,11 @@ export function PropertyView<Subject>({
       labelAs={isGroupSpec(property.spec) ? 'group' : 'label'}
       scrub={scrubFor(property.spec, value, onValue)}
       testId={`perch-editor-prop-${property.id}`}
+      className={
+        property.spec.kind === 'text' && property.spec.multiline === true
+          ? 'perch-row--tall'
+          : undefined
+      }
     >
       {(ids) => (
         <SpecControl
@@ -302,5 +347,16 @@ export function PropertyView<Subject>({
 export const PROPERTY_VIEW_STYLES = `
 .perch-vector-group { flex: 1 1 auto; display: flex; min-width: 0; }
 .perch-input--unit { flex: 0 0 52px; }
+.perch-input--multiline {
+  height: auto;
+  min-height: var(--ed-field-h);
+  padding: 2px 6px;
+  line-height: 1.35;
+  resize: vertical;
+  overflow-wrap: anywhere;
+}
+/* A tall row's label sits level with the field's first line, not with its middle. */
+.perch-row--tall { align-items: start; }
+.perch-row--tall .perch-row__label { min-height: var(--ed-field-h); }
 .perch-unset { flex: none; font-size: var(--ed-font-small); color: var(--ed-quiet); white-space: nowrap; }
 `;

@@ -621,3 +621,61 @@ describe('the selection header and the sections', () => {
     expect(within(size).getByLabelText('h')).toHaveValue('100');
   });
 });
+
+/**
+ * The reported case: a text element whose prose is longer than the sidebar is wide. Its Content
+ * summary painted over the section title and pushed the whole sidebar sideways. What jsdom can see of
+ * that is here — the summary and the header truncate and keep the whole text as a tooltip, the prose
+ * is edited in a textarea, and the sidebar scrolls vertically only. The overlap itself is a layout
+ * fact jsdom does not compute; the screenshot in the evidence is the check for it.
+ */
+describe('long text stays inside the sidebar', () => {
+  const PROSE =
+    'psu voltage is not published by this source, so its tile waits by design every other tile on this panel reads a live value';
+
+  function proseLibrary(): LayoutLibrary {
+    return createLayoutLibrary({ layouts: { prose: layoutText(640, 200, PROSE) }, invalid: {} });
+  }
+
+  it('truncates the Content summary and the header name, each with the whole text as its tooltip', () => {
+    const { result } = renderEditor(proseLibrary());
+    selectElement(result, 0);
+
+    const content = result.getByRole('region', { name: 'Content' });
+    const summary = content.querySelector('.perch-section__summary');
+    expect(summary).toHaveAttribute('title', PROSE);
+    // The title is still the section's own heading, untouched by the summary beside it.
+    expect(within(content).getByRole('heading', { name: 'Content' })).toHaveClass(
+      'perch-section__heading',
+    );
+
+    const name = result
+      .getByTestId('perch-editor-selection')
+      .querySelector('.perch-selection__name');
+    expect(name).toHaveTextContent(PROSE);
+    expect(name).toHaveAttribute('title', PROSE);
+  });
+
+  it('edits the prose in a textarea that grows a few rows, not a one-line input that clips it', () => {
+    const { result } = renderEditor(proseLibrary());
+    selectElement(result, 0);
+
+    const field = result.getByLabelText('text');
+    expect(field).toBeInstanceOf(HTMLTextAreaElement);
+    expect(field).toHaveValue(PROSE);
+    expect(Number(field.getAttribute('rows'))).toBeGreaterThan(1);
+
+    fireEvent.change(field, { target: { value: 'short' } });
+    expect(result.getByLabelText('text')).toHaveAttribute('rows', '2');
+    expect(canvasOf(result)).toHaveTextContent('short');
+  });
+
+  it('scrolls the sidebar vertically, always with its gutter, and never sideways', () => {
+    const { result } = renderEditor(proseLibrary());
+    const style = getComputedStyle(result.getByTestId('perch-editor-inspector'));
+
+    expect(style.overflowY).toBe('scroll');
+    expect(style.overflowX).toBe('hidden');
+    expect(style.getPropertyValue('scrollbar-gutter')).toBe('stable');
+  });
+});

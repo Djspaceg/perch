@@ -3,7 +3,9 @@
  *
  * A fixed grid — a right-aligned label column, the value, and a narrow slot at the right edge where a
  * reset appears on rows that are set here and nowhere else — so row height and alignment are decided
- * once, in `chrome.ts`'s variables, and every section lines up with every other.
+ * once, in `chrome.ts`'s variables, and every section lines up with every other. The value column is
+ * `minmax(0, 1fr)` and the row and value are `min-width: 0`, so a long value truncates or wraps inside
+ * its own column and never widens the sidebar.
  *
  * Where a value comes from is said twice, for two readers: a mark in the left gutter and a tinted
  * label to glance at (filled blue for "set here", a hollow amber ring for "set one level up", nothing
@@ -139,6 +141,7 @@ export const PROPERTY_ROW_STYLES = `
   display: grid;
   grid-template-columns: var(--ed-label-col) minmax(0, 1fr) 18px;
   align-items: center;
+  min-width: 0;
   column-gap: 6px;
   min-height: var(--ed-row-h);
   padding: 1px 4px 1px var(--ed-pad-x);
