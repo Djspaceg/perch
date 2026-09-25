@@ -14,6 +14,8 @@
  * deliberately off here — every test imports `describe` and `expect` explicitly — so it has to be
  * registered by hand. Without it each test inherits the previous test's DOM, and `screen`, which
  * queries the whole document, starts finding two of everything.
+ *
+ * Session storage is cleared for the same reason: see `src/disclosure.ts`.
  */
 
 import { afterEach } from 'vitest';
@@ -22,4 +24,7 @@ import '@testing-library/jest-dom/vitest';
 
 afterEach(() => {
   cleanup();
+  // The inspector remembers which sections are open in `sessionStorage`, for the tab's session. A
+  // test that folds one must not hand that fold to the next test.
+  sessionStorage.clear();
 });

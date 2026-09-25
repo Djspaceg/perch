@@ -490,7 +490,7 @@ describe('the Global and Selected-entity groups', () => {
     );
     fireEvent.change(
       within(result.getByTestId('perch-editor-token-style-1---perch-box-padding')).getByRole(
-        'textbox',
+        'spinbutton',
         { name: new RegExp(PADDING, 'i') },
       ),
       { target: { value: '12' } },
@@ -506,5 +506,118 @@ describe('the Global and Selected-entity groups', () => {
       '--perch-box-bg': '#1a2b3c80',
       '--perch-box-padding': '12',
     });
+  });
+});
+
+/**
+ * The three edits the redesign was measured against, driven the way an author would drive them, each
+ * in the fewest interactions the sidebar allows. DECISIONS.md counts them; these prove they work.
+ */
+describe('the three common edits', () => {
+  it('moves an entity 10 layout px with one Shift+ArrowUp on its x', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+
+    fireEvent.keyDown(result.getByLabelText('x'), { key: 'ArrowUp', shiftKey: true });
+
+    expect(result.getByLabelText('x')).toHaveValue('20');
+    expect(
+      canvasOf(result).querySelector('[data-perch-element-index="1"]')?.getAttribute('style'),
+    ).toContain('left: 20px');
+  });
+
+  it('gives an entity a 50% background from the swatch popover', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+    const bg = result.getByTestId('perch-editor-token-style-1---perch-box-bg');
+
+    fireEvent.click(within(bg).getByRole('button', { name: /colour picker/i }));
+    fireEvent.change(
+      within(result.getByRole('dialog')).getByRole('spinbutton', { name: /opacity/i }),
+      {
+        target: { value: '50' },
+      },
+    );
+
+    expect(within(bg).getByLabelText(labelFor('--perch-box-bg'))).toHaveValue('#00000080');
+  });
+
+  it('centres a readout both ways with one click on the placement grid', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+
+    fireEvent.click(result.getByRole('radio', { name: 'middle centre' }));
+
+    const box = canvasOf(result).querySelector('[data-perch-element-index="1"]');
+    expect(box?.getAttribute('style')).toContain('--perch-readout-justify: center');
+    expect(box?.getAttribute('style')).toContain('--perch-readout-anchor: center');
+  });
+});
+
+describe('the selection header and the sections', () => {
+  it('names what is selected: kind, widget and topic, with the deselect beside it', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+    const header = result.getByTestId('perch-editor-selection');
+
+    expect(header).toHaveTextContent('readout');
+    expect(header).toHaveTextContent('widget');
+    expect(header).toHaveTextContent('sensors/cpu/0/temperature/0');
+    expect(within(header).getByRole('button', { name: /^deselect/i })).toBeInTheDocument();
+  });
+
+  it('groups an entity by what its fields are about, each section folding on its own', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+    const entity = result.getByRole('region', { name: 'Selected entity' });
+
+    for (const name of [
+      'Transform',
+      'Content',
+      'Appearance',
+      'Placement',
+      'Typography',
+      'Colour',
+    ]) {
+      expect(within(entity).getByRole('button', { name })).toHaveAttribute('aria-expanded');
+    }
+    // Transform, Content, Appearance and Placement start open; the long lists start closed.
+    expect(within(entity).getByRole('button', { name: 'Transform' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(within(entity).getByRole('button', { name: 'Appearance' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(within(entity).getByRole('button', { name: 'Typography' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+  });
+
+  it('remembers a closed section across a change of selection', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+    fireEvent.click(result.getByRole('button', { name: 'Transform' }));
+
+    selectElement(result, 0);
+    expect(result.getByRole('button', { name: 'Transform' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(result.getByLabelText('w')).not.toBeVisible();
+  });
+
+  it('puts the X Y and W H of the rect on two rows, one field per axis', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+
+    const position = result.getByTestId('perch-editor-prop-position');
+    const size = result.getByTestId('perch-editor-prop-size');
+    expect(within(position).getByLabelText('x')).toHaveValue('10');
+    expect(within(position).getByLabelText('y')).toHaveValue('50');
+    expect(within(size).getByLabelText('w')).toHaveValue('180');
+    expect(within(size).getByLabelText('h')).toHaveValue('100');
   });
 });

@@ -56,8 +56,14 @@ export type KnownToken = PerchToken | CanvasToken;
  */
 export type TokenControl = 'colour' | 'length' | 'number' | 'pixels' | 'choice' | 'text';
 
-/** Which pane section a token belongs in. `box` is the element box: background, corners, placement. */
-export type TokenGroup = 'box' | 'colour' | 'type' | 'layout';
+/**
+ * Which section of an inspector a token belongs in: what the token is ABOUT, from an author's side.
+ *
+ * `appearance` is the surface itself (a box's background, corners and inset, the canvas fills, the
+ * opacities); `placement` is where content sits inside its box; `typography` is the type; `colour` is
+ * the colour of what is drawn. Every token is in exactly one.
+ */
+export type TokenGroup = 'appearance' | 'placement' | 'typography' | 'colour';
 
 /**
  * Where a token is read, and therefore which surface can usefully set it.
@@ -91,8 +97,23 @@ export interface TokenLabel {
   readonly optionLabels?: Readonly<Record<string, string>>;
   /** For `length`: the units worth offering. The token's own default unit is always among them. */
   readonly units?: readonly string[];
-  /** For `pixels`: the slider's bounds, in layout pixels. A typed value may go past them. */
+  /**
+   * For `pixels`, required: the slider's bounds, in layout pixels. For `number`, where the value has a
+   * natural span (an opacity, a font weight). A typed value may go past them.
+   */
   readonly range?: { readonly min: number; readonly max: number };
+  /** For a numeric control: how far one nudge moves the value, where one unit is not the answer. */
+  readonly step?: number;
+  /**
+   * A token an author tunes rarely: an inspector folds it behind an "Advanced" disclosure inside its
+   * group, rather than moving it to a group it is not about.
+   */
+  readonly advanced?: true;
+  /**
+   * For a placement token: which axis it is, and the token for the other axis. The two are one
+   * control — a grid where each cell sets both — so the pairing is data, not a naming convention.
+   */
+  readonly placement?: { readonly axis: 'across' | 'down'; readonly pair: KnownToken };
   /** For `colour`: whether the value carries an alpha pair (`#rrggbbaa`). */
   readonly alpha?: true;
   /**
@@ -125,16 +146,16 @@ const LENGTH_UNITS: readonly string[] = Object.freeze(['rem', 'px', 'em', '%']);
 /**
  * The sections, in the order a pane should show them.
  *
- * The entity's own box first — its background, corners, padding and placement, which is what an
- * author selecting one entity came to change — then colour, type and placement, roughly in order of
- * how often each is touched. A pane may reorder them for its surface; see `token-pane.tsx`.
+ * The author's order, not the storage order: first how an entity looks (its surface), then where its
+ * content sits, then its type, then its colours. An inspector stamps one folding section per group,
+ * with the `advanced` tokens of each behind a foldout inside it.
  */
 export const TOKEN_GROUPS: readonly { readonly group: TokenGroup; readonly title: string }[] =
   Object.freeze([
-    { group: 'box', title: 'box' },
-    { group: 'colour', title: 'colour' },
-    { group: 'type', title: 'type' },
-    { group: 'layout', title: 'placement' },
+    { group: 'appearance', title: 'Appearance' },
+    { group: 'placement', title: 'Placement' },
+    { group: 'typography', title: 'Typography' },
+    { group: 'colour', title: 'Colour' },
   ]);
 
 /**
@@ -149,7 +170,7 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     label: 'Font family',
     description: 'The font stack every widget uses. A CSS font list, first available wins.',
     control: 'text',
-    group: 'type',
+    group: 'typography',
     scope: 'widget',
   },
 
@@ -173,6 +194,7 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     control: 'colour',
     group: 'colour',
     scope: 'widget',
+    advanced: true,
   },
   '--perch-stale': {
     label: 'Stale reading colour',
@@ -180,6 +202,7 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     control: 'colour',
     group: 'colour',
     scope: 'widget',
+    advanced: true,
   },
   '--perch-warn': {
     label: 'Warning colour',
@@ -187,6 +210,7 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     control: 'colour',
     group: 'colour',
     scope: 'widget',
+    advanced: true,
   },
   '--perch-alert': {
     label: 'Alert colour',
@@ -194,37 +218,42 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     control: 'colour',
     group: 'colour',
     scope: 'widget',
+    advanced: true,
   },
 
   '--perch-value-weight': {
     label: 'Reading weight',
     description: 'How heavy the big number is. 400 is regular, 700 bold.',
     control: 'number',
-    group: 'type',
+    group: 'typography',
     scope: 'widget',
+    range: Object.freeze({ min: 100, max: 900 }),
+    step: 100,
   },
   '--perch-value-size-min': {
     label: 'Reading size, floor',
     description:
       'The smallest the big number goes. It scales with the widget between floor and cap.',
     control: 'length',
-    group: 'type',
+    group: 'typography',
     scope: 'widget',
     units: LENGTH_UNITS,
+    advanced: true,
   },
   '--perch-value-size-max': {
     label: 'Reading size, cap',
     description: 'The largest the big number goes, however wide the widget is.',
     control: 'length',
-    group: 'type',
+    group: 'typography',
     scope: 'widget',
     units: LENGTH_UNITS,
+    advanced: true,
   },
   '--perch-unit-size': {
     label: 'Unit size',
     description: 'The unit printed after a reading.',
     control: 'length',
-    group: 'type',
+    group: 'typography',
     scope: 'widget',
     units: LENGTH_UNITS,
   },
@@ -232,7 +261,7 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     label: 'Readout caption size',
     description: 'The caption under a reading.',
     control: 'length',
-    group: 'type',
+    group: 'typography',
     scope: 'widget',
     units: LENGTH_UNITS,
   },
@@ -241,7 +270,7 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     label: 'Text size',
     description: 'The size of a text element: a title, a caption, a note.',
     control: 'length',
-    group: 'type',
+    group: 'typography',
     scope: 'widget',
     units: LENGTH_UNITS,
   },
@@ -249,8 +278,10 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     label: 'Text weight',
     description: 'How heavy a text element is. 400 is regular, 700 bold.',
     control: 'number',
-    group: 'type',
+    group: 'typography',
     scope: 'widget',
+    range: Object.freeze({ min: 100, max: 900 }),
+    step: 100,
   },
   '--perch-text-color': {
     label: 'Text colour',
@@ -263,14 +294,15 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     label: 'Text letter spacing',
     description: 'normal, or a length like 0.08em. Wide tracking suits small uppercase captions.',
     control: 'text',
-    group: 'type',
+    group: 'typography',
     scope: 'widget',
+    advanced: true,
   },
   '--perch-text-transform': {
     label: 'Text capitalisation',
     description: 'Whether a text element is printed as written, or cased by the renderer.',
     control: 'choice',
-    group: 'layout',
+    group: 'typography',
     scope: 'widget',
     options: Object.freeze(['none', 'uppercase', 'lowercase', 'capitalize']),
   },
@@ -279,14 +311,16 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     description:
       'Line spacing, as a multiple of the text size. Only visible on more than one line.',
     control: 'number',
-    group: 'type',
+    group: 'typography',
     scope: 'widget',
+    step: 0.05,
+    advanced: true,
   },
   '--perch-text-justify': {
     label: 'Text placement, across',
     description: 'Where the text sits horizontally inside its own rectangle.',
     control: 'choice',
-    group: 'box',
+    group: 'placement',
     scope: 'widget',
     options: Object.freeze(['flex-start', 'center', 'flex-end', 'space-between']),
     optionLabels: Object.freeze({
@@ -296,12 +330,13 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
       'space-between': 'spread',
     }),
     kinds: Object.freeze(['text'] as const),
+    placement: Object.freeze({ axis: 'across', pair: '--perch-text-anchor' } as const),
   },
   '--perch-text-anchor': {
     label: 'Text placement, down',
     description: 'Where the text sits vertically inside its own rectangle.',
     control: 'choice',
-    group: 'box',
+    group: 'placement',
     scope: 'widget',
     options: Object.freeze(['flex-start', 'center', 'flex-end', 'stretch']),
     optionLabels: Object.freeze({
@@ -311,12 +346,13 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
       stretch: 'fill',
     }),
     kinds: Object.freeze(['text'] as const),
+    placement: Object.freeze({ axis: 'down', pair: '--perch-text-justify' } as const),
   },
   '--perch-text-align': {
     label: 'Text line alignment',
     description: 'Which edge lines break towards, for text carrying more than one line.',
     control: 'choice',
-    group: 'layout',
+    group: 'typography',
     scope: 'widget',
     options: Object.freeze(['left', 'center', 'right', 'justify']),
   },
@@ -325,29 +361,34 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     label: 'Readout placement, across',
     description: 'Where the number, unit and caption sit horizontally inside the readout box.',
     control: 'choice',
-    group: 'box',
+    group: 'placement',
     scope: 'widget',
     options: Object.freeze(['start', 'center', 'end']),
     optionLabels: ACROSS,
     kinds: Object.freeze(['widget'] as const),
+    placement: Object.freeze({ axis: 'across', pair: '--perch-readout-anchor' } as const),
   },
   '--perch-readout-anchor': {
     label: 'Readout placement, down',
     description: 'Where the number, unit and caption sit vertically inside the readout box.',
     control: 'choice',
-    group: 'box',
+    group: 'placement',
     scope: 'widget',
     options: Object.freeze(['start', 'center', 'end']),
     optionLabels: DOWN,
     kinds: Object.freeze(['widget'] as const),
+    placement: Object.freeze({ axis: 'down', pair: '--perch-readout-justify' } as const),
   },
 
   '--perch-media-opacity': {
     label: 'Image opacity',
     description: 'How strongly an image paints. 0 is invisible, 1 is solid.',
     control: 'number',
-    group: 'layout',
+    group: 'appearance',
     scope: 'widget',
+    range: Object.freeze({ min: 0, max: 1 }),
+    step: 0.05,
+    advanced: true,
   },
 
   '--perch-chart-series': {
@@ -361,8 +402,11 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     label: 'Chart fill opacity',
     description: 'How solid the wash under the line is. A wash, never a block.',
     control: 'number',
-    group: 'layout',
+    group: 'appearance',
     scope: 'widget',
+    range: Object.freeze({ min: 0, max: 1 }),
+    step: 0.05,
+    advanced: true,
   },
   '--perch-chart-grid': {
     label: 'Chart gridline colour',
@@ -383,7 +427,7 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     label: 'Chart reading size',
     description: 'The newest reading, printed in the chart header.',
     control: 'length',
-    group: 'type',
+    group: 'typography',
     scope: 'widget',
     units: LENGTH_UNITS,
   },
@@ -391,7 +435,7 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     label: 'Chart caption size',
     description: 'The chart caption.',
     control: 'length',
-    group: 'type',
+    group: 'typography',
     scope: 'widget',
     units: LENGTH_UNITS,
   },
@@ -399,9 +443,10 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     label: 'Chart axis size',
     description: 'The chart footer: the window it covers and the scale it is drawn against.',
     control: 'length',
-    group: 'type',
+    group: 'typography',
     scope: 'widget',
     units: LENGTH_UNITS,
+    advanced: true,
   },
 
   '--perch-box-bg': {
@@ -409,7 +454,7 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     description:
       'Behind this entity, filling its rectangle. The last hex pair is opacity: 00 clear, ff solid.',
     control: 'colour',
-    group: 'box',
+    group: 'appearance',
     scope: 'box',
     alpha: true,
   },
@@ -417,7 +462,7 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     label: 'Corner radius',
     description: 'How round the rectangle’s corners are, in layout pixels. Scales with the panel.',
     control: 'pixels',
-    group: 'box',
+    group: 'appearance',
     scope: 'box',
     range: Object.freeze({ min: 0, max: 64 }),
   },
@@ -426,7 +471,7 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     description:
       'Space inside the rectangle’s edge, in layout pixels. The rectangle keeps its size; the content shrinks.',
     control: 'pixels',
-    group: 'box',
+    group: 'appearance',
     scope: 'box',
     range: Object.freeze({ min: 0, max: 48 }),
   },
@@ -435,14 +480,14 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     label: 'Canvas background',
     description: 'Behind every element: the dashboard’s own background colour.',
     control: 'colour',
-    group: 'colour',
+    group: 'appearance',
     scope: 'canvas',
   },
   '--perch-letterbox-bg': {
     label: 'Letterbox background',
     description: 'The bars outside the canvas when the screen is not the layout’s shape.',
     control: 'colour',
-    group: 'colour',
+    group: 'appearance',
     scope: 'canvas',
   },
 });

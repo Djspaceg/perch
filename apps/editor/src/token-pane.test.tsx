@@ -141,10 +141,14 @@ describe('the Customize tab', () => {
   it('keeps the one fact the disclosure carried: what an overridden row reverts to', () => {
     // The default value answers "what do I get back if I reset this", which is a question only an
     // overridden row raises. A row already at its default has the answer in its own value field.
+    // It now lives in the reset arrow's accessible name and tooltip, at the row's right edge, rather
+    // than as a second piece of text in the row (see DECISIONS.md).
     renderPane({ '--perch-fg': '#ff0000' });
+    const reset = within(row('--perch-fg')).getByRole('button', { name: /^reset/i });
 
-    expect(within(row('--perch-fg')).getByText('default #f2f4f8')).toBeInTheDocument();
-    expect(within(row('--perch-dim')).queryByText(/^default #/)).toBeNull();
+    expect(reset).toHaveAccessibleName(expect.stringContaining('default #f2f4f8'));
+    expect(reset).toHaveAttribute('title', expect.stringContaining('default #f2f4f8'));
+    expect(within(row('--perch-dim')).queryByRole('button', { name: /default #/ })).toBeNull();
   });
 
   it('says which values are the layout’s own', () => {
@@ -230,15 +234,20 @@ describe('the Customize tab', () => {
     expect(edits.set.at(-1)).toEqual(['--perch-text-size', '1.25px']);
   });
 
-  it('gives an enumerated token a closed select over the vocabulary ui-kit declares', () => {
+  it('gives an enumerated token a closed choice over the vocabulary ui-kit declares', () => {
+    // A segmented control rather than a select: four options fit in a row, one click each.
     const edits = renderPane({}, 'element');
-    const select = within(row('--perch-text-transform')).getByLabelText(TRANSFORM);
+    const group = within(row('--perch-text-transform')).getByRole('radiogroup', {
+      name: TRANSFORM,
+    });
 
-    expect([...(select as HTMLSelectElement).options].map((option) => option.value)).toEqual([
-      ...(PERCH_TOKEN_LABELS['--perch-text-transform'].options ?? []),
-    ]);
+    expect(
+      within(group)
+        .getAllByRole('radio')
+        .map((radio) => radio.getAttribute('data-value')),
+    ).toEqual([...(PERCH_TOKEN_LABELS['--perch-text-transform'].options ?? [])]);
 
-    fireEvent.change(select, { target: { value: 'uppercase' } });
+    fireEvent.click(within(group).getByRole('radio', { name: 'uppercase' }));
     expect(edits.set).toEqual([['--perch-text-transform', 'uppercase']]);
   });
 
@@ -476,8 +485,11 @@ describe('an element style map under a layout theme', () => {
     // layout theme the answer is the layout's `#e8f1ff`, never the package's `#f2f4f8`.
     renderPane({ '--perch-fg': '#ff0000' }, 'element', THEME);
     const fg = row('--perch-fg');
+    const reset = within(fg).getByRole('button', { name: /^reset/i });
 
-    expect(within(fg).getByText('layout theme #e8f1ff')).toBeInTheDocument();
+    expect(reset).toHaveAccessibleName(expect.stringContaining('layout theme value #e8f1ff'));
+    expect(reset).toHaveAttribute('title', expect.stringContaining('layout theme value #e8f1ff'));
+    expect(reset).not.toHaveAccessibleName(expect.stringContaining('#f2f4f8'));
     expect(within(fg).queryByText(/#f2f4f8/)).toBeNull();
   });
 
@@ -553,15 +565,17 @@ describe('the element box rows', () => {
   const has = (name: string): boolean =>
     screen.queryByTestId(`perch-editor-token-test-${name}`) !== null;
 
-  it('leads an element pane with the box group, ahead of colour', () => {
+  it('leads an element pane with its box: appearance, then placement', () => {
     renderElementPane({}, 'widget');
-    const titles = screen.getAllByRole('heading', { level: 4 }).map((h) => h.textContent);
+    const titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
 
-    expect(titles[0]).toBe('box');
-    expect(titles[1]).toBe('colour');
+    expect(titles[0]).toBe('Appearance');
+    expect(titles[1]).toBe('Placement');
     // Inside it, the box's own rows first, then the placement a widget reads inside the box.
+    // The visible rows: the Appearance section's Advanced foldout (its opacities) is folded shut.
     const rows = screen
       .getAllByTestId(/^perch-editor-token-test-/)
+      .filter((el) => el.closest('[hidden]') === null)
       .slice(0, 5)
       .map((el) => el.getAttribute('data-testid')?.replace('perch-editor-token-test-', ''));
     expect(rows).toEqual([
@@ -615,47 +629,79 @@ describe('the element box rows', () => {
   });
 
   it('names the placement options for a person, and writes the CSS value', () => {
+    // One grid for the pair: columns are across, rows are down. Each cell names both halves.
     const edits = renderElementPane({}, 'widget');
-    const select = within(row('--perch-readout-justify')).getByRole('combobox');
+    const grid = screen.getByRole('radiogroup', { name: /readout placement/i });
+    const cells = within(grid).getAllByRole('radio');
 
-    expect([...(select as HTMLSelectElement).options].map((o) => [o.value, o.textContent])).toEqual(
-      [
-        ['start', 'left'],
-        ['center', 'centre'],
-        ['end', 'right'],
-      ],
-    );
+    expect(
+      cells
+        .slice(0, 3)
+        .map((cell) => [cell.getAttribute('data-across'), cell.getAttribute('aria-label')]),
+    ).toEqual([
+      ['start', 'top left'],
+      ['center', 'top centre'],
+      ['end', 'top right'],
+    ]);
 
-    fireEvent.change(select, { target: { value: 'center' } });
+    // Down is already `start` (top), so only the half that changed is written.
+    fireEvent.click(within(grid).getByRole('radio', { name: 'top centre' }));
     expect(edits.set).toEqual([['--perch-readout-justify', 'center']]);
   });
 
-  it('pairs each pixel slider with a number field, both writing the same unitless value', () => {
+  it('centres a readout both ways in one click, writing both halves', () => {
+    const edits = renderElementPane({}, 'widget');
+
+    fireEvent.click(screen.getByRole('radio', { name: 'middle centre' }));
+    expect(edits.set).toEqual([
+      ['--perch-readout-justify', 'center'],
+      ['--perch-readout-anchor', 'center'],
+    ]);
+  });
+
+  it('keeps the reset on its own axis line, at the right edge, only where that half is set', () => {
+    renderElementPane({ '--perch-readout-justify': 'center' }, 'widget');
+
+    const across = row('--perch-readout-justify');
+    const down = row('--perch-readout-anchor');
+    expect(within(across).getByRole('button', { name: /^reset/i })).toHaveAccessibleName(
+      'reset Readout placement, across to the ui-kit default left',
+    );
+    expect(within(down).queryByRole('button', { name: /^reset/i })).toBeNull();
+    // The reset is the last thing in its line: nothing after it to wrap it onto a line of its own.
+    expect(across.lastElementChild).toBe(within(across).getByRole('button', { name: /^reset/i }));
+  });
+
+  it('makes each pixel value one field that is also its slider, writing a unitless value', () => {
+    // The slider and the number box were two controls over one value; now the field carries the
+    // range itself (a fill bar, drag to scrub, arrows to nudge) and there is nothing beside it.
     const edits = renderElementPane({ '--perch-box-padding': '12' }, 'widget');
     const padding = row('--perch-box-padding');
-    const slider = within(padding).getByRole('slider', { name: new RegExp(PADDING, 'i') });
-    const field = within(padding).getByRole('textbox', { name: new RegExp(PADDING, 'i') });
+    const field = within(padding).getByRole('spinbutton', { name: new RegExp(PADDING, 'i') });
 
-    expect(slider).toHaveAttribute('min', '0');
-    expect(slider).toHaveAttribute('max', '48');
-    expect(slider).toHaveValue('12');
+    expect(within(padding).queryByRole('slider')).toBeNull();
+    expect(field).toHaveAttribute('aria-valuemin', '0');
+    expect(field).toHaveAttribute('aria-valuemax', '48');
+    expect(field).toHaveAttribute('aria-valuenow', '12');
     expect(field).toHaveValue('12');
 
-    fireEvent.change(slider, { target: { value: '20' } });
+    fireEvent.keyDown(field, { key: 'ArrowUp', shiftKey: true });
     fireEvent.change(field, { target: { value: '7' } });
     expect(edits.set).toEqual([
-      ['--perch-box-padding', '20'],
+      ['--perch-box-padding', '22'],
       ['--perch-box-padding', '7'],
     ]);
   });
 
-  it('says the unit is layout pixels, next to the slider', () => {
+  it('says the unit is layout pixels, inside the field', () => {
     renderElementPane({}, 'widget');
+    const radius = within(row('--perch-box-radius')).getByRole('spinbutton', {
+      name: new RegExp(RADIUS, 'i'),
+    });
 
-    expect(within(row('--perch-box-radius')).getByText('layout px')).toBeInTheDocument();
-    expect(
-      within(row('--perch-box-radius')).getByRole('slider', { name: new RegExp(RADIUS, 'i') }),
-    ).toHaveAttribute('max', '64');
+    expect(within(row('--perch-box-radius')).getByText('px')).toBeInTheDocument();
+    expect(radius).toHaveAttribute('aria-valuetext', '0 layout px');
+    expect(radius).toHaveAttribute('aria-valuemax', '64');
   });
 
   it('holds an alpha colour as #rrggbbaa, with the swatch first and an alpha picker behind it', () => {
@@ -719,6 +765,158 @@ describe('the element box rows', () => {
 
     expect(
       within(row('--brand-hue')).getByRole('button', { name: /^delete --brand-hue/ }),
-    ).toHaveClass('perch-editor-icon--delete');
+    ).toHaveClass('perch-reset--delete');
+  });
+});
+
+/** The pane with its sections, tabs and search, for the tests of the redesigned chrome. */
+function renderChrome(props: Partial<Parameters<typeof TokenPane>[0]> = {}): Edits {
+  const edits: Edits = { set: [], removed: [] };
+
+  render(
+    <TokenPane
+      id="test"
+      title="theme"
+      scope="layout"
+      tokens={{ '--perch-fg': '#ff0000' }}
+      onSet={(name, value) => {
+        edits.set.push([name, value]);
+      }}
+      onRemove={(name) => {
+        edits.removed.push(name);
+      }}
+      {...props}
+    />,
+  );
+
+  return edits;
+}
+
+describe('the tabs', () => {
+  it('are one short label each, with the explanation in a tooltip rather than inside the tab', () => {
+    renderChrome();
+    const tabs = screen.getAllByRole('tab');
+
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Customize', 'Developer']);
+    expect(tabs.every((tab) => (tab.getAttribute('title') ?? '') !== '')).toBe(true);
+  });
+
+  it('say inside the Developer panel what that tab is for', () => {
+    renderChrome();
+    openDeveloper();
+
+    expect(
+      within(screen.getByRole('tabpanel')).getByText(/what this document holds/i),
+    ).toBeVisible();
+  });
+});
+
+describe('the sections', () => {
+  it('fold, each with a count of what this surface sets in it', () => {
+    renderChrome({ tokens: { '--perch-fg': '#ff0000', '--perch-dim': '#00ff00' } });
+    const colour = screen.getByRole('button', { name: 'Colour' });
+
+    expect(screen.getByTestId('perch-editor-section-count-test-colour')).toHaveTextContent('2 set');
+    fireEvent.click(colour);
+    expect(colour).toHaveAttribute('aria-expanded', 'false');
+    expect(row('--perch-fg')).not.toBeVisible();
+  });
+
+  it('start closed where the inspector asks, and remember being opened', () => {
+    renderChrome({ sectionsOpen: false, disclosureKey: 'theme' });
+
+    expect(screen.getByRole('button', { name: 'Colour' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Colour' }));
+    cleanup();
+
+    renderChrome({ sectionsOpen: false, disclosureKey: 'theme' });
+    expect(screen.getByRole('button', { name: 'Colour' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('keep rarely tuned tokens behind an Advanced foldout inside their own section', () => {
+    renderChrome({ tokens: { '--perch-text-tracking': '0.2em' } });
+    const typography = screen.getByRole('region', { name: 'Typography' });
+    const advanced = within(typography).getByRole('button', { name: /^Advanced/ });
+
+    expect(advanced).toHaveAttribute('aria-expanded', 'false');
+    expect(row('--perch-text-tracking')).not.toBeVisible();
+    // Closed, but it says it is hiding something this surface sets.
+    expect(advanced).toHaveTextContent('1 set');
+
+    fireEvent.click(advanced);
+    expect(row('--perch-text-tracking')).toBeVisible();
+  });
+});
+
+describe('state at a glance', () => {
+  it('tints a row by where its value comes from, and says it in words too', () => {
+    renderPane({ '--perch-fg': '#ff0000' }, 'element', { '--perch-dim': '#00ff00' });
+
+    expect(row('--perch-fg')).toHaveAttribute('data-perch-source', 'own');
+    expect(within(row('--perch-fg')).getByText('set by this entity')).toBeInTheDocument();
+    expect(row('--perch-dim')).toHaveAttribute('data-perch-source', 'inherited');
+    expect(row('--perch-faint')).toHaveAttribute('data-perch-source', 'default');
+  });
+});
+
+describe('the search and the chips', () => {
+  it('narrow the rows to every word of the query, by label and description', () => {
+    renderChrome();
+    fireEvent.change(screen.getByRole('searchbox', { name: /search theme tokens/i }), {
+      target: { value: 'chart colour' },
+    });
+
+    expect(screen.getByLabelText(labelFor('--perch-chart-series'))).toBeVisible();
+    expect(screen.queryByLabelText(FG)).toBeNull();
+    expect(screen.queryByLabelText(labelFor('--perch-chart-value-size'))).toBeNull();
+  });
+
+  it('open whatever section and Advanced foldout holds a match', () => {
+    renderChrome({ sectionsOpen: false });
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'letter spacing' } });
+
+    expect(screen.getByLabelText(labelFor('--perch-text-tracking'))).toBeVisible();
+  });
+
+  it('never match on the raw token name in Customize, which never shows one', () => {
+    renderChrome();
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '--perch-fg' } });
+
+    expect(screen.queryByLabelText(FG)).toBeNull();
+    expect(screen.getByText(/no token matches/i)).toBeInTheDocument();
+  });
+
+  it('match the raw name and value on the Developer tab', () => {
+    renderChrome({ tokens: { '--perch-fg': '#ff0000', '--brand-hue': '210' } });
+    openDeveloper();
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'brand' } });
+
+    expect(screen.getByLabelText('--brand-hue')).toBeInTheDocument();
+    expect(screen.queryByLabelText('--perch-fg')).toBeNull();
+  });
+
+  it('filter by section with a chip, within the same grouping the sections use', () => {
+    renderChrome({ chips: true });
+    const chips = screen.getByRole('group', { name: /sections/i });
+
+    expect(
+      within(chips)
+        .getAllByRole('button')
+        .map((chip) => chip.textContent),
+    ).toEqual(['All', 'Appearance', 'Placement', 'Typography', 'Colour']);
+    fireEvent.click(within(chips).getByRole('button', { name: 'Colour' }));
+
+    expect(within(chips).getByRole('button', { name: 'Colour' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByLabelText(FG)).toBeVisible();
+    expect(screen.queryByRole('region', { name: 'Typography' })).toBeNull();
+
+    fireEvent.click(within(chips).getByRole('button', { name: 'All' }));
+    expect(screen.getByRole('region', { name: 'Typography' })).toBeInTheDocument();
   });
 });

@@ -59,12 +59,14 @@ import {
 import type { Rect } from '@perch/layout-schema';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { CANVAS_HANDLES_STYLES } from './canvas-handles.js';
+import { CONTROLS_STYLES } from './controls/index.js';
 import { canSave, draftSaved, editDraft, isDirty, openDraft, type DraftState } from './draft.js';
 import { INSPECTOR_STYLES, Inspector, NOTHING_SELECTED } from './inspector.js';
 import type { LayoutLibrary } from './layout-library.js';
 import { setElementRect, type LayoutUpdate } from './layout-edits.js';
 import { LAYOUT_PROBLEMS_STYLES, LayoutProblems } from './problems.js';
 import { LayoutPreview, PREVIEW_STYLES, describePreviewFit } from './preview.js';
+import { PROPERTY_VIEW_STYLES } from './property-view.js';
 import { TOKEN_PANE_STYLES } from './token-pane.js';
 import {
   HEADER_HEIGHT,
@@ -191,6 +193,12 @@ export function Editor({
       </style>
       <style href="perch-editor-handles" precedence="default">
         {CANVAS_HANDLES_STYLES}
+      </style>
+      <style href="perch-editor-controls" precedence="default">
+        {CONTROLS_STYLES}
+      </style>
+      <style href="perch-editor-property-view" precedence="default">
+        {PROPERTY_VIEW_STYLES}
       </style>
       <style href="perch-editor-inspector" precedence="default">
         {INSPECTOR_STYLES}
@@ -561,10 +569,9 @@ html, body { margin: 0; height: 100%; background: #07080a; }
   width: ${INSPECTOR_WIDTH}px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
   border-left: 1px solid #1b2028;
-  background: #0d1016;
-  overflow-y: auto;
-  padding: 8px;
+  background: var(--ed-bg, #0f1217);
+  overflow: hidden;
 }
+.perch-editor-side > .perch-editor-problems { flex: none; margin: 6px; max-height: 40%; overflow-y: auto; }
 `;

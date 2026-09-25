@@ -91,11 +91,80 @@ describe('the labels table', () => {
     }
   });
 
-  it('marks exactly the element-box tokens as box-scoped, in the box group', () => {
+  it('marks exactly the element-box tokens as box-scoped, in the appearance group', () => {
     const boxScoped = PERCH_KNOWN_TOKENS.filter((name) => PERCH_TOKEN_LABELS[name].scope === 'box');
 
     expect(new Set(boxScoped)).toEqual(BOX_TOKENS);
-    for (const name of boxScoped) expect(PERCH_TOKEN_LABELS[name].group, name).toBe('box');
+    for (const name of boxScoped) expect(PERCH_TOKEN_LABELS[name].group, name).toBe('appearance');
+  });
+
+  it('groups by what a token is about, in the order an author meets the groups', () => {
+    expect(TOKEN_GROUPS.map((group) => [group.group, group.title])).toEqual([
+      ['appearance', 'Appearance'],
+      ['placement', 'Placement'],
+      ['typography', 'Typography'],
+      ['colour', 'Colour'],
+    ]);
+    expect(PERCH_TOKEN_LABELS['--perch-fg'].group).toBe('colour');
+    expect(PERCH_TOKEN_LABELS['--perch-text-transform'].group).toBe('typography');
+    expect(PERCH_TOKEN_LABELS['--perch-text-align'].group).toBe('typography');
+    expect(PERCH_TOKEN_LABELS['--perch-canvas-bg'].group).toBe('appearance');
+    expect(PERCH_TOKEN_LABELS['--perch-media-opacity'].group).toBe('appearance');
+  });
+
+  it('marks the rarely tuned tokens advanced, and keeps them in the group they belong to', () => {
+    const advanced = PERCH_KNOWN_TOKENS.filter(
+      (name) => PERCH_TOKEN_LABELS[name].advanced === true,
+    );
+
+    expect([...advanced].sort()).toEqual(
+      [
+        '--perch-alert',
+        '--perch-chart-area-opacity',
+        '--perch-chart-axis-size',
+        '--perch-faint',
+        '--perch-media-opacity',
+        '--perch-stale',
+        '--perch-text-line-height',
+        '--perch-text-tracking',
+        '--perch-value-size-max',
+        '--perch-value-size-min',
+        '--perch-warn',
+      ].sort(),
+    );
+    // Nothing a placement grid draws is hidden: the grid is one control, and half of it cannot fold.
+    for (const name of advanced) expect(PERCH_TOKEN_LABELS[name].group, name).not.toBe('placement');
+  });
+
+  it('pairs each placement with its other axis, both ways, in the placement group', () => {
+    const placed = PERCH_KNOWN_TOKENS.filter(
+      (name) => PERCH_TOKEN_LABELS[name].placement !== undefined,
+    );
+
+    expect([...placed].sort()).toEqual(
+      [
+        '--perch-readout-anchor',
+        '--perch-readout-justify',
+        '--perch-text-anchor',
+        '--perch-text-justify',
+      ].sort(),
+    );
+    for (const name of placed) {
+      const entry = PERCH_TOKEN_LABELS[name];
+      const pair = entry.placement?.pair;
+      expect(entry.group, name).toBe('placement');
+      expect(pair, name).toBeDefined();
+      if (pair === undefined) continue;
+      const other = PERCH_TOKEN_LABELS[pair];
+      expect(other.placement?.pair, name).toBe(name);
+      expect(other.placement?.axis, name).not.toBe(entry.placement?.axis);
+      expect(other.kinds, name).toEqual(entry.kinds);
+    }
+    for (const name of PERCH_KNOWN_TOKENS) {
+      if (PERCH_TOKEN_LABELS[name].group === 'placement') {
+        expect(PERCH_TOKEN_LABELS[name].placement, name).toBeDefined();
+      }
+    }
   });
 
   it('gives the box background an alpha channel and nothing else one', () => {
@@ -108,7 +177,8 @@ describe('the labels table', () => {
     for (const name of PERCH_KNOWN_TOKENS) {
       const entry = PERCH_TOKEN_LABELS[name];
       if (entry.control !== 'pixels') {
-        expect(entry.range, name).toBeUndefined();
+        // A range is a pixel control's, or a unitless number's that has one (an opacity, a weight).
+        if (entry.control !== 'number') expect(entry.range, name).toBeUndefined();
         continue;
       }
 
@@ -204,6 +274,34 @@ describe('the labels table', () => {
 
       const unit = LENGTH.exec(knownTokenDefault(name) ?? '')?.[2] ?? '';
       expect(entry.units ?? [], name).toContain(unit);
+    }
+  });
+});
+
+describe('the numeric metadata', () => {
+  it('bounds an opacity from 0 to 1 and a weight from 100 to 900, defaults inside', () => {
+    for (const name of ['--perch-media-opacity', '--perch-chart-area-opacity'] as const) {
+      expect(PERCH_TOKEN_LABELS[name].range, name).toEqual({ min: 0, max: 1 });
+    }
+    for (const name of ['--perch-value-weight', '--perch-text-weight'] as const) {
+      expect(PERCH_TOKEN_LABELS[name].range, name).toEqual({ min: 100, max: 900 });
+      expect(PERCH_TOKEN_LABELS[name].step, name).toBe(100);
+    }
+    for (const name of PERCH_KNOWN_TOKENS) {
+      const entry = PERCH_TOKEN_LABELS[name];
+      if (entry.control !== 'number' || entry.range === undefined) continue;
+      const value = Number(knownTokenDefault(name));
+      expect(value, name).toBeGreaterThanOrEqual(entry.range.min);
+      expect(value, name).toBeLessThanOrEqual(entry.range.max);
+    }
+  });
+
+  it('gives a step only to a numeric control, and a positive one', () => {
+    for (const name of PERCH_KNOWN_TOKENS) {
+      const entry = PERCH_TOKEN_LABELS[name];
+      if (entry.step === undefined) continue;
+      expect(['number', 'pixels', 'length'], name).toContain(entry.control);
+      expect(entry.step, name).toBeGreaterThan(0);
     }
   });
 });
