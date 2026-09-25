@@ -79,8 +79,41 @@ export const PERCH_TOKEN_DEFAULTS = {
   /** Which edge lines break towards, for a text element carrying more than one line. */
   '--perch-text-align': 'left',
 
+  /**
+   * Where a readout's content sits across its box: a `justify-content` *and* a `text-align` value.
+   *
+   * `start | center | end` rather than the `flex-start` family the text element uses, because this
+   * one value is written into both properties — the row of number and unit is a flex row, the caption
+   * and note are text runs — and `start`/`center`/`end` are the only spellings both accept. The
+   * default is where every readout sat before this token existed.
+   */
+  '--perch-readout-justify': 'start',
+  /** Where a readout's column sits down its box: a `justify-content` value on that column. */
+  '--perch-readout-anchor': 'start',
+
   /** How strongly a media element paints. A background usually wants to sit under the numbers. */
   '--perch-media-opacity': '1',
+
+  /**
+   * The element box: what every styled entity's own rectangle paints, read by `ELEMENT_BOX_STYLES`
+   * in `layout-canvas.tsx` rather than by any widget.
+   *
+   * `--perch-box-*`, in the `--perch-<where>-<what>` idiom `--perch-canvas-bg` set: `box` is the
+   * `.perch-element` box, the one level every kind shares, as distinct from the canvas above it and
+   * the widget inside it. A widget prefix would say a readout reads these; none does.
+   *
+   * The background is a hex literal with an alpha pair, and its default is the fully transparent one
+   * — `#00000000` rather than `transparent`, so the default is a value the colour control can hold.
+   * Radius and padding are **unitless counts of layout pixels**, multiplied into `px` by the sheet.
+   * Unitless on purpose: the canvas has to compute a chart's content box in JavaScript from the same
+   * value CSS applies, and a number is the one spelling both can read identically — `12px` or `1rem`
+   * would be a value CSS understood and the chart's arithmetic did not. One CSS pixel on the canvas is
+   * one layout pixel, because the canvas is scaled as a whole, so these scale with the panel exactly
+   * as the rects do.
+   */
+  '--perch-box-bg': '#00000000',
+  '--perch-box-radius': '0',
+  '--perch-box-padding': '0',
 
   /**
    * The series line and its wash. The one colour on a chart that carries data.

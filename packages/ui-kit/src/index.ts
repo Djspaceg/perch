@@ -138,6 +138,7 @@ export {
   WIDGET_NAMES,
   WIDGET_REGISTRY,
   widgetFor,
+  type ContentBox,
   type WidgetBinding,
   type WidgetCatalogueEntry,
   type WidgetName,
@@ -145,9 +146,11 @@ export {
 
 export {
   CANVAS_TOKEN_DEFAULTS,
+  ELEMENT_BOX_STYLES,
   LAYOUT_CANVAS_STYLES,
   LayoutCanvas,
   canvasToken,
+  elementContentSize,
   type CanvasToken,
   type LayoutCanvasProps,
 } from './layout-canvas.js';

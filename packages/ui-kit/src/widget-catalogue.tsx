@@ -71,6 +71,21 @@ import { Readout } from './readout.js';
  */
 export type WidgetBinding = 'widget' | 'chart';
 
+/**
+ * The box a renderer lays out in: the element's rect less its padding, in layout pixels.
+ *
+ * Handed to every renderer by `LayoutCanvas`, which is the one place that resolves the padding — see
+ * `elementContentSize`. A widget sized by arithmetic (the chart) must use this rather than
+ * `element.rect`, or it is sized for a box larger than the one it is drawn in; a widget sized by CSS
+ * (the readout) can ignore it, because CSS already lays it out inside the padding.
+ */
+export interface ContentBox {
+  readonly w: number;
+  readonly h: number;
+  /** The padding the canvas applied on every side, after clamping. */
+  readonly padding: number;
+}
+
 /** What every entry carries, whichever kind it paints. */
 interface WidgetCatalogueEntryBase {
   /**
@@ -88,12 +103,15 @@ export type WidgetCatalogueEntry =
        * The widget, as pixels. Receives the whole validated element rather than picked-apart props, so
        * a widget that later reads `range` or `style` needs no change here.
        */
-      readonly render: (element: WidgetElement) => ReactNode;
+      readonly render: (element: WidgetElement, content: ContentBox) => ReactNode;
     })
   | (WidgetCatalogueEntryBase & {
       readonly binding: 'chart';
-      /** The chart, as pixels. Receives the element, which is where the window and the gap are. */
-      readonly render: (element: ChartElement) => ReactNode;
+      /**
+       * The chart, as pixels. Receives the element, which is where the window and the gap are, and the
+       * content box it is drawn in, which is what its geometry is computed from.
+       */
+      readonly render: (element: ChartElement, content: ContentBox) => ReactNode;
     });
 
 /**
@@ -134,7 +152,7 @@ const WIDGET_CATALOGUE = {
   'line-chart': {
     binding: 'chart',
     drawsScale: true,
-    render: (element) =>
+    render: (element, content) =>
       element.range === undefined ? (
         <span className="perch-element__failure">{`chart needs a range: ${element.widget}`}</span>
       ) : (
@@ -142,10 +160,10 @@ const WIDGET_CATALOGUE = {
           topic={element.topic}
           windowMs={element.windowMs}
           range={element.range}
-          // The authored rect, so the chart's geometry is arithmetic rather than a measurement. See
-          // `line-chart.tsx` on why a measured chart reflows its first captured frame.
-          width={element.rect.w}
-          height={element.rect.h}
+          // The authored rect less its padding, so the chart's geometry is arithmetic rather than a
+          // measurement. See `line-chart.tsx` on why a measured chart reflows its first captured frame.
+          width={content.w}
+          height={content.h}
           gap={element.gap}
         />
       ),

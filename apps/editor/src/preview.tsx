@@ -46,6 +46,7 @@ import {
 import { LayoutCanvas, canvasToken } from '@perch/ui-kit';
 import type { ReactNode } from 'react';
 import { CanvasHandles } from './canvas-handles.js';
+import { NOTHING_SELECTED } from './inspector.js';
 import type { PreviewViewport } from './preview-viewport.js';
 
 /** How a layout's canvas is shown in the pane. */
@@ -124,6 +125,19 @@ export function LayoutPreview({
       data-perch-preview-stale={stale ? 'true' : 'false'}
       // Inline, from the same numbers the scale was derived from. See `preview-viewport.ts`.
       style={{ width: `${viewport.width}px`, height: `${viewport.height}px` }}
+      // A click that lands on no handle — the letterbox, or canvas no element covers — deselects,
+      // which is the convention every canvas editor follows. Every element has a handle over its whole
+      // rect, so "not in a handle" is exactly "not on an entity". A drag ends in a click on its own
+      // handle, so moving an element never deselects it. The keyboard route is the Selected-entity
+      // group's own deselect button.
+      onClick={(event) => {
+        if (
+          event.target instanceof Element &&
+          event.target.closest('.perch-editor-handle') === null
+        ) {
+          onSelect(NOTHING_SELECTED);
+        }
+      }}
     >
       <LayoutCanvas layout={layout} scale={fit.scale} resolveAsset={resolveAsset} />
       <CanvasHandles

@@ -36,6 +36,20 @@
  * `fit` and `gap` *are* closed selects, because their vocabularies are closed in the format itself
  * (`MEDIA_FITS`, `CHART_GAPS`) and the sets have two members each.
  *
+ * ## Two groups: the layout, and the one entity being pointed at
+ *
+ * The form is split the way an author's attention is. **Global** is everything layout-wide — the
+ * target and the theme, with its Customize/Developer tabs. **Selected entity** is only what belongs to
+ * the element that was clicked: its rect, its binding (topic, text, window), and its own style, which
+ * now leads with its box — background with alpha, corners, padding, and placement where the kind has
+ * any. Each group is a labelled region, so a screen reader can jump between them the way a sighted
+ * author glances between them.
+ *
+ * Nothing is selected until something is chosen. `NOTHING_SELECTED` is a real state rather than
+ * "element 0 by default": with a Global group to look at there is always something useful on screen,
+ * and element 0 is usually the full-bleed background image, whose handle covered the whole canvas and
+ * whose fields are the least likely thing an author came to edit.
+ *
  * ## The two token maps are one component, twice
  *
  * A layout's `theme` and an element's `style` are not rendered here. Both go through `TokenPane`, at
@@ -57,7 +71,7 @@ import {
   type MediaFit,
 } from '@perch/layout-schema';
 import { assertNever } from '@perch/ui-kit';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import type { DraftState } from './draft.js';
 import {
   numberFromInput,
@@ -80,6 +94,12 @@ import {
   type RectField,
 } from './layout-edits.js';
 import { TokenPane } from './token-pane.js';
+
+/**
+ * The selection when there is none. Any out-of-range index means the same, and every consumer of
+ * `selected` already treats it so; this is the one spelling the app writes.
+ */
+export const NOTHING_SELECTED = -1;
 
 /** The four rect components, in the order a person reads a rect. */
 const RECT_FIELDS: readonly RectField[] = ['x', 'y', 'w', 'h'];
@@ -113,6 +133,16 @@ export function Inspector({
   widgets,
 }: InspectorProps): ReactNode {
   const element = state.draft.elements[selected];
+  const entityGroup = useRef<HTMLElement>(null);
+
+  // A new selection — from the canvas, the list or a problem link — brings its group into view. Only
+  // when something is selected: clearing the selection must not yank the pane away from where the
+  // author is working. Feature-tested because jsdom, which the tests run in, does not implement it.
+  useEffect(() => {
+    const group = entityGroup.current;
+    if (selected === NOTHING_SELECTED || group === null || !('scrollIntoView' in group)) return;
+    group.scrollIntoView({ block: 'nearest' });
+  }, [selected]);
 
   return (
     <div className="perch-editor-inspector" data-testid="perch-editor-inspector">
@@ -131,20 +161,80 @@ export function Inspector({
         ))}
       </datalist>
 
-      <TargetFields state={state} onEdit={onEdit} />
-      <ThemeFields state={state} onEdit={onEdit} />
-      <ElementList state={state} selected={selected} onSelect={onSelect} />
-      {element === undefined ? (
-        <p className="perch-editor-empty">select an element to edit it</p>
-      ) : (
-        <ElementFields
-          element={element}
-          index={selected}
-          theme={state.draft.theme}
-          onEdit={onEdit}
-        />
-      )}
+      <Group id="global" title="Global" hint="the whole layout">
+        <TargetFields state={state} onEdit={onEdit} />
+        <ThemeFields state={state} onEdit={onEdit} />
+      </Group>
+
+      <Group
+        id="entity"
+        title="Selected entity"
+        hint={element === undefined ? 'none' : `elements[${selected}] · ${element.kind}`}
+        groupRef={entityGroup}
+      >
+        <ElementList state={state} selected={selected} onSelect={onSelect} />
+        {element === undefined ? (
+          <p className="perch-editor-empty">
+            nothing selected. click an entity on the canvas, or pick one above.
+          </p>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="perch-editor-button perch-editor-deselect"
+              onClick={() => {
+                onSelect(NOTHING_SELECTED);
+              }}
+            >
+              {`deselect elements[${selected}]`}
+            </button>
+            <ElementFields
+              element={element}
+              index={selected}
+              theme={state.draft.theme}
+              onEdit={onEdit}
+            />
+          </>
+        )}
+      </Group>
     </div>
+  );
+}
+
+/**
+ * One of the two top-level groups: a labelled region with a heading.
+ *
+ * `aria-labelledby` on a `<section>` is what makes it a `region` landmark, so the two groups are
+ * reachable by name rather than only by scrolling.
+ */
+function Group({
+  id,
+  title,
+  hint,
+  groupRef,
+  children,
+}: {
+  readonly id: string;
+  readonly title: string;
+  readonly hint: string;
+  readonly groupRef?: RefObject<HTMLElement | null>;
+  readonly children: ReactNode;
+}): ReactNode {
+  const headingId = `perch-editor-group-${id}`;
+
+  return (
+    <section
+      className="perch-editor-group"
+      aria-labelledby={headingId}
+      data-testid={`perch-editor-group-${id}`}
+      ref={groupRef}
+    >
+      <h2 className="perch-editor-group__title" id={headingId}>
+        {title}
+      </h2>
+      <span className="perch-editor-hint perch-editor-group__hint">{hint}</span>
+      {children}
+    </section>
   );
 }
 
@@ -434,7 +524,10 @@ function RangeFields({
  * An element's own style tokens.
  *
  * Absent for a media element, which carries no `style` in the format — so there is no control for it
- * rather than a control that quietly does nothing.
+ * rather than a control that quietly does nothing, and a sentence saying so.
+ *
+ * The element's kind goes in too, so the pane leaves out a placement only another kind reads: a
+ * readout is offered its own, a text element its own, a chart none — its plot fills its box.
  *
  * The same pane as the theme, at `element` scope: an element's `style` overrides the canvas' theme
  * exactly as the theme overrides the ui-kit default, so the override-and-reset wording has to read the
@@ -457,7 +550,17 @@ function StyleFields({
   readonly theme: Readonly<Record<string, string>> | undefined;
   readonly onEdit: (update: LayoutUpdate) => void;
 }): ReactNode {
-  if (element.kind === 'media') return null;
+  if (element.kind === 'media') {
+    // Said, not silently omitted: every other entity has box controls, and an author who selects the
+    // background image and finds none should learn why rather than suspect the pane. Giving media a
+    // style is a `layout-schema` change, which is not this editor's to make.
+    return (
+      <p className="perch-editor-empty">
+        a media element carries no style in the layout format, so it has no background, corner,
+        padding or placement controls.
+      </p>
+    );
+  }
 
   return (
     <TokenPane
@@ -465,6 +568,7 @@ function StyleFields({
       id={`style-${index}`}
       title="style"
       scope="element"
+      kind={element.kind}
       tokens={element.style ?? {}}
       inherited={theme}
       onSet={(name, value) => {
@@ -630,8 +734,30 @@ export const INSPECTOR_STYLES = `
   padding: 12px;
   font-size: 0.8125rem;
 }
+.perch-editor-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 1px solid #1b2028;
+  border-radius: 4px;
+  padding: 10px;
+  scroll-margin-top: 8px;
+}
+.perch-editor-group__title {
+  margin: 0 0 -10px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #e8f1ff;
+}
+.perch-editor-group__hint { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.6875rem; }
+.perch-editor-deselect { align-self: flex-start; font-size: 0.6875rem; }
 .perch-editor-section { display: flex; flex-direction: column; gap: 6px; }
 .perch-editor-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   margin: 0;
   font-size: 0.75rem;
   font-weight: 600;
@@ -643,6 +769,8 @@ export const INSPECTOR_STYLES = `
 .perch-editor-subtitle { margin: 0; font-size: 0.75rem; font-weight: 600; color: #7f8da3; }
 .perch-editor-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .perch-editor-field { display: flex; flex-direction: column; gap: 2px; flex: 1 1 120px; min-width: 0; }
+/* A field straight in a column section is a row of its own: a 120px flex-basis there is a height. */
+.perch-editor-section > .perch-editor-field { flex: none; }
 .perch-editor-label {
   display: flex;
   gap: 6px;

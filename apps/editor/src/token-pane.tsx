@@ -13,7 +13,7 @@
  * 2. **`remove` looks destructive and is not.** Removing a known token drops an override; the ui-kit
  *    default takes over and the dashboard keeps painting. The word for that is *reset*.
  * 3. **`remove` is destructive, sometimes.** A layout may set any well-formed custom property, so a
- *    name outside the 31 `ui-kit` declares can exist — and for *that* there is no default underneath,
+ *    name outside the 36 `ui-kit` declares can exist — and for *that* there is no default underneath,
  *    so removing it really does delete the value. One word over two consequences is the defect.
  *
  * So there are two tabs, and they are two intents rather than two skill levels:
@@ -67,16 +67,18 @@
  * is reporting.
  */
 
+import type { ElementKind } from '@perch/layout-schema';
 import {
   PERCH_KNOWN_TOKENS,
   PERCH_TOKEN_LABELS,
   TOKEN_GROUPS,
   knownTokenDefault,
   tokenLabel,
+  type TokenGroup,
   type TokenLabel,
 } from '@perch/ui-kit';
 import { useId, useState, type ReactNode } from 'react';
-import { HexColorPicker } from 'react-colorful';
+import { HexAlphaColorPicker, HexColorPicker } from 'react-colorful';
 
 /** Which surface the map belongs to: a layout's `theme`, or one element's `style`. */
 export type TokenScope = 'layout' | 'element';
@@ -98,6 +100,12 @@ export interface TokenPaneProps {
    * layout's value painting. Absent for a layout's own `theme`, which has nothing above it.
    */
   readonly inherited?: Readonly<Record<string, string>> | undefined;
+  /**
+   * For an element's `style`: which kind of element it is, so a token only other kinds read is left
+   * out — a chart is offered no placement, a readout not the text element's. Absent offers every
+   * token the scope allows.
+   */
+  readonly kind?: ElementKind | undefined;
   /** Set one token. Adds it if the document does not have it. */
   readonly onSet: (name: string, value: string) => void;
   /** Drop one token from the map. See the module comment on what that means for each tab. */
@@ -113,9 +121,24 @@ const TABS: readonly { readonly tab: Tab; readonly label: string; readonly hint:
     { tab: 'developer', label: 'Developer', hint: 'what this document holds' },
   ]);
 
-/** A `#rgb` or `#rrggbb` literal — the one token value shape a colour picker can drive. */
-export function isHexColor(value: string): boolean {
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value.trim());
+/**
+ * A `#rgb` or `#rrggbb` literal — the one token value shape a colour picker can drive — or, where the
+ * token carries alpha, `#rgba` and `#rrggbbaa` too.
+ *
+ * Alpha is accepted only where it is asked for. A plain picker handed `#1a2b3c80` would drop the pair
+ * on the first drag, so a non-alpha token holding one shows it as text rather than lose it.
+ */
+export function isHexColor(value: string, alpha = false): boolean {
+  const pattern = alpha
+    ? /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
+    : /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+  return pattern.test(value.trim());
+}
+
+/** A whole, non-negative count of layout pixels: what a pixel slider can hold. */
+function isPixelCount(value: string): boolean {
+  return /^\d+$/.test(value.trim());
 }
 
 /** A number with a unit, split — `['1.25', 'rem']` — or `undefined` for anything else. */
@@ -125,11 +148,37 @@ function splitLength(value: string): readonly [string, string] | undefined {
   return match === null ? undefined : [match[1] ?? '', match[2] ?? ''];
 }
 
-/** The tokens a surface can usefully set: an element cannot change what the canvas reads. */
-function tokensFor(scope: TokenScope): readonly string[] {
-  return PERCH_KNOWN_TOKENS.filter(
-    (name) => scope === 'layout' || PERCH_TOKEN_LABELS[name].scope === 'widget',
-  );
+/**
+ * The tokens a surface can usefully set: an element cannot change what the canvas reads, and is not
+ * offered a token that only other kinds of element read.
+ */
+function tokensFor(scope: TokenScope, kind: ElementKind | undefined): readonly string[] {
+  return PERCH_KNOWN_TOKENS.filter((name) => {
+    if (scope === 'layout') return true;
+
+    const entry = PERCH_TOKEN_LABELS[name];
+    if (entry.scope === 'canvas') return false;
+
+    return kind === undefined || entry.kinds === undefined || entry.kinds.includes(kind);
+  });
+}
+
+/**
+ * The sections in the order this surface shows them.
+ *
+ * An element's pane leads with its box — the background, corners, padding and placement an author
+ * selected one entity to change. The layout's theme keeps colour first, as it always has, and puts the
+ * box last: there it is a default for every entity at once, the least-touched thing on that pane.
+ */
+function groupsFor(
+  scope: TokenScope,
+): readonly { readonly group: TokenGroup; readonly title: string }[] {
+  if (scope === 'element') return TOKEN_GROUPS;
+
+  return [
+    ...TOKEN_GROUPS.filter((entry) => entry.group !== 'box'),
+    ...TOKEN_GROUPS.filter((entry) => entry.group === 'box'),
+  ];
 }
 
 /** The whole pane: a title, two tabs, and one panel. */
@@ -139,12 +188,13 @@ export function TokenPane({
   scope,
   tokens,
   inherited,
+  kind,
   onSet,
   onRemove,
 }: TokenPaneProps): ReactNode {
   const [tab, setTab] = useState<Tab>('customize');
   const base = `perch-token-pane-${id}`;
-  const known = tokensFor(scope);
+  const known = tokensFor(scope, kind);
   const overridden = known.filter((name) => tokens[name] !== undefined).length;
   const custom = Object.keys(tokens).filter((name) => tokenLabel(name) === undefined).length;
 
@@ -188,6 +238,7 @@ export function TokenPane({
         {tab === 'customize' ? (
           <CustomizeTab
             pane={id}
+            groups={groupsFor(scope)}
             tokens={tokens}
             inherited={inherited}
             known={known}
@@ -223,6 +274,7 @@ function rowTestId(pane: string, name: string): string {
 /** The vocabulary, grouped, with a type-appropriate control per token. */
 function CustomizeTab({
   pane,
+  groups,
   tokens,
   inherited,
   known,
@@ -230,6 +282,7 @@ function CustomizeTab({
   onRemove,
 }: {
   readonly pane: string;
+  readonly groups: readonly { readonly group: TokenGroup; readonly title: string }[];
   readonly tokens: Readonly<Record<string, string>>;
   readonly inherited: Readonly<Record<string, string>> | undefined;
   readonly known: readonly string[];
@@ -238,8 +291,8 @@ function CustomizeTab({
 }): ReactNode {
   return (
     <>
-      {TOKEN_GROUPS.map(({ group, title }) => {
-        const names = known.filter((name) => labelOf(name).group === group);
+      {groups.map(({ group, title }) => {
+        const names = inGroupOrder(known.filter((name) => labelOf(name).group === group));
         if (names.length === 0) return null;
 
         return (
@@ -262,6 +315,17 @@ function CustomizeTab({
       })}
     </>
   );
+}
+
+/**
+ * A section's rows in the order a person reads them: the box's own tokens — background, corners,
+ * padding — ahead of the placement a widget reads inside it. Otherwise declaration order, unchanged.
+ */
+function inGroupOrder(names: readonly string[]): readonly string[] {
+  return [
+    ...names.filter((name) => labelOf(name).scope === 'box'),
+    ...names.filter((name) => labelOf(name).scope !== 'box'),
+  ];
 }
 
 /** A known token's entry. Only called for names drawn from `PERCH_KNOWN_TOKENS`. */
@@ -400,11 +464,28 @@ function TokenControl({
   readonly onValue: (value: string) => void;
 }): ReactNode {
   switch (entry.control) {
-    case 'colour':
-      return isHexColor(value) ? (
-        <ColourControl id={id} label={label} value={value} onValue={onValue} />
+    case 'colour': {
+      const alpha = entry.alpha === true;
+
+      return isHexColor(value, alpha) ? (
+        <ColourControl id={id} label={label} value={value} alpha={alpha} onValue={onValue} />
       ) : (
         <ValueInput id={id} value={value} onValue={onValue} />
+      );
+    }
+
+    case 'pixels':
+      return isPixelCount(value) && entry.range !== undefined ? (
+        <PixelsControl
+          id={id}
+          label={label}
+          value={value.trim()}
+          min={entry.range.min}
+          max={entry.range.max}
+          onValue={onValue}
+        />
+      ) : (
+        <ValueInput id={id} value={value} onValue={onValue} numeric />
       );
 
     case 'length': {
@@ -438,7 +519,7 @@ function TokenControl({
         >
           {options.map((option) => (
             <option key={option} value={option}>
-              {option}
+              {entry.optionLabels?.[option] ?? option}
             </option>
           ))}
         </select>
@@ -509,25 +590,29 @@ function ColourControl({
   id,
   label,
   value,
+  alpha,
   onValue,
 }: {
   readonly id: string;
   readonly label: string;
   readonly value: string;
+  /** Whether the token carries an alpha pair, which decides the picker and the swatch backdrop. */
+  readonly alpha: boolean;
   readonly onValue: (value: string) => void;
 }): ReactNode {
   const [open, setOpen] = useState(false);
+  const Picker = alpha ? HexAlphaColorPicker : HexColorPicker;
 
   return (
     <div className="perch-editor-token-group">
       <div className="perch-editor-token">
         <button
           type="button"
-          className="perch-editor-swatch"
+          className={`perch-editor-swatch${alpha ? ' perch-editor-swatch--alpha' : ''}`}
           data-testid="perch-editor-swatch"
           aria-label={`${open ? 'hide' : 'show'} colour picker for ${label}`}
           aria-expanded={open}
-          style={{ background: value.trim() }}
+          style={swatchStyle(value, alpha)}
           onClick={() => {
             setOpen((shown) => !shown);
           }}
@@ -535,8 +620,78 @@ function ColourControl({
         <ValueInput id={id} value={value} onValue={onValue} />
       </div>
       {open ? (
-        <HexColorPicker className="perch-editor-colour" color={value.trim()} onChange={onValue} />
+        <Picker className="perch-editor-colour" color={value.trim()} onChange={onValue} />
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * A swatch's fill. For an alpha colour, the colour is laid over a checkerboard, because a translucent
+ * swatch over the pane's own dark grey is indistinguishable from an opaque darker colour — and the
+ * alpha is exactly what the author is looking at the swatch to judge.
+ */
+function swatchStyle(value: string, alpha: boolean): { background: string } {
+  const colour = value.trim();
+
+  return {
+    background: alpha
+      ? `linear-gradient(${colour}, ${colour}), repeating-conic-gradient(#6b7889 0 25%, #262c36 0 50%) 0 0 / 8px 8px`
+      : colour,
+  };
+}
+
+/**
+ * A whole number of layout pixels: a bounded slider and a number field, bound to one value.
+ *
+ * The slider is for feel, the field for an exact value, and both write the same unitless string — the
+ * spelling `ui-kit` multiplies into `px` on the scaled canvas, so `12` is twelve *layout* pixels and
+ * scales with the panel like the rects do. The field accepts a value past the slider's end, because
+ * the bound is a sensible range, not a rule the format makes; the slider then sits at its end.
+ *
+ * A native `<input type="range">`, so the arrow keys, Page Up/Down and Home/End work with no code
+ * here, and the field is `type="text"` for the reason `ValueInput` gives.
+ */
+function PixelsControl({
+  id,
+  label,
+  value,
+  min,
+  max,
+  onValue,
+}: {
+  readonly id: string;
+  readonly label: string;
+  readonly value: string;
+  readonly min: number;
+  readonly max: number;
+  readonly onValue: (value: string) => void;
+}): ReactNode {
+  return (
+    <div className="perch-editor-token perch-editor-token--pixels">
+      <input
+        className="perch-editor-slider"
+        type="range"
+        aria-label={`${label} slider`}
+        min={min}
+        max={max}
+        step={1}
+        value={value}
+        onChange={(event) => {
+          onValue(event.target.value);
+        }}
+      />
+      <input
+        id={id}
+        className="perch-editor-input perch-editor-input--number perch-editor-input--pixels"
+        type="text"
+        inputMode="numeric"
+        value={value}
+        onChange={(event) => {
+          onValue(event.target.value.trim());
+        }}
+      />
+      <span className="perch-editor-hint">layout px</span>
     </div>
   );
 }
@@ -740,11 +895,11 @@ function DeveloperRow({
       </div>
 
       <div className="perch-editor-token">
-        {isHexColor(value) ? (
+        {isHexColor(value, entry?.alpha === true) ? (
           <span
             className="perch-editor-swatch perch-editor-swatch--static"
             data-testid="perch-editor-swatch-static"
-            style={{ background: value.trim() }}
+            style={swatchStyle(value, entry?.alpha === true)}
           />
         ) : null}
         <ValueInput
@@ -1046,6 +1201,10 @@ export const TOKEN_PANE_STYLES = `
   white-space: nowrap;
 }
 .perch-editor-input--unit { flex: none; width: 4.5em; }
+.perch-editor-token--pixels { align-items: center; }
+.perch-editor-slider { flex: 1 1 auto; min-width: 0; accent-color: #8fb7e8; }
+.perch-editor-slider:focus-visible { outline: 2px solid #8fb7e8; outline-offset: 2px; }
+.perch-editor-input--pixels { flex: none; width: 4em; }
 .perch-editor-swatch--static { cursor: default; }
 .perch-editor-token--add { align-items: flex-end; margin-top: 4px; }
 `;

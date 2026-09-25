@@ -13,9 +13,9 @@
  * the widgets paint their waiting state, which is deterministic and enough to compare markup.
  */
 
-import { LAYOUT_SCHEMA_VERSION, type Layout } from '@perch/layout-schema';
+import { LAYOUT_SCHEMA_VERSION, loadLayoutJson, type Layout } from '@perch/layout-schema';
 import { createMockSource } from '@perch/sensor-sources';
-import { LayoutCanvas, SensorProvider } from '@perch/ui-kit';
+import { LayoutCanvas, SensorProvider, WIDGET_REGISTRY, tokenLabel } from '@perch/ui-kit';
 import { fireEvent, render, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { Editor, openLayoutByName } from './app.js';
@@ -84,6 +84,19 @@ function renderEditor(library = testLibrary()): {
       <Editor library={library} source={source} topics={source.topics} transport={transport} />,
     ),
   };
+}
+
+/**
+ * Select an element through the list, which is how a test says "the author picked this one".
+ *
+ * Needed since the editor opens with nothing selected: the Global group is the first thing an author
+ * sees, and an element's fields appear only once one is chosen.
+ */
+function selectElement(result: ReturnType<typeof render>, index: number): void {
+  const list = within(result.getByTestId('perch-editor-elements')).getAllByRole('button');
+  const button = list[index];
+  if (button === undefined) throw new Error(`no element ${index} in the list`);
+  fireEvent.click(button);
 }
 
 /** The picker. `getByLabelText` returns the `<select>` because the label wraps it. */
@@ -171,6 +184,7 @@ describe('switching layouts', () => {
   it('parks the switch rather than discarding unsaved edits', () => {
     const { result } = renderEditor();
 
+    selectElement(result, 0);
     fireEvent.change(result.getByLabelText('w'), { target: { value: '150' } });
     fireEvent.change(picker(result), { target: { value: 'tower-test' } });
 
@@ -187,6 +201,7 @@ describe('switching layouts', () => {
 describe('editing a field', () => {
   it('moves the preview and offers the save', () => {
     const { result } = renderEditor();
+    selectElement(result, 0);
 
     fireEvent.change(result.getByLabelText('w'), { target: { value: '150' } });
 
@@ -200,6 +215,7 @@ describe('editing a field', () => {
   it('writes the document through the transport and reports the path', async () => {
     const { result, calls } = renderEditor();
 
+    selectElement(result, 0);
     fireEvent.change(result.getByLabelText('w'), { target: { value: '150' } });
     fireEvent.click(result.getByTestId('perch-editor-save'));
 
@@ -218,6 +234,7 @@ describe('an edit the runtime would reject', () => {
   it('shows the problem with its field path, and refuses the save', () => {
     const { result, calls } = renderEditor();
 
+    selectElement(result, 0);
     fireEvent.change(result.getByLabelText('w'), { target: { value: '0' } });
 
     expect(result.getByTestId('perch-editor-problem-text').textContent).toContain(
@@ -232,6 +249,7 @@ describe('an edit the runtime would reject', () => {
   it('holds the preview on the last document that validated, and says it is holding', () => {
     const { result } = renderEditor();
 
+    selectElement(result, 0);
     fireEvent.change(result.getByLabelText('w'), { target: { value: '150' } });
     fireEvent.change(result.getByLabelText('w'), { target: { value: '0' } });
 
@@ -250,6 +268,7 @@ describe('an edit the runtime would reject', () => {
   it('recovers when the field is fixed', () => {
     const { result } = renderEditor();
 
+    selectElement(result, 0);
     fireEvent.change(result.getByLabelText('w'), { target: { value: '0' } });
     fireEvent.change(result.getByLabelText('w'), { target: { value: '220' } });
 
@@ -325,5 +344,167 @@ describe('the preview renders what the runtime renders', () => {
     expect(canvas.getAttribute('data-perch-canvas-width')).toBe('640');
     expect(canvas.getAttribute('style')).toContain('width: 640px');
     expect(canvas.getAttribute('style')).toContain('scale(');
+  });
+});
+
+/** A token's label, looked up by name. `undefined` names itself, so a missing label fails its own test. */
+function labelFor(name: string): string {
+  return tokenLabel(name)?.label ?? name;
+}
+
+/**
+ * The sidebar, as two groups: what belongs to the whole layout, and what belongs to the one entity an
+ * author is pointing at.
+ */
+describe('the Global and Selected-entity groups', () => {
+  /** A layout whose theme and whose one readout both set a box background, and a media element. */
+  function boxLibrary(): LayoutLibrary {
+    const layout: Layout = {
+      schemaVersion: LAYOUT_SCHEMA_VERSION,
+      target: { width: 640, height: 200, frameRate: 30 },
+      theme: { '--perch-box-bg': '#10131880', '--perch-box-padding': '8' },
+      elements: [
+        { kind: 'media', src: 'missing.svg', rect: { x: 0, y: 0, w: 640, h: 200 } },
+        {
+          kind: 'widget',
+          widget: 'readout',
+          topic: 'sensors/cpu/0/temperature/0',
+          rect: { x: 10, y: 10, w: 214, h: 150 },
+          style: { '--perch-box-bg': '#ff000080' },
+        },
+      ],
+    };
+
+    return createLayoutLibrary({ layouts: { 'box-test': JSON.stringify(layout) }, invalid: {} });
+  }
+
+  const BOX_BG = labelFor('--perch-box-bg');
+  const PADDING = labelFor('--perch-box-padding');
+
+  it('opens with nothing selected, and shows both groups', () => {
+    const { result } = renderEditor();
+    const global = result.getByRole('region', { name: 'Global' });
+    const entity = result.getByRole('region', { name: 'Selected entity' });
+
+    // Layout-wide things live in Global: the target, and the theme with its two tabs.
+    expect(within(global).getByLabelText('width')).toBeInTheDocument();
+    expect(within(global).getByRole('tab', { name: /customize/i })).toBeInTheDocument();
+    // Nothing is selected, so there is no element's rect to show, and the group says how to pick one.
+    expect(within(entity).queryByLabelText('w')).toBeNull();
+    expect(within(entity).getByText(/nothing selected/i)).toBeInTheDocument();
+    expect(result.container.querySelector('.perch-editor-handle--selected')).toBeNull();
+  });
+
+  it("puts the selected entity's rect, binding and box in its own group", () => {
+    const { result } = renderEditor();
+
+    selectElement(result, 1);
+    const entity = result.getByRole('region', { name: 'Selected entity' });
+
+    expect(within(entity).getByLabelText('w')).toHaveValue('180');
+    expect(within(entity).getByLabelText('topic')).toHaveValue('sensors/cpu/0/temperature/0');
+    expect(
+      within(entity).getByTestId('perch-editor-token-style-1---perch-box-padding'),
+    ).toBeVisible();
+    // And none of it leaks into Global.
+    expect(within(result.getByRole('region', { name: 'Global' })).queryByLabelText('w')).toBeNull();
+  });
+
+  it('selects an entity when it is pressed on the canvas', () => {
+    const { result } = renderEditor();
+    const handle = result.container.querySelector('[data-perch-handle-index="1"]')?.parentElement;
+    if (!(handle instanceof HTMLElement)) throw new Error('no handle for element 1');
+
+    fireEvent.mouseDown(handle, { button: 0, clientX: 20, clientY: 20 });
+    fireEvent.mouseUp(handle, { button: 0, clientX: 20, clientY: 20 });
+
+    expect(
+      within(result.getByRole('region', { name: 'Selected entity' })).getByLabelText('topic'),
+    ).toBeInTheDocument();
+  });
+
+  it('deselects when the empty canvas is clicked, or from the group itself', () => {
+    const { result } = renderEditor();
+
+    selectElement(result, 1);
+    fireEvent.click(result.getByTestId('perch-editor-preview'));
+    expect(result.queryByLabelText('w')).toBeNull();
+
+    selectElement(result, 1);
+    fireEvent.click(result.getByRole('button', { name: /^deselect/i }));
+    expect(result.queryByLabelText('w')).toBeNull();
+  });
+
+  it('tells a media entity why it has no box controls, rather than showing ones that do nothing', () => {
+    const { result } = renderEditor(boxLibrary());
+
+    selectElement(result, 0);
+    const entity = result.getByRole('region', { name: 'Selected entity' });
+
+    expect(within(entity).getByLabelText('src')).toBeInTheDocument();
+    expect(within(entity).queryByText(BOX_BG)).toBeNull();
+    expect(within(entity).getByText(/media element carries no style/i)).toBeInTheDocument();
+  });
+
+  it('resets an entity row to the layout theme value, and the canvas paints the inherited value', async () => {
+    const { result, calls } = renderEditor(boxLibrary());
+
+    selectElement(result, 1);
+    const bg = result.getByTestId('perch-editor-token-style-1---perch-box-bg');
+    // The inheriting padding row has no reset; the locally set background does.
+    expect(
+      within(result.getByTestId('perch-editor-token-style-1---perch-box-padding')).queryByRole(
+        'button',
+        { name: /reset/i },
+      ),
+    ).toBeNull();
+    const reset = within(bg).getByRole('button', {
+      name: `reset ${BOX_BG} to the layout theme value #10131880`,
+    });
+
+    fireEvent.click(reset);
+
+    // The key is gone from the entity's style, so its box carries no background of its own and the
+    // theme's value, set on the canvas, is what the custom property inherits.
+    const box = canvasOf(result).querySelector('[data-perch-element-index="1"]');
+    expect(box?.getAttribute('style')).not.toContain('--perch-box-bg');
+    expect(canvasOf(result).getAttribute('style')).toContain('--perch-box-bg: #10131880');
+
+    fireEvent.click(result.getByTestId('perch-editor-save'));
+    await result.findByText('saved layouts/box-test.json');
+    const saved = JSON.parse(calls[0]?.body ?? '{}') as Layout;
+    expect(
+      saved.elements[1]?.kind === 'widget' ? saved.elements[1].style : 'wrong kind',
+    ).toBeUndefined();
+  });
+
+  it('saves a translucent background and a padding that load back unchanged', async () => {
+    const { result, calls } = renderEditor(boxLibrary());
+
+    selectElement(result, 1);
+    fireEvent.change(
+      within(result.getByTestId('perch-editor-token-style-1---perch-box-bg')).getByLabelText(
+        BOX_BG,
+      ),
+      { target: { value: '#1a2b3c80' } },
+    );
+    fireEvent.change(
+      within(result.getByTestId('perch-editor-token-style-1---perch-box-padding')).getByRole(
+        'textbox',
+        { name: new RegExp(PADDING, 'i') },
+      ),
+      { target: { value: '12' } },
+    );
+    fireEvent.click(result.getByTestId('perch-editor-save'));
+    await result.findByText('saved layouts/box-test.json');
+
+    const reloaded = loadLayoutJson(calls[0]?.body ?? '', { widgets: WIDGET_REGISTRY });
+    expect(reloaded.ok).toBe(true);
+    if (!reloaded.ok) return;
+    const element = reloaded.layout.elements[1];
+    expect(element?.kind === 'widget' ? element.style : undefined).toEqual({
+      '--perch-box-bg': '#1a2b3c80',
+      '--perch-box-padding': '12',
+    });
   });
 });

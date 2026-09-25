@@ -2,7 +2,7 @@
  * What each token *means*, in words a person who is not holding this file can read.
  *
  * `tokens.ts` declares the widget vocabulary and `layout-canvas.tsx` the canvas' own two; between them
- * they are the 31 custom properties a layout's `theme` can set to any effect. Neither says
+ * they are the 36 custom properties a layout's `theme` can set to any effect. Neither says
  * `--perch-faint` is "the colour of a placeholder" anywhere a program can reach — the sentence exists,
  * but as a doc comment, which is to say as something only a reader of this package ever sees.
  *
@@ -38,6 +38,7 @@
  * expected to say "no label" rather than to invent one or to hide the row.
  */
 
+import type { ElementKind } from '@perch/layout-schema';
 import { CANVAS_TOKEN_DEFAULTS, type CanvasToken } from './layout-canvas.js';
 import { PERCH_TOKEN_DEFAULTS, type PerchToken } from './tokens.js';
 
@@ -47,18 +48,24 @@ export type KnownToken = PerchToken | CanvasToken;
 /**
  * The kind of control a token's values want.
  *
- * Five, not one per token and not one for all: `colour` is a hex literal a picker can drive, `length`
- * is a number with a unit, `number` is unitless (a weight, an opacity, a line height), `choice` is a
- * vocabulary closed in CSS itself, and `text` is everything that is legitimately open — a font stack,
- * and `letter-spacing`, which is a length *or* the keyword `normal`.
+ * Six, not one per token and not one for all: `colour` is a hex literal a picker can drive, `length`
+ * is a number with a unit, `number` is unitless (a weight, an opacity, a line height), `pixels` is a
+ * unitless whole count of layout pixels with a bounded `range` (a slider and a number, paired),
+ * `choice` is a vocabulary closed in CSS itself, and `text` is everything that is legitimately open — a
+ * font stack, and `letter-spacing`, which is a length *or* the keyword `normal`.
  */
-export type TokenControl = 'colour' | 'length' | 'number' | 'choice' | 'text';
+export type TokenControl = 'colour' | 'length' | 'number' | 'pixels' | 'choice' | 'text';
 
-/** Which pane section a token belongs in. */
-export type TokenGroup = 'colour' | 'type' | 'layout';
+/** Which pane section a token belongs in. `box` is the element box: background, corners, placement. */
+export type TokenGroup = 'box' | 'colour' | 'type' | 'layout';
 
-/** Where a token is read, and therefore which surface can usefully set it. */
-export type TokenScope = 'canvas' | 'widget';
+/**
+ * Where a token is read, and therefore which surface can usefully set it.
+ *
+ * `box` is the element's own box — `.perch-element`, one per entity — which an element's `style` sets
+ * directly and a layout's `theme` sets for every styled entity at once, by inheritance.
+ */
+export type TokenScope = 'canvas' | 'box' | 'widget';
 
 /** One token, described for a person. */
 export interface TokenLabel {
@@ -77,9 +84,40 @@ export interface TokenLabel {
   readonly scope: TokenScope;
   /** For `choice`: the whole vocabulary, in the order a pane should offer it. */
   readonly options?: readonly string[];
+  /**
+   * For `choice`: what to call each option, where the CSS spelling is not what a person would say.
+   * `flex-start` is how the value is written; `left` is what it does.
+   */
+  readonly optionLabels?: Readonly<Record<string, string>>;
   /** For `length`: the units worth offering. The token's own default unit is always among them. */
   readonly units?: readonly string[];
+  /** For `pixels`: the slider's bounds, in layout pixels. A typed value may go past them. */
+  readonly range?: { readonly min: number; readonly max: number };
+  /** For `colour`: whether the value carries an alpha pair (`#rrggbbaa`). */
+  readonly alpha?: true;
+  /**
+   * The element kinds whose rendering reads this token, for a token only some kinds read.
+   *
+   * Absent means every styled kind. Present only where offering the token to the other kinds would be
+   * a control that does nothing — placement, which a readout and a text element each read under their
+   * own name and a chart does not read at all, because its plot fills its box by arithmetic.
+   */
+  readonly kinds?: readonly ElementKind[];
 }
+
+/** Placement across, for a readout: the `start | center | end` spelling, said as a direction. */
+const ACROSS: Readonly<Record<string, string>> = Object.freeze({
+  start: 'left',
+  center: 'centre',
+  end: 'right',
+});
+
+/** Placement down, for a readout. */
+const DOWN: Readonly<Record<string, string>> = Object.freeze({
+  start: 'top',
+  center: 'middle',
+  end: 'bottom',
+});
 
 /** The units a length control offers. `rem` first: every default in this package is written in it. */
 const LENGTH_UNITS: readonly string[] = Object.freeze(['rem', 'px', 'em', '%']);
@@ -87,11 +125,13 @@ const LENGTH_UNITS: readonly string[] = Object.freeze(['rem', 'px', 'em', '%']);
 /**
  * The sections, in the order a pane should show them.
  *
- * Colour first because it is what an author came to change; then type, then placement — which is
- * roughly how often each is touched, and also how much of the dashboard each one moves.
+ * The entity's own box first — its background, corners, padding and placement, which is what an
+ * author selecting one entity came to change — then colour, type and placement, roughly in order of
+ * how often each is touched. A pane may reorder them for its surface; see `token-pane.tsx`.
  */
 export const TOKEN_GROUPS: readonly { readonly group: TokenGroup; readonly title: string }[] =
   Object.freeze([
+    { group: 'box', title: 'box' },
     { group: 'colour', title: 'colour' },
     { group: 'type', title: 'type' },
     { group: 'layout', title: 'placement' },
@@ -246,17 +286,31 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     label: 'Text placement, across',
     description: 'Where the text sits horizontally inside its own rectangle.',
     control: 'choice',
-    group: 'layout',
+    group: 'box',
     scope: 'widget',
     options: Object.freeze(['flex-start', 'center', 'flex-end', 'space-between']),
+    optionLabels: Object.freeze({
+      'flex-start': 'left',
+      center: 'centre',
+      'flex-end': 'right',
+      'space-between': 'spread',
+    }),
+    kinds: Object.freeze(['text'] as const),
   },
   '--perch-text-anchor': {
     label: 'Text placement, down',
     description: 'Where the text sits vertically inside its own rectangle.',
     control: 'choice',
-    group: 'layout',
+    group: 'box',
     scope: 'widget',
     options: Object.freeze(['flex-start', 'center', 'flex-end', 'stretch']),
+    optionLabels: Object.freeze({
+      'flex-start': 'top',
+      center: 'middle',
+      'flex-end': 'bottom',
+      stretch: 'fill',
+    }),
+    kinds: Object.freeze(['text'] as const),
   },
   '--perch-text-align': {
     label: 'Text line alignment',
@@ -265,6 +319,27 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     group: 'layout',
     scope: 'widget',
     options: Object.freeze(['left', 'center', 'right', 'justify']),
+  },
+
+  '--perch-readout-justify': {
+    label: 'Readout placement, across',
+    description: 'Where the number, unit and caption sit horizontally inside the readout box.',
+    control: 'choice',
+    group: 'box',
+    scope: 'widget',
+    options: Object.freeze(['start', 'center', 'end']),
+    optionLabels: ACROSS,
+    kinds: Object.freeze(['widget'] as const),
+  },
+  '--perch-readout-anchor': {
+    label: 'Readout placement, down',
+    description: 'Where the number, unit and caption sit vertically inside the readout box.',
+    control: 'choice',
+    group: 'box',
+    scope: 'widget',
+    options: Object.freeze(['start', 'center', 'end']),
+    optionLabels: DOWN,
+    kinds: Object.freeze(['widget'] as const),
   },
 
   '--perch-media-opacity': {
@@ -327,6 +402,33 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     group: 'type',
     scope: 'widget',
     units: LENGTH_UNITS,
+  },
+
+  '--perch-box-bg': {
+    label: 'Background',
+    description:
+      'Behind this entity, filling its rectangle. The last hex pair is opacity: 00 clear, ff solid.',
+    control: 'colour',
+    group: 'box',
+    scope: 'box',
+    alpha: true,
+  },
+  '--perch-box-radius': {
+    label: 'Corner radius',
+    description: 'How round the rectangle’s corners are, in layout pixels. Scales with the panel.',
+    control: 'pixels',
+    group: 'box',
+    scope: 'box',
+    range: Object.freeze({ min: 0, max: 64 }),
+  },
+  '--perch-box-padding': {
+    label: 'Padding',
+    description:
+      'Space inside the rectangle’s edge, in layout pixels. The rectangle keeps its size; the content shrinks.',
+    control: 'pixels',
+    group: 'box',
+    scope: 'box',
+    range: Object.freeze({ min: 0, max: 48 }),
   },
 
   '--perch-canvas-bg': {

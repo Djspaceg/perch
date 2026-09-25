@@ -12,6 +12,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { ELEMENT_BOX_STYLES } from './layout-canvas.js';
 import { LINE_CHART_STYLES } from './line-chart.js';
 import { MEDIA_FRAME_STYLES } from './media-frame.js';
 import { READOUT_STYLES } from './readout.js';
@@ -24,6 +25,8 @@ const SHEETS: Readonly<Record<string, string>> = {
   TEXT_BLOCK_STYLES,
   MEDIA_FRAME_STYLES,
   LINE_CHART_STYLES,
+  // The element box is a sheet too: it is where the box tokens are read, once per element.
+  ELEMENT_BOX_STYLES,
 };
 
 const ALL_SHEETS = Object.values(SHEETS).join('\n');

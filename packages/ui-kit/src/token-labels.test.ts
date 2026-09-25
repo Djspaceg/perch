@@ -36,6 +36,12 @@ const DECLARED: readonly string[] = [
 /** A `#rgb` or `#rrggbb` literal: what a hex colour control can drive. */
 const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
+/** An `#rrggbbaa` or `#rgba` literal: what an alpha-capable colour control can drive. */
+const HEX_ALPHA = /^#([0-9a-fA-F]{4}|[0-9a-fA-F]{8})$/;
+
+/** The tokens read by each element's own box, rather than by the canvas or a widget. */
+const BOX_TOKENS = new Set<string>(['--perch-box-bg', '--perch-box-radius', '--perch-box-padding']);
+
 /** A number with a CSS length unit, which is all the length control claims to parse. */
 const LENGTH = /^(-?(?:\d+\.?\d*|\.\d+))([a-z%]+)$/;
 
@@ -79,8 +85,69 @@ describe('the labels table', () => {
       expect(PERCH_TOKEN_LABELS[name].scope, name).toBe('canvas');
     }
     for (const name of Object.keys(PERCH_TOKEN_DEFAULTS) as KnownToken[]) {
-      expect(PERCH_TOKEN_LABELS[name].scope, name).toBe('widget');
+      // The box tokens are read by each element's own box rather than by a widget inside it, and an
+      // element pane can set them: a third level, neither the canvas nor a widget.
+      expect(PERCH_TOKEN_LABELS[name].scope, name).toBe(BOX_TOKENS.has(name) ? 'box' : 'widget');
     }
+  });
+
+  it('marks exactly the element-box tokens as box-scoped, in the box group', () => {
+    const boxScoped = PERCH_KNOWN_TOKENS.filter((name) => PERCH_TOKEN_LABELS[name].scope === 'box');
+
+    expect(new Set(boxScoped)).toEqual(BOX_TOKENS);
+    for (const name of boxScoped) expect(PERCH_TOKEN_LABELS[name].group, name).toBe('box');
+  });
+
+  it('gives the box background an alpha channel and nothing else one', () => {
+    for (const name of PERCH_KNOWN_TOKENS) {
+      expect(PERCH_TOKEN_LABELS[name].alpha === true, name).toBe(name === '--perch-box-bg');
+    }
+  });
+
+  it('bounds every pixel slider, and puts its default inside the bounds', () => {
+    for (const name of PERCH_KNOWN_TOKENS) {
+      const entry = PERCH_TOKEN_LABELS[name];
+      if (entry.control !== 'pixels') {
+        expect(entry.range, name).toBeUndefined();
+        continue;
+      }
+
+      const range = entry.range;
+      expect(range, name).toBeDefined();
+      const value = Number(knownTokenDefault(name));
+      expect(Number.isInteger(value), name).toBe(true);
+      expect(value, name).toBeGreaterThanOrEqual(range?.min ?? Infinity);
+      expect(value, name).toBeLessThanOrEqual(range?.max ?? -Infinity);
+    }
+    expect(PERCH_TOKEN_LABELS['--perch-box-radius'].range).toEqual({ min: 0, max: 64 });
+    expect(PERCH_TOKEN_LABELS['--perch-box-padding'].range).toEqual({ min: 0, max: 48 });
+  });
+
+  it('says which element kinds read an alignment, so a kind it means nothing to is not offered it', () => {
+    expect(PERCH_TOKEN_LABELS['--perch-readout-justify'].kinds).toEqual(['widget']);
+    expect(PERCH_TOKEN_LABELS['--perch-readout-anchor'].kinds).toEqual(['widget']);
+    expect(PERCH_TOKEN_LABELS['--perch-text-justify'].kinds).toEqual(['text']);
+    expect(PERCH_TOKEN_LABELS['--perch-text-anchor'].kinds).toEqual(['text']);
+    // No alignment is offered to a chart at all: its plot fills the box by arithmetic.
+    for (const name of PERCH_KNOWN_TOKENS) {
+      expect(PERCH_TOKEN_LABELS[name].kinds ?? [], name).not.toContain('chart');
+    }
+  });
+
+  it('names every option of a closed vocabulary that carries option labels', () => {
+    for (const name of PERCH_KNOWN_TOKENS) {
+      const entry = PERCH_TOKEN_LABELS[name];
+      if (entry.optionLabels === undefined) continue;
+
+      expect(Object.keys(entry.optionLabels).sort(), name).toEqual(
+        [...(entry.options ?? [])].sort(),
+      );
+    }
+    expect(PERCH_TOKEN_LABELS['--perch-readout-justify'].optionLabels).toEqual({
+      start: 'left',
+      center: 'centre',
+      end: 'right',
+    });
   });
 
   it('gives each token a control that can hold the default this package ships', () => {
@@ -93,7 +160,10 @@ describe('the labels table', () => {
 
       switch (entry.control) {
         case 'colour':
-          expect(declared, name).toMatch(HEX);
+          expect(declared, name).toMatch(entry.alpha === true ? HEX_ALPHA : HEX);
+          break;
+        case 'pixels':
+          expect(declared, name).toMatch(/^\d+$/);
           break;
         case 'length':
           expect(declared, name).toMatch(LENGTH);

@@ -60,7 +60,7 @@ import type { Rect } from '@perch/layout-schema';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { CANVAS_HANDLES_STYLES } from './canvas-handles.js';
 import { canSave, draftSaved, editDraft, isDirty, openDraft, type DraftState } from './draft.js';
-import { INSPECTOR_STYLES, Inspector } from './inspector.js';
+import { INSPECTOR_STYLES, Inspector, NOTHING_SELECTED } from './inspector.js';
 import type { LayoutLibrary } from './layout-library.js';
 import { setElementRect, type LayoutUpdate } from './layout-edits.js';
 import { LAYOUT_PROBLEMS_STYLES, LayoutProblems } from './problems.js';
@@ -242,7 +242,8 @@ function EditorShell({
   const firstName = initialLayout ?? library.names[0] ?? '';
 
   const [opened, setOpened] = useState<Opened>(() => openLayoutByName(library, firstName));
-  const [selected, setSelected] = useState(0);
+  /** Nothing, until the author picks something: see `inspector.tsx` for why not element 0. */
+  const [selected, setSelected] = useState(NOTHING_SELECTED);
   /** A switch waiting on the author's decision about unsaved edits. `null` when there is none. */
   const [pendingName, setPendingName] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
@@ -251,7 +252,7 @@ function EditorShell({
   const open = useCallback(
     (name: string) => {
       setOpened(openLayoutByName(library, name));
-      setSelected(0);
+      setSelected(NOTHING_SELECTED);
       setPendingName(null);
       setNotice('');
     },

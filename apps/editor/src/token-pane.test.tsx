@@ -2,7 +2,7 @@
  * The two tabs, and the one thing they must never do: lie about what a value is.
  *
  * A token map in a layout is a map of *overrides*. Every token already has a value — `ui-kit` declares
- * one for each of the 31 it knows — so a row in this pane is never "empty" and "remove" never deletes
+ * one for each of the 36 it knows — so a row in this pane is never "empty" and "remove" never deletes
  * a design token. The tests below are written against that reading, because it is the whole shape of
  * the pane:
  *
@@ -31,8 +31,8 @@
  * row — are asserted, because the two diverging is how one pane starts reading as a different product.
  */
 
-import { PERCH_TOKEN_LABELS } from '@perch/ui-kit';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { PERCH_TOKEN_LABELS, tokenLabel } from '@perch/ui-kit';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { TokenPane } from './token-pane.js';
 
@@ -114,7 +114,7 @@ describe('the Customize tab', () => {
     // pane where the only way to reach a token is to already have set it.
     expect(row('--perch-fg')).toBeInTheDocument();
     expect(row('--perch-dim')).toBeInTheDocument();
-    expect(screen.getAllByTestId(/^perch-editor-token-test---perch-/)).toHaveLength(31);
+    expect(screen.getAllByTestId(/^perch-editor-token-test---perch-/)).toHaveLength(36);
   });
 
   it('makes the label the primary text and keeps the token name out of the way', () => {
@@ -502,5 +502,223 @@ describe('an element style map under a layout theme', () => {
 
     const remove = within(row('--perch-fg')).getByRole('button', { name: /^remove this layout/i });
     expect(remove).toHaveAccessibleName(expect.stringContaining('layout theme value #e8f1ff'));
+  });
+});
+
+/** A token's label, looked up by name. `undefined` names itself, so a missing label fails its own test. */
+function labelFor(name: string): string {
+  return tokenLabel(name)?.label ?? name;
+}
+
+/**
+ * The element box rows: background with alpha, corners, padding, and placement.
+ *
+ * They are ordinary rows of this same pane — the row component, the reset, the inherited-value wording
+ * and the Developer tab all come with them — so what is tested here is only what is new: the kind
+ * filter, the paired slider and number, the alpha colour, and that the reset on a box row names the
+ * value it actually returns to.
+ */
+describe('the element box rows', () => {
+  const BOX_BG = labelFor('--perch-box-bg');
+  const RADIUS = labelFor('--perch-box-radius');
+  const PADDING = labelFor('--perch-box-padding');
+
+  function renderElementPane(
+    tokens: Readonly<Record<string, string>>,
+    kind: 'widget' | 'text' | 'chart',
+    inherited?: Readonly<Record<string, string>>,
+  ): Edits {
+    const edits: Edits = { set: [], removed: [] };
+
+    render(
+      <TokenPane
+        id="test"
+        title="style"
+        scope="element"
+        kind={kind}
+        inherited={inherited}
+        tokens={tokens}
+        onSet={(name, value) => {
+          edits.set.push([name, value]);
+        }}
+        onRemove={(name) => {
+          edits.removed.push(name);
+        }}
+      />,
+    );
+
+    return edits;
+  }
+
+  const has = (name: string): boolean =>
+    screen.queryByTestId(`perch-editor-token-test-${name}`) !== null;
+
+  it('leads an element pane with the box group, ahead of colour', () => {
+    renderElementPane({}, 'widget');
+    const titles = screen.getAllByRole('heading', { level: 4 }).map((h) => h.textContent);
+
+    expect(titles[0]).toBe('box');
+    expect(titles[1]).toBe('colour');
+    // Inside it, the box's own rows first, then the placement a widget reads inside the box.
+    const rows = screen
+      .getAllByTestId(/^perch-editor-token-test-/)
+      .slice(0, 5)
+      .map((el) => el.getAttribute('data-testid')?.replace('perch-editor-token-test-', ''));
+    expect(rows).toEqual([
+      '--perch-box-bg',
+      '--perch-box-radius',
+      '--perch-box-padding',
+      '--perch-readout-justify',
+      '--perch-readout-anchor',
+    ]);
+  });
+
+  it('offers every styled kind a background, corners and padding', () => {
+    for (const kind of ['widget', 'text', 'chart'] as const) {
+      renderElementPane({}, kind);
+      expect(has('--perch-box-bg'), kind).toBe(true);
+      expect(has('--perch-box-radius'), kind).toBe(true);
+      expect(has('--perch-box-padding'), kind).toBe(true);
+      cleanup();
+    }
+  });
+
+  it('offers a readout its own placement, and not the text element one', () => {
+    renderElementPane({}, 'widget');
+
+    expect(has('--perch-readout-justify')).toBe(true);
+    expect(has('--perch-readout-anchor')).toBe(true);
+    expect(has('--perch-text-justify')).toBe(false);
+    expect(has('--perch-text-anchor')).toBe(false);
+  });
+
+  it('offers a text element exactly one placement pair: its own', () => {
+    renderElementPane({}, 'text');
+
+    expect(has('--perch-text-justify')).toBe(true);
+    expect(has('--perch-text-anchor')).toBe(true);
+    expect(has('--perch-readout-justify')).toBe(false);
+    expect(has('--perch-readout-anchor')).toBe(false);
+  });
+
+  it('offers a chart no placement at all, because its plot fills the box', () => {
+    renderElementPane({}, 'chart');
+
+    for (const name of [
+      '--perch-readout-justify',
+      '--perch-readout-anchor',
+      '--perch-text-justify',
+      '--perch-text-anchor',
+    ]) {
+      expect(has(name), name).toBe(false);
+    }
+  });
+
+  it('names the placement options for a person, and writes the CSS value', () => {
+    const edits = renderElementPane({}, 'widget');
+    const select = within(row('--perch-readout-justify')).getByRole('combobox');
+
+    expect([...(select as HTMLSelectElement).options].map((o) => [o.value, o.textContent])).toEqual(
+      [
+        ['start', 'left'],
+        ['center', 'centre'],
+        ['end', 'right'],
+      ],
+    );
+
+    fireEvent.change(select, { target: { value: 'center' } });
+    expect(edits.set).toEqual([['--perch-readout-justify', 'center']]);
+  });
+
+  it('pairs each pixel slider with a number field, both writing the same unitless value', () => {
+    const edits = renderElementPane({ '--perch-box-padding': '12' }, 'widget');
+    const padding = row('--perch-box-padding');
+    const slider = within(padding).getByRole('slider', { name: new RegExp(PADDING, 'i') });
+    const field = within(padding).getByRole('textbox', { name: new RegExp(PADDING, 'i') });
+
+    expect(slider).toHaveAttribute('min', '0');
+    expect(slider).toHaveAttribute('max', '48');
+    expect(slider).toHaveValue('12');
+    expect(field).toHaveValue('12');
+
+    fireEvent.change(slider, { target: { value: '20' } });
+    fireEvent.change(field, { target: { value: '7' } });
+    expect(edits.set).toEqual([
+      ['--perch-box-padding', '20'],
+      ['--perch-box-padding', '7'],
+    ]);
+  });
+
+  it('says the unit is layout pixels, next to the slider', () => {
+    renderElementPane({}, 'widget');
+
+    expect(within(row('--perch-box-radius')).getByText('layout px')).toBeInTheDocument();
+    expect(
+      within(row('--perch-box-radius')).getByRole('slider', { name: new RegExp(RADIUS, 'i') }),
+    ).toHaveAttribute('max', '64');
+  });
+
+  it('holds an alpha colour as #rrggbbaa, with the swatch first and an alpha picker behind it', () => {
+    renderElementPane({ '--perch-box-bg': '#1a2b3c80' }, 'widget');
+    const bg = row('--perch-box-bg');
+    const swatch = within(bg).getByRole('button', { name: new RegExp(`colour picker.*${BOX_BG}`) });
+
+    expect(within(bg).getByLabelText(BOX_BG)).toHaveValue('#1a2b3c80');
+    expect(precedes(swatch, within(bg).getByLabelText(BOX_BG))).toBe(true);
+
+    fireEvent.click(swatch);
+    // react-colorful's alpha picker renders an alpha slider; the plain picker has none.
+    expect(within(bg).getByRole('slider', { name: /alpha/i })).toBeInTheDocument();
+  });
+
+  it('shows the default transparent background as a colour it can hold, not as a text fallback', () => {
+    renderElementPane({}, 'widget');
+
+    expect(within(row('--perch-box-bg')).getByLabelText(BOX_BG)).toHaveValue('#00000000');
+    expect(
+      within(row('--perch-box-bg')).getByRole('button', { name: /colour picker/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('offers a reset only on a row the entity sets itself', () => {
+    renderElementPane({ '--perch-box-radius': '12' }, 'widget', {
+      '--perch-box-radius': '6',
+      '--perch-box-padding': '8',
+    });
+
+    expect(
+      within(row('--perch-box-radius')).getByRole('button', { name: /^reset/i }),
+    ).toBeVisible();
+    // Inheriting rows have nothing to reset, and say where their value comes from.
+    expect(within(row('--perch-box-padding')).queryByRole('button', { name: /reset/i })).toBeNull();
+    expect(within(row('--perch-box-padding')).getByText('from the layout theme')).toBeVisible();
+    expect(within(row('--perch-box-bg')).queryByRole('button', { name: /reset/i })).toBeNull();
+    expect(within(row('--perch-box-bg')).getByText('default')).toBeVisible();
+  });
+
+  it('names the inherited value in the reset, not the package default', () => {
+    const edits = renderElementPane(
+      { '--perch-box-bg': '#ff000080', '--perch-box-padding': '20' },
+      'widget',
+      { '--perch-box-bg': '#10131880' },
+    );
+    const bgReset = within(row('--perch-box-bg')).getByRole('button', { name: /^reset/i });
+    const padReset = within(row('--perch-box-padding')).getByRole('button', { name: /^reset/i });
+
+    expect(bgReset).toHaveAccessibleName(`reset ${BOX_BG} to the layout theme value #10131880`);
+    expect(bgReset).toHaveAttribute('title', bgReset.getAttribute('aria-label'));
+    expect(padReset).toHaveAccessibleName(`reset ${PADDING} to the ui-kit default 0`);
+
+    fireEvent.click(bgReset);
+    expect(edits.removed).toEqual(['--perch-box-bg']);
+  });
+
+  it('keeps the red-cross delete for a custom token on an entity, with nothing to inherit', () => {
+    renderElementPane({ '--brand-hue': '210' }, 'widget');
+    openDeveloper();
+
+    expect(
+      within(row('--brand-hue')).getByRole('button', { name: /^delete --brand-hue/ }),
+    ).toHaveClass('perch-editor-icon--delete');
   });
 });

@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 import { LAYOUT_SCHEMA_VERSION, loadLayoutJson } from '@perch/layout-schema';
 import type { SensorSource } from '@perch/sensor-contract';
 import { SensorProvider } from '@perch/ui-kit';
+import { elementContentSize } from './layout-canvas.js';
 import { WIDGET_NAMES, WIDGET_REGISTRY, widgetFor } from './widget-catalogue.js';
 
 /**
@@ -109,10 +110,18 @@ describe('the catalogue against the validator that shares it', () => {
       const entry = widgetFor(name);
       if (entry?.binding === 'chart') {
         if (element?.kind !== 'chart') throw new Error('expected a chart element');
-        render(<SensorProvider source={SILENT_SOURCE}>{entry.render(element)}</SensorProvider>);
+        render(
+          <SensorProvider source={SILENT_SOURCE}>
+            {entry.render(element, elementContentSize(element.rect, element.style, undefined))}
+          </SensorProvider>,
+        );
       } else {
         if (element?.kind !== 'widget') throw new Error('expected a widget element');
-        render(<SensorProvider source={SILENT_SOURCE}>{entry?.render(element)}</SensorProvider>);
+        render(
+          <SensorProvider source={SILENT_SOURCE}>
+            {entry?.render(element, elementContentSize(element.rect, element.style, undefined))}
+          </SensorProvider>,
+        );
       }
 
       expect(screen.getByRole('group')).toBeInTheDocument();

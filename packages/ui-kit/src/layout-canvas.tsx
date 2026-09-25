@@ -44,6 +44,22 @@
  * against a conservative name and value grammar, so a layout cannot reach any property that is not a
  * token — no `position`, no `transform`, nothing that could move an element out of its rect or
  * reintroduce a reflow.
+ *
+ * ## The element box, and why the rect is its footprint
+ *
+ * Every styled entity's box reads three tokens of its own — `--perch-box-bg`, `--perch-box-radius`,
+ * `--perch-box-padding` — in `ELEMENT_BOX_STYLES`. The box is `border-box`, which was the human's
+ * decision and is the reason the rect stays the truth: background and corners paint exactly the rect
+ * the author dragged and `validateLayout` checked, the editor's handles sit on the painted edges, and
+ * padding comes out of the content rather than growing the box past the rect into its neighbours.
+ *
+ * Padding is also the one box token JavaScript has to know. A chart is sized by arithmetic from its
+ * box, never by measurement, so the canvas resolves the padding a box will get — element style, then
+ * theme, then the default, exactly the order custom-property inheritance gives — in
+ * `elementContentSize`, hands the chart the content box that leaves, and writes the value it resolved
+ * back onto the box. The sheet therefore reads the number the chart was sized to, not a second opinion
+ * about it. Nothing is written to a box nobody padded, so a layout that sets none of these tokens
+ * renders the same markup it always did.
  */
 
 import type { CSSProperties, ReactNode } from 'react';
@@ -61,7 +77,8 @@ import {
 import { assertNever } from './exhaustive.js';
 import { MediaFrame, type MediaFrameFit } from './media-frame.js';
 import { TextBlock } from './text-block.js';
-import { widgetFor } from './widget-catalogue.js';
+import { PERCH_TOKEN_DEFAULTS, token } from './tokens.js';
+import { widgetFor, type ContentBox } from './widget-catalogue.js';
 
 /**
  * The tokens the *canvas* reads, as opposed to the ones a widget reads.
@@ -109,20 +126,25 @@ export function LayoutCanvas({ layout, scale, resolveAsset }: LayoutCanvasProps)
       data-perch-canvas-height={layout.target.height}
       style={canvasStyle(layout, scale)}
     >
-      {layout.elements.map((element, index) => (
-        <div
-          // Index as key, which is the correct choice exactly here: `elements` is a fixed array read
-          // once from a file, so there is no insertion, no removal and no reordering for the life of
-          // the page. The index *is* the element's identity, and it is also its z-order.
-          key={index}
-          className="perch-element"
-          data-perch-element-kind={element.kind}
-          data-perch-element-index={index}
-          style={elementStyle(element.rect, styleOf(element))}
-        >
-          {renderElement(element, resolveAsset)}
-        </div>
-      ))}
+      {layout.elements.map((element, index) => {
+        const style = styleOf(element);
+        const content = boxOf(element, style, layout.theme);
+
+        return (
+          <div
+            // Index as key, which is the correct choice exactly here: `elements` is a fixed array read
+            // once from a file, so there is no insertion, no removal and no reordering for the life of
+            // the page. The index *is* the element's identity, and it is also its z-order.
+            key={index}
+            className="perch-element"
+            data-perch-element-kind={element.kind}
+            data-perch-element-index={index}
+            style={elementStyle(element, style, content, layout.theme)}
+          >
+            {renderElement(element, content, resolveAsset)}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -138,17 +160,18 @@ export function LayoutCanvas({ layout, scale, resolveAsset }: LayoutCanvasProps)
  */
 function renderElement(
   element: LayoutElement,
+  content: ContentBox,
   resolveAsset: (src: string) => string | undefined,
 ): ReactNode {
   switch (element.kind) {
     case 'widget':
-      return renderWidget(element);
+      return renderWidget(element, content);
     case 'text':
       return renderText(element);
     case 'media':
       return renderMedia(element, resolveAsset);
     case 'chart':
-      return renderChart(element);
+      return renderChart(element, content);
     default:
       return assertNever(element, 'layout element kind');
   }
@@ -169,7 +192,7 @@ function renderElement(
  * format cannot reject — its registry has one capability flag and it is about scales — so it is
  * caught here and drawn, rather than handed to a renderer that would read a window that is not there.
  */
-function renderChart(element: ChartElement): ReactNode {
+function renderChart(element: ChartElement, content: ContentBox): ReactNode {
   const widget = widgetFor(element.widget);
   if (widget === undefined) {
     return <span className="perch-element__failure">{`no such widget: ${element.widget}`}</span>;
@@ -180,7 +203,7 @@ function renderChart(element: ChartElement): ReactNode {
     );
   }
 
-  return widget.render(element);
+  return widget.render(element, content);
 }
 
 /**
@@ -196,7 +219,7 @@ function renderChart(element: ChartElement): ReactNode {
  * `kind: 'widget'` element passes every check the format makes, and there is no window in that
  * element for a chart to draw. It says which mistake was made, in the rect where it was made.
  */
-function renderWidget(element: WidgetElement): ReactNode {
+function renderWidget(element: WidgetElement, content: ContentBox): ReactNode {
   const widget = widgetFor(element.widget);
   if (widget === undefined) {
     return <span className="perch-element__failure">{`no such widget: ${element.widget}`}</span>;
@@ -207,7 +230,7 @@ function renderWidget(element: WidgetElement): ReactNode {
     );
   }
 
-  return widget.render(element);
+  return widget.render(element, content);
 }
 
 function renderText(element: TextElement): ReactNode {
@@ -287,10 +310,25 @@ function canvasStyle(layout: Layout, scale: number): CSSProperties {
   return declarations;
 }
 
-/** An element's box: its authored rect, plus its own tokens. Same shape, same reason. */
-function elementStyle(rect: Rect, style: Style | undefined): CSSProperties {
+/**
+ * An element's box: its own tokens, the padding the canvas resolved for it, then its authored rect.
+ * Same shape, same reason.
+ *
+ * The padding is written only when something set one — the element or the theme — and never on
+ * media, which reads no box token. An element nobody padded carries exactly the declarations it
+ * carried before the box tokens existed.
+ */
+function elementStyle(
+  element: LayoutElement,
+  style: Style | undefined,
+  content: ContentBox,
+  theme: Style | undefined,
+): CSSProperties {
+  const { rect } = element;
+  const writesPadding = element.kind !== 'media' && padded(style, theme);
   const declarations: Record<string, string> = {
     ...style,
+    ...(writesPadding ? { [BOX_PADDING]: String(content.padding) } : {}),
     left: `${rect.x}px`,
     top: `${rect.y}px`,
     width: `${rect.w}px`,
@@ -299,6 +337,83 @@ function elementStyle(rect: Rect, style: Style | undefined): CSSProperties {
 
   return declarations;
 }
+
+const BOX_PADDING = '--perch-box-padding';
+
+/** Whether the element or the theme sets a padding at all. */
+function padded(style: Style | undefined, theme: Style | undefined): boolean {
+  return style?.[BOX_PADDING] !== undefined || theme?.[BOX_PADDING] !== undefined;
+}
+
+/** The content box an element's renderer gets. Media reads no box token, so it keeps its rect. */
+function boxOf(
+  element: LayoutElement,
+  style: Style | undefined,
+  theme: Style | undefined,
+): ContentBox {
+  return element.kind === 'media'
+    ? { w: element.rect.w, h: element.rect.h, padding: 0 }
+    : elementContentSize(element.rect, style, theme);
+}
+
+/**
+ * A CSS `<number>`: what `calc(var(--perch-box-padding) * 1px)` accepts.
+ *
+ * Deliberately not `Number()`, which also accepts `0x10`, `Infinity` and the empty string — values CSS
+ * rejects, so a box would get no padding while a chart sized with `Number()` would be sized for some.
+ */
+const CSS_NUMBER = /^\s*[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?\s*$/;
+
+/**
+ * The box an element's content is laid out in, after padding, in layout pixels.
+ *
+ * Resolves `--perch-box-padding` in the order the cascade does — the element's own `style`, then the
+ * layout `theme` it inherits from, then the declared default — and treats a value CSS would reject as
+ * no padding, as CSS does. A negative padding is clamped to zero, as CSS clamps it.
+ *
+ * Clamped above as well, to half the smaller side. That one is not CSS's behaviour but a correction of
+ * it: a `border-box` whose padding exceeds its width grows past its specified width, which would put
+ * the painted box outside the rect. The canvas writes the clamped value onto the box, so the sheet and
+ * the chart both use it.
+ */
+export function elementContentSize(
+  rect: Rect,
+  style: Style | undefined,
+  theme: Style | undefined,
+): ContentBox {
+  const raw = style?.[BOX_PADDING] ?? theme?.[BOX_PADDING] ?? PERCH_TOKEN_DEFAULTS[BOX_PADDING];
+  const parsed = CSS_NUMBER.test(raw) ? Number(raw) : 0;
+  const padding = Math.min(Math.max(0, parsed), Math.min(rect.w, rect.h) / 2);
+
+  return { w: rect.w - 2 * padding, h: rect.h - 2 * padding, padding };
+}
+
+/**
+ * The element box, as a string: the one sheet in this file that reads `PERCH_TOKEN_DEFAULTS` tokens.
+ *
+ * Separate from `LAYOUT_CANVAS_STYLES` — and interpolated into it, so every app that already mounts
+ * the canvas sheet gets it — because it reads the widget-level vocabulary rather than the canvas' own
+ * two tokens, and `tokens.test.ts` checks every sheet that does: declared names only, each carrying its
+ * default, no literal colour.
+ *
+ * `box-sizing: border-box` applies to every element, media included, and is inert until something
+ * pads or borders a box; nothing did before these tokens, so no shipped layout moves. The three token
+ * reads skip media: a media element carries no `style` in the format, so the only way a box token
+ * could reach one is a theme meant for the entities over it, and a background image inset by the
+ * padding meant for its readouts is not what any author wanted.
+ */
+export const ELEMENT_BOX_STYLES = `
+.perch-element {
+  position: absolute;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.perch-element:not([data-perch-element-kind='media']) {
+  background: ${token('--perch-box-bg')};
+  border-radius: calc(${token('--perch-box-radius')} * 1px);
+  padding: calc(${token('--perch-box-padding')} * 1px);
+}
+`;
 
 /**
  * The canvas and the letterbox, as a string for the page to inject once.
@@ -328,10 +443,7 @@ export const LAYOUT_CANVAS_STYLES = `
   transform-origin: center center;
   background: ${canvasToken('--perch-canvas-bg')};
 }
-.perch-element {
-  position: absolute;
-  overflow: hidden;
-}
+${ELEMENT_BOX_STYLES}
 /*
  * A failure that must be seen. Every case it marks — an unregistered widget, a widget used on the
  * wrong element kind, a chart with no range, a missing asset — would otherwise paint nothing, and a

@@ -260,6 +260,22 @@ function parseTopic(topic: string): { canonical: string; metric: SensorMetric } 
  * guarantees that an update cannot reflow the widget and that a label cannot set its width. A theme
  * token able to switch one of them off would make a layout file capable of reintroducing the defect
  * this file's history is mostly about.
+ *
+ * ## Placement moves the content, never the field
+ *
+ * `--perch-readout-justify` and `--perch-readout-anchor` say where the content sits in the readout's
+ * box, which is the element's content box — `height: 100%` so there is a height to place it down.
+ * Across, one value is read twice: as `justify-content` on the number-and-unit row and as `text-align`
+ * on the readout, which the caption, the note and the number inside its field all inherit. Every row
+ * keeps its full width — the stretch that makes the ellipsis work is untouched — so placement is a
+ * matter of where the ink sits inside rows whose geometry does not change. The field keeps its eight
+ * digit advances too: a centred `61.3` is centred *in its field*, and the unit beside it still never
+ * moves when a reading gains a digit. Both default to `start`, which is where a readout sat before.
+ *
+ * Padding, read by the element box rather than here, narrows the container the `14cqw` scale is
+ * measured against. So a padded readout's number scales down with the room padding leaves it, exactly
+ * as a narrower rect's would, and the measured floor above — eight digits and a unit need about 174px
+ * of content width at the default floor — is now a claim about the content box, not the rect.
  */
 export const READOUT_STYLES = `
 .perch-readout {
@@ -267,6 +283,9 @@ export const READOUT_STYLES = `
   flex-direction: column;
   container-type: inline-size;
   min-width: 0;
+  height: 100%;
+  justify-content: ${token('--perch-readout-anchor')};
+  text-align: ${token('--perch-readout-justify')};
   gap: 0.15rem;
   font-family: ${token('--perch-font')};
   color: ${token('--perch-fg')};
@@ -274,6 +293,7 @@ export const READOUT_STYLES = `
 .perch-readout__primary {
   display: flex;
   align-items: baseline;
+  justify-content: ${token('--perch-readout-justify')};
   min-width: 0;
   overflow: hidden;
   gap: 0.35em;
