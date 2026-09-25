@@ -174,8 +174,8 @@ export function setElementGap(index: number, gap: ChartGap): LayoutUpdate {
  * an element *needs* one is the widget registry's knowledge — `drawsScale` — and the format rejects a
  * `range` on a widget that draws none, so a control that could add one to any element would let the
  * editor manufacture an `unknown-field`-shaped refusal out of a button press. Editing a range that is
- * already authored is unambiguous; creating one belongs with the element-creation work this slice
- * does not do. See DECISIONS.md.
+ * already authored is unambiguous; a new chart gets its range from `new-element.ts`, where the widget
+ * is known. See DECISIONS.md.
  */
 export function setElementRangeBound(
   index: number,
@@ -221,6 +221,31 @@ export function removeElementStyleToken(index: number, name: string): LayoutUpda
     const rest = withoutStyle(element);
 
     return Object.keys(style).length === 0 ? rest : { ...rest, style };
+  });
+}
+
+/**
+ * Add an element at the end of `elements`, so it paints over everything already there.
+ *
+ * On top because a new element is the one the author is about to look at: added underneath, a label
+ * dropped onto a background image would be invisible the moment it was made. The element is taken
+ * whole — `new-element.ts` builds it — so what this adds is exactly what `validateLayout` then judges.
+ */
+export function addElement(element: LayoutElement): LayoutUpdate {
+  return (layout) => ({ ...layout, elements: [...layout.elements, element] });
+}
+
+/**
+ * Remove the element at `index`; the ones after it move up one. A no-op for an index that names no
+ * element, which is what "nothing selected" is.
+ *
+ * There is no undo in this editor, so the caller asks first (the selection header's inline confirm);
+ * this is only the edit.
+ */
+export function removeElement(index: number): LayoutUpdate {
+  return (layout) => ({
+    ...layout,
+    elements: layout.elements.filter((_element, at) => at !== index),
   });
 }
 

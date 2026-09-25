@@ -17,8 +17,10 @@ export { EDITOR_STYLES, Editor, openLayoutByName, type EditorProps } from './app
 export { canSave, draftSaved, editDraft, isDirty, openDraft, type DraftState } from './draft.js';
 
 export {
+  addElement,
   numberFromInput,
   numberToInput,
+  removeElement,
   removeElementStyleToken,
   removeThemeToken,
   setElementFit,
@@ -56,6 +58,34 @@ export {
   rectFromResize,
   type CanvasHandlesProps,
 } from './canvas-handles.js';
+
+export {
+  ADDABLE_KINDS,
+  defaultRange,
+  newElement,
+  newRect,
+  type AddableEntry,
+  type AddableKind,
+} from './new-element.js';
+
+export {
+  AddMenu,
+  SENSOR_PICKER_STYLES,
+  SensorCatalogueProvider,
+  SensorList,
+  TopicField,
+} from './sensor-picker.js';
+
+export {
+  catalogueTopics,
+  filterCatalogue,
+  typedTopic,
+  type CatalogueFilter,
+  type FilteredCatalogue,
+  type TopicEntry,
+  type TopicGroup,
+  type TypedTopic,
+} from './topic-catalogue.js';
 
 export { LAYOUT_PROBLEMS_STYLES, LayoutProblems, type LayoutProblemsProps } from './problems.js';
 

@@ -3,7 +3,7 @@
  *
  * The chips are toggle buttons in a named group rather than a radio group: "All" is a chip like the
  * others, and a pressed state reads right for "show me only this". Escape in the search box clears
- * it. What a query *matches* is `filter.ts`'s; this is only the control, so the pane can apply the
+ * it; Enter hands the query to `onSubmit`, for a pane where a search picks something. What a query *matches* is `filter.ts`'s; this is only the control, so the pane can apply the
  * same query to its own grouping.
  */
 
@@ -21,6 +21,8 @@ export function FilterBar({
   chips,
   chip,
   onChip,
+  onSubmit,
+  chipsLabel = 'filter by sections',
 }: {
   /** The search box's accessible name: `search theme tokens`. */
   readonly label?: string | undefined;
@@ -30,6 +32,10 @@ export function FilterBar({
   readonly chips?: readonly FilterChip[] | undefined;
   readonly chip?: string | undefined;
   readonly onChip?: ((chip: string) => void) | undefined;
+  /** Enter in the search box: take the best match. Absent, Enter does nothing. */
+  readonly onSubmit?: ((query: string) => void) | undefined;
+  /** The chip group's accessible name. */
+  readonly chipsLabel?: string | undefined;
 }): ReactNode {
   return (
     <>
@@ -50,11 +56,15 @@ export function FilterBar({
               event.preventDefault();
               onQuery('');
             }
+            if (event.key === 'Enter' && onSubmit !== undefined) {
+              event.preventDefault();
+              onSubmit(query ?? '');
+            }
           }}
         />
       )}
       {chips === undefined || chips.length === 0 ? null : (
-        <div className="perch-filter__chips" role="group" aria-label="filter by sections">
+        <div className="perch-filter__chips" role="group" aria-label={chipsLabel}>
           {chips.map((entry) => (
             <button
               key={entry.id}

@@ -6,15 +6,18 @@
  *   and where it comes from, because "what do I get back" is the whole question before pressing it.
  *   `reset` is the Customize phrasing (a token by its label); `remove` is the Developer phrasing (a
  *   raw name, and "this layout's value" going rather than the token going).
- * - **`delete`** — `✕`, in red — where nothing takes over: a name `ui-kit` does not declare. It asks
- *   first, inline, naming what it will delete; Escape or `keep` backs out. There is no undo in this
- *   editor, so the second click is what carries the deliberateness the word `delete` used to.
+ * - **`delete`** — `✕`, in red — where nothing takes over: a name `ui-kit` does not declare, or a
+ *   whole element. It asks first, inline, naming what it will delete, with focus on the confirm;
+ *   Escape or `keep` backs out. There is no undo in this editor, so the second press is what carries
+ *   the deliberateness the word `delete` used to. `consequence` and `ask` say what is lost where it
+ *   is not a token; `confirming` lets a caller open the ask from elsewhere — the Delete key on the
+ *   canvas asks through the same confirm as the button.
  *
  * A different glyph, colour, accessible name and number of clicks — never colour alone. The glyph is
  * `aria-hidden`; the sentence is what a screen reader reads.
  */
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 /** What takes over when the value goes. */
 export interface ReturnsTo {
@@ -39,10 +42,31 @@ export type ResetButtonProps =
       readonly action: 'delete';
       readonly subject: string;
       readonly onReset: () => void;
+      /** The sentence after `delete <subject>.`: what is lost. Defaults to a token's. */
+      readonly consequence?: string | undefined;
+      /** The words shown in the confirm. Defaults to a token's. */
+      readonly ask?: string | undefined;
+      /** Controlled confirm, for a caller that also opens it another way. */
+      readonly confirming?: boolean | undefined;
+      readonly onConfirming?: ((confirming: boolean) => void) | undefined;
     };
 
 export function ResetButton(props: ResetButtonProps): ReactNode {
-  const [confirming, setConfirming] = useState(false);
+  const [ownConfirming, setOwnConfirming] = useState(false);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const asked = props.action === 'delete' ? props.confirming : undefined;
+  const controlled = asked !== undefined;
+  const confirming = asked ?? ownConfirming;
+  const setConfirming = (next: boolean): void => {
+    if (props.action === 'delete') props.onConfirming?.(next);
+    if (!controlled) setOwnConfirming(next);
+  };
+
+  // The ask takes focus when it opens, so the key that opened it is followed by Enter or Escape and
+  // focus is never dropped onto the page as the button it replaced unmounts.
+  useEffect(() => {
+    if (confirming) confirmRef.current?.focus();
+  }, [confirming]);
 
   if (props.action !== 'delete') {
     const name =
@@ -64,7 +88,7 @@ export function ResetButton(props: ResetButtonProps): ReactNode {
   }
 
   const { subject, onReset } = props;
-  const ask = `delete ${subject}. ${GONE}`;
+  const ask = `delete ${subject}. ${props.consequence ?? GONE}`;
 
   if (!confirming) {
     return (
@@ -94,8 +118,9 @@ export function ResetButton(props: ResetButtonProps): ReactNode {
         }
       }}
     >
-      <span className="perch-reset__ask">delete? nothing takes over.</span>
+      <span className="perch-reset__ask">{props.ask ?? 'delete? nothing takes over.'}</span>
       <button
+        ref={confirmRef}
         type="button"
         className="perch-reset__word perch-reset__word--delete"
         aria-label={`confirm: ${ask}`}

@@ -679,3 +679,186 @@ describe('long text stays inside the sidebar', () => {
     expect(style.getPropertyValue('scrollbar-gutter')).toBe('stable');
   });
 });
+
+/** The element list's length, which is the document's. */
+function elementCount(result: ReturnType<typeof render>): number {
+  return within(result.getByTestId('perch-editor-elements')).getAllByRole('button').length;
+}
+
+/** Open the Add menu and pick a kind from it. */
+function addKind(result: ReturnType<typeof render>, kind: RegExp): void {
+  fireEvent.click(result.getByRole('button', { name: /^add an element/i }));
+  fireEvent.click(within(result.getByRole('dialog')).getByRole('button', { name: kind }));
+}
+
+describe('adding an element', () => {
+  it('adds a live reading bound to a sensor chosen by its name, selected and on the canvas', () => {
+    const { result } = renderEditor();
+    expect(elementCount(result)).toBe(2);
+
+    addKind(result, /^live reading/i);
+    const picker = result.getByRole('dialog', { name: /choose a sensor/i });
+    // Listed from the source, by device and metric, with the name its meta gives and its unit.
+    expect(within(picker).getByRole('heading', { name: 'cpu 0' })).toBeInTheDocument();
+    expect(within(picker).getByText('CPU Package')).toBeInTheDocument();
+    fireEvent.change(within(picker).getByRole('searchbox', { name: /search sensors/i }), {
+      target: { value: 'gpu core' },
+    });
+    fireEvent.click(within(picker).getByRole('button', { name: /GPU Core/ }));
+
+    expect(result.queryByRole('dialog')).toBeNull();
+    expect(elementCount(result)).toBe(3);
+    const header = result.getByTestId('perch-editor-selection');
+    expect(header).toHaveTextContent('readout');
+    expect(header).toHaveTextContent('sensors/gpu/0/temperature/0');
+    expect(header).toHaveTextContent('elements[2]');
+    expect(canvasOf(result).querySelector('[data-perch-element-index="2"]')).not.toBeNull();
+    expect(result.queryByTestId('perch-editor-problems')).toBeNull();
+    expect(result.getByTestId('perch-editor-save')).toBeEnabled();
+  });
+
+  it('adds a label straight away, with text to edit', () => {
+    const { result } = renderEditor();
+
+    addKind(result, /^label/i);
+
+    expect(elementCount(result)).toBe(3);
+    expect(result.getByTestId('perch-editor-selection')).toHaveAttribute('data-perch-kind', 'text');
+    expect(result.getByLabelText('text')).not.toHaveValue('');
+    expect(result.queryByTestId('perch-editor-problems')).toBeNull();
+  });
+
+  it('adds a chart for a topic typed in full, for a sensor that is not publishing now', () => {
+    const { result } = renderEditor();
+
+    addKind(result, /^chart/i);
+    const picker = result.getByRole('dialog', { name: /choose a sensor/i });
+    fireEvent.change(within(picker).getByRole('searchbox', { name: /search sensors/i }), {
+      target: { value: 'sensors/psu/0/voltage/0' },
+    });
+    fireEvent.click(
+      within(picker).getByRole('button', { name: /^use sensors\/psu\/0\/voltage\/0/ }),
+    );
+
+    const header = result.getByTestId('perch-editor-selection');
+    expect(header).toHaveAttribute('data-perch-kind', 'chart');
+    expect(header).toHaveTextContent('sensors/psu/0/voltage/0');
+    // A line chart draws a scale, so it arrives with a range the author can then move.
+    expect(result.getByLabelText('range min')).not.toHaveValue('');
+    expect(result.queryByTestId('perch-editor-problems')).toBeNull();
+  });
+
+  it('refuses a typed topic outside the grammar, and says why', () => {
+    const { result } = renderEditor();
+
+    addKind(result, /^chart/i);
+    const picker = result.getByRole('dialog', { name: /choose a sensor/i });
+    fireEvent.change(within(picker).getByRole('searchbox', { name: /search sensors/i }), {
+      target: { value: 'sensors/psu/voltage' },
+    });
+
+    expect(within(picker).queryByRole('button', { name: /^use / })).toBeNull();
+    expect(within(picker).getByText(/not a sensor topic/i)).toBeInTheDocument();
+    expect(elementCount(result)).toBe(2);
+  });
+
+  it('closes on Escape without adding anything', () => {
+    const { result } = renderEditor();
+
+    addKind(result, /^live reading/i);
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+    expect(result.queryByRole('dialog')).toBeNull();
+    expect(elementCount(result)).toBe(2);
+  });
+});
+
+describe('deleting an element', () => {
+  it('asks once, inline in the header, then deletes and selects nothing', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+
+    fireEvent.click(result.getByRole('button', { name: /^delete elements\[1\]/ }));
+    // Asked, not done: there is no undo, so the first press only asks.
+    expect(elementCount(result)).toBe(2);
+    const ask = result.getByRole('group', { name: /delete elements\[1\]/ });
+    fireEvent.click(within(ask).getByRole('button', { name: /^confirm/ }));
+
+    expect(elementCount(result)).toBe(1);
+    expect(result.getByText(/nothing selected/i)).toBeInTheDocument();
+    expect(canvasOf(result).querySelector('[data-perch-element-index="1"]')).toBeNull();
+    expect(result.getByTestId('perch-editor-save')).toBeEnabled();
+  });
+
+  it('keeps the element when the ask is backed out of', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+
+    fireEvent.click(result.getByRole('button', { name: /^delete elements\[1\]/ }));
+    fireEvent.click(result.getByRole('button', { name: /^keep elements\[1\]/ }));
+
+    expect(elementCount(result)).toBe(2);
+    expect(result.getByTestId('perch-editor-selection')).toBeInTheDocument();
+  });
+
+  it('asks from the Delete key when the canvas has focus, with the confirm focused', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+    const pane = result.getByTestId('perch-editor-preview');
+    pane.focus();
+
+    fireEvent.keyDown(pane, { key: 'Delete' });
+    const confirm = within(result.getByRole('group', { name: /delete elements\[1\]/ })).getByRole(
+      'button',
+      { name: /^confirm/ },
+    );
+    expect(confirm).toHaveFocus();
+    fireEvent.click(confirm);
+
+    expect(elementCount(result)).toBe(1);
+  });
+
+  it('asks from Backspace on the canvas too, and never from a key typed into a field', () => {
+    const { result } = renderEditor();
+    selectElement(result, 0);
+
+    fireEvent.keyDown(result.getByLabelText('text'), { key: 'Backspace' });
+    fireEvent.keyDown(result.getByLabelText('x'), { key: 'Delete' });
+    expect(result.queryByRole('group', { name: /delete elements\[0\]/ })).toBeNull();
+
+    fireEvent.keyDown(result.getByTestId('perch-editor-preview'), { key: 'Backspace' });
+    expect(result.getByRole('group', { name: /delete elements\[0\]/ })).toBeInTheDocument();
+  });
+
+  it('does nothing from the Delete key when nothing is selected', () => {
+    const { result } = renderEditor();
+
+    fireEvent.keyDown(result.getByTestId('perch-editor-preview'), { key: 'Delete' });
+
+    expect(result.queryByRole('group', { name: /^delete/ })).toBeNull();
+    expect(elementCount(result)).toBe(2);
+  });
+});
+
+describe('one way to choose data', () => {
+  it("rebinds an element's topic from the same sensor picker the Add menu uses", () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+
+    fireEvent.click(result.getByRole('button', { name: /^choose a sensor for topic/i }));
+    const picker = result.getByRole('dialog', { name: /choose a sensor/i });
+    fireEvent.click(within(picker).getByRole('button', { name: /GPU Fan/ }));
+
+    expect(result.getByLabelText('topic')).toHaveValue('sensors/gpu/0/fan/0');
+    expect(result.getByTestId('perch-editor-selection')).toHaveTextContent('sensors/gpu/0/fan/0');
+  });
+
+  it('still takes a topic typed straight into the field, and the validator judges it', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+
+    fireEvent.change(result.getByLabelText('topic'), { target: { value: 'sensors/nope' } });
+
+    expect(result.getByTestId('perch-editor-problems')).toHaveTextContent('elements[1].topic');
+  });
+});

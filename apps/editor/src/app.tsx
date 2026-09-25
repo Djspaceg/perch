@@ -2,9 +2,9 @@
  * THE EDITOR: pick a layout, watch it render, change its fields, write it back.
  *
  * Four things, which are the four the human actually asked for — "so we can switch and preview
- * layouts and start customizing them". Everything `SPEC.md` describes beyond that is deliberately
- * absent and listed in DECISIONS.md: no dragging, no element creation, no asset management, no undo
- * stack, no multi-layout project.
+ * layouts and start customizing them" — and since then dragging, and adding and deleting elements.
+ * Everything else `SPEC.md` describes is deliberately absent and listed in DECISIONS.md: no asset
+ * management, no undo stack, no multi-layout project.
  *
  * ## The pipeline, in the order it runs
  *
@@ -37,6 +37,14 @@
  * chrome, because every screenshot in this repo is mock-driven and the only thing standing between
  * that fact and a misread image is the sentence being *in* the image.
  *
+ * ## Adding and deleting are edits like any other
+ *
+ * An added element goes through `addElement` and a deleted one through `removeElement`, both plain
+ * `LayoutUpdate`s into `editDraft`, so each is validated exactly as a keystroke is. An addition is
+ * selected at once; a deletion leaves nothing selected. With no undo, a delete asks first — the
+ * selection header's inline confirm, which the Delete and Backspace keys open when the canvas has
+ * focus. The key is read on the preview pane only, so typing in a field never deletes anything.
+ *
  * ## Switching with unsaved edits asks first
  *
  * Changing the picker while the draft differs from disk does not discard the edits. It parks the
@@ -56,17 +64,18 @@ import {
   WIDGET_NAMES,
   WIDGET_REGISTRY,
 } from '@perch/ui-kit';
-import type { Rect } from '@perch/layout-schema';
+import type { LayoutElement, Rect } from '@perch/layout-schema';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { CANVAS_HANDLES_STYLES } from './canvas-handles.js';
 import { CONTROLS_STYLES } from './controls/index.js';
 import { canSave, draftSaved, editDraft, isDirty, openDraft, type DraftState } from './draft.js';
 import { INSPECTOR_STYLES, Inspector, NOTHING_SELECTED } from './inspector.js';
 import type { LayoutLibrary } from './layout-library.js';
-import { setElementRect, type LayoutUpdate } from './layout-edits.js';
+import { addElement, removeElement, setElementRect, type LayoutUpdate } from './layout-edits.js';
 import { LAYOUT_PROBLEMS_STYLES, LayoutProblems } from './problems.js';
 import { LayoutPreview, PREVIEW_STYLES, describePreviewFit } from './preview.js';
 import { PROPERTY_VIEW_STYLES } from './property-view.js';
+import { SENSOR_PICKER_STYLES } from './sensor-picker.js';
 import { TOKEN_PANE_STYLES } from './token-pane.js';
 import {
   HEADER_HEIGHT,
@@ -206,6 +215,9 @@ export function Editor({
       <style href="perch-editor-token-pane" precedence="default">
         {TOKEN_PANE_STYLES}
       </style>
+      <style href="perch-editor-sensor-picker" precedence="default">
+        {SENSOR_PICKER_STYLES}
+      </style>
       <style href="perch-editor-problems" precedence="default">
         {LAYOUT_PROBLEMS_STYLES}
       </style>
@@ -252,19 +264,26 @@ function EditorShell({
   const [opened, setOpened] = useState<Opened>(() => openLayoutByName(library, firstName));
   /** Nothing, until the author picks something: see `inspector.tsx` for why not element 0. */
   const [selected, setSelected] = useState(NOTHING_SELECTED);
+  /** Whether the selection header's delete is asking. Any change of selection withdraws the ask. */
+  const [deleteAsked, setDeleteAsked] = useState(false);
   /** A switch waiting on the author's decision about unsaved edits. `null` when there is none. */
   const [pendingName, setPendingName] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const select = useCallback((index: number) => {
+    setSelected(index);
+    setDeleteAsked(false);
+  }, []);
+
   const open = useCallback(
     (name: string) => {
       setOpened(openLayoutByName(library, name));
-      setSelected(NOTHING_SELECTED);
+      select(NOTHING_SELECTED);
       setPendingName(null);
       setNotice('');
     },
-    [library],
+    [library, select],
   );
 
   const onEdit = useCallback((update: LayoutUpdate) => {
@@ -283,6 +302,32 @@ function EditorShell({
     },
     [onEdit],
   );
+
+  /** A new element: appended through the same validated path, then selected. */
+  const onAdd = useCallback(
+    (element: LayoutElement) => {
+      if (!opened.ok) return;
+      const index = opened.state.draft.elements.length;
+      onEdit(addElement(element));
+      select(index);
+    },
+    [opened, onEdit, select],
+  );
+
+  /** A confirmed delete. Nothing is selected afterwards: the index now names a different element. */
+  const onDelete = useCallback(
+    (index: number) => {
+      onEdit(removeElement(index));
+      select(NOTHING_SELECTED);
+    },
+    [onEdit, select],
+  );
+
+  /** Delete or Backspace with the canvas focused: ask, through the header's own confirm. */
+  const onDeleteKey = useCallback(() => {
+    if (!opened.ok || opened.state.draft.elements[selected] === undefined) return;
+    setDeleteAsked(true);
+  }, [opened, selected]);
 
   const onPick = useCallback(
     (name: string) => {
@@ -453,8 +498,9 @@ function EditorShell({
               viewport={viewport}
               stale={opened.state.issues.length > 0}
               selected={selected}
-              onSelect={setSelected}
+              onSelect={select}
               onRect={onRect}
+              onDeleteKey={onDeleteKey}
             />
           ) : (
             <p className="perch-editor-empty" data-testid="perch-editor-unopened">
@@ -466,14 +512,18 @@ function EditorShell({
         <aside className="perch-editor-side">
           <LayoutProblems
             issues={opened.ok ? opened.state.issues : opened.issues}
-            onSelectElement={setSelected}
+            onSelectElement={select}
           />
           {opened.ok ? (
             <Inspector
               state={opened.state}
               selected={selected}
-              onSelect={setSelected}
+              onSelect={select}
               onEdit={onEdit}
+              onAdd={onAdd}
+              onDelete={onDelete}
+              deleteAsked={deleteAsked}
+              onDeleteAsked={setDeleteAsked}
               topics={topics}
               widgets={WIDGET_NAMES}
             />

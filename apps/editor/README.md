@@ -23,10 +23,15 @@ This slice does the four things the ask named: **list** the layouts and switch
 between them, **preview** the selected one live on the shared canvas at its own
 target size scaled to fit, **edit** the fields that already exist (element rects,
 text, theme tokens, media `src`/`fit`, widget/chart bindings and ranges), and
-**write** a valid layout back out. Form editing only.
+**write** a valid layout back out. Since then: drag and resize on the canvas,
+and **adding and deleting** elements. "+ Add" in the Selected-entity bar makes a
+live reading, a chart or a label, with a searchable sensor picker listing what
+the connected source has published (the same picker backs the topic field); the
+selection header deletes, asking once inline since there is no undo, and the
+Delete or Backspace key asks the same way when the canvas has focus.
 
-Deliberately **not** in this slice, and why it is safe to leave out: drag/resize
-on the canvas, creating or deleting elements, asset management, multi-layout
+Deliberately **not** in this slice, and why it is safe to leave out: adding a
+media element (it needs an asset path), asset management, multi-layout
 projects, templates, and an undo stack. See `DECISIONS.md` for the full list —
 nothing here was missed, it was scoped out.
 

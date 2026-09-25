@@ -17,6 +17,7 @@ import {
 } from './controls/index.js';
 import { lengthStep, splitLength, type ControlSpec, type Property } from './descriptors.js';
 import type { LayoutUpdate } from './layout-edits.js';
+import { TopicField } from './sensor-picker.js';
 
 /** What scrubbing the row's label should drive for this spec, if anything. */
 export function scrubFor(
@@ -165,6 +166,13 @@ export function SpecControl({
             </option>
           ))}
         </select>
+      );
+
+    case 'topic':
+      return (
+        <TopicField label={label} value={value} onValue={onValue}>
+          <TextControl ids={ids} value={value} onValue={onValue} mono />
+        </TopicField>
       );
 
     case 'text':

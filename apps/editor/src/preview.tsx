@@ -95,6 +95,8 @@ export interface LayoutPreviewProps {
   readonly onSelect: (index: number) => void;
   /** Commit a dragged or resized element's rect. Threaded to `editDraft`, so it is validated. */
   readonly onRect: (index: number, rect: Rect) => void;
+  /** Delete or Backspace pressed while the canvas itself has focus. */
+  readonly onDeleteKey: () => void;
 }
 
 /**
@@ -113,6 +115,7 @@ export function LayoutPreview({
   selected,
   onSelect,
   onRect,
+  onDeleteKey,
 }: LayoutPreviewProps): ReactNode {
   const fit = previewFit(layout.target, viewport);
 
@@ -125,6 +128,17 @@ export function LayoutPreview({
       data-perch-preview-stale={stale ? 'true' : 'false'}
       // Inline, from the same numbers the scale was derived from. See `preview-viewport.ts`.
       style={{ width: `${viewport.width}px`, height: `${viewport.height}px` }}
+      // Focusable, so a press on the canvas gives it focus and the Delete key has somewhere to land
+      // that is not a field. Only a key on the pane itself counts: nothing inside it is focusable.
+      tabIndex={0}
+      role="group"
+      aria-label="canvas"
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+        event.preventDefault();
+        onDeleteKey();
+      }}
       // A click that lands on no handle — the letterbox, or canvas no element covers — deselects,
       // which is the convention every canvas editor follows. Every element has a handle over its whole
       // rect, so "not in a handle" is exactly "not on an entity". A drag ends in a click on its own
@@ -179,6 +193,8 @@ export const PREVIEW_STYLES = `
  * The held-still marker. A dashed warm border rather than a dimmed canvas: dimming changes the
  * colours an author is in the middle of choosing, which is the one thing a preview must not do.
  */
+.perch-editor-preview:focus { outline: none; }
+.perch-editor-preview:focus-visible { outline: 1px solid rgba(143, 183, 232, 0.5); outline-offset: -1px; }
 .perch-editor-preview[data-perch-preview-stale='true'] {
   outline: 2px dashed #d08770;
   outline-offset: -2px;

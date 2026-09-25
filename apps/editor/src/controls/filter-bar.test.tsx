@@ -84,4 +84,22 @@ describe('FilterBar', () => {
 
     expect(screen.queryByRole('group')).toBeNull();
   });
+
+  it('hands the query to onSubmit on Enter, for a pane where a search picks something', () => {
+    const submitted: string[] = [];
+    render(
+      <FilterBar
+        label="search sensors"
+        query="gpu"
+        onQuery={() => undefined}
+        onSubmit={(query) => {
+          submitted.push(query);
+        }}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('searchbox', { name: 'search sensors' }), { key: 'Enter' });
+
+    expect(submitted).toEqual(['gpu']);
+  });
 });

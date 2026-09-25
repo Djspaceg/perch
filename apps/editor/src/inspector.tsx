@@ -22,13 +22,22 @@
  * `number` (including `NaN`), and `validateLayout` says what is wrong with it, naming the field. The
  * scrubbing and the arrow keys are additions on top of that text box, never a replacement for it.
  *
- * ## Free text with suggestions, not a closed picker
+ * ## Free text, with a way to choose
  *
- * Topics and widget names are text inputs backed by a `<datalist>`: a closed `<select>` cannot show a
- * value the document holds that the list does not — an unregistered widget, a topic no source is
- * publishing — and a control that cannot show the current value hides the problem the validator is
- * reporting. `fit` and `gap` are segmented controls, because their vocabularies are closed in the
- * format itself and have two members each.
+ * Topics and widget names stay text inputs: a closed `<select>` cannot show a value the document
+ * holds that no list does — an unregistered widget, a topic no source is publishing — and a control
+ * that cannot show the current value hides the problem the validator is reporting. Widget names are
+ * suggested by a `<datalist>`. A topic has the sensor picker beside it (`sensor-picker.tsx`),
+ * the same one the Add menu uses, so there is one way to choose data. `fit` and `gap` are
+ * segmented controls, because their vocabularies are closed in the format and have two members each.
+ *
+ * ## Adding and deleting
+ *
+ * "+ Add" sits in the Selected-entity bar and offers the kinds that need nothing but a sensor or
+ * nothing at all (`new-element.ts`); the new element is selected at once. Delete is in the selection
+ * header, the red ✕ the token panes already use for a removal nothing replaces, and it asks once,
+ * inline, because there is no undo. The Delete and Backspace keys ask through the same confirm when
+ * the canvas has focus (`app.tsx`), never while typing in a field.
  *
  * ## Two groups, stacked: the layout, and the one entity being pointed at
  *
@@ -46,15 +55,15 @@
  *
  * The y-scale is shown only when the element already has one. The format requires a range exactly
  * when the widget's registry entry `drawsScale`, so "add a range" is only meaningful against a
- * particular widget, and retargeting a widget is element creation, which is out of this slice.
+ * particular widget: a chart made by the Add menu arrives with one (`new-element.ts`), and
+ * retargeting an existing element to a widget that draws a scale is still out of this slice.
  */
 
 import type { LayoutElement } from '@perch/layout-schema';
 import { assertNever } from '@perch/ui-kit';
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
-import { Section } from './controls/index.js';
+import { ResetButton, Section } from './controls/index.js';
 import {
-  TOPIC_LIST_ID,
   WIDGET_LIST_ID,
   entitySections,
   targetProperties,
@@ -69,6 +78,7 @@ import {
   type LayoutUpdate,
 } from './layout-edits.js';
 import { PropertyView } from './property-view.js';
+import { AddMenu, SensorCatalogueProvider } from './sensor-picker.js';
 import { TokenPane } from './token-pane.js';
 
 /** The selection when there is none. Any out-of-range index means the same. */
@@ -81,7 +91,14 @@ export interface InspectorProps {
   readonly onSelect: (index: number) => void;
   /** Apply an edit. Goes through `editDraft`, so it is validated before it is anywhere else. */
   readonly onEdit: (update: LayoutUpdate) => void;
-  /** Topic suggestions: the mock source's own topics. */
+  /** Add a new element; the caller appends it and selects it. */
+  readonly onAdd: (element: LayoutElement) => void;
+  /** Delete the element at an index, once the author has confirmed it. */
+  readonly onDelete: (index: number) => void;
+  /** Whether the selection header's delete is asking, for the Delete key on the canvas to open. */
+  readonly deleteAsked: boolean;
+  readonly onDeleteAsked: (asked: boolean) => void;
+  /** Topics known to exist before any is heard: the mock source's own. Merged with what arrives. */
   readonly topics: readonly string[];
   /** Registered widget names, for suggestions. `WIDGET_NAMES` from `ui-kit`. */
   readonly widgets: readonly string[];
@@ -93,6 +110,10 @@ export function Inspector({
   selected,
   onSelect,
   onEdit,
+  onAdd,
+  onDelete,
+  deleteAsked,
+  onDeleteAsked,
   topics,
   widgets,
 }: InspectorProps): ReactNode {
@@ -110,83 +131,90 @@ export function Inspector({
   }, [selected]);
 
   return (
-    <div className="perch-editor-inspector" data-testid="perch-editor-inspector">
-      {/* One suggestion list of each kind serves every topic and widget control on the page. */}
-      <datalist id={TOPIC_LIST_ID}>
-        {topics.map((topic) => (
-          <option key={topic} value={topic} />
-        ))}
-      </datalist>
-      <datalist id={WIDGET_LIST_ID}>
-        {widgets.map((widget) => (
-          <option key={widget} value={widget} />
-        ))}
-      </datalist>
+    <SensorCatalogueProvider declared={topics}>
+      <div className="perch-editor-inspector" data-testid="perch-editor-inspector">
+        {/* One suggestion list serves every widget control on the page. */}
+        <datalist id={WIDGET_LIST_ID}>
+          {widgets.map((widget) => (
+            <option key={widget} value={widget} />
+          ))}
+        </datalist>
 
-      <Group id="global" title="Global" hint="the whole layout">
-        <TokenPane
-          id="theme"
-          title="theme"
-          scope="layout"
-          tokens={state.draft.theme}
-          chips
-          sectionsOpen={false}
-          disclosureKey="theme"
-          onSet={(name, value) => {
-            onEdit(setThemeToken(name, value));
-          }}
-          onRemove={(name) => {
-            onEdit(removeThemeToken(name));
-          }}
-          leading={
-            <Section
-              id="global/target"
-              title="Target"
-              summary={`${target.width} × ${target.height} · ${target.frameRate} fps`}
-            >
-              {targetProperties().map((property) => (
-                <PropertyView
-                  key={property.id}
-                  property={property}
-                  subject={target}
-                  index={NOTHING_SELECTED}
-                  onEdit={onEdit}
-                />
-              ))}
-            </Section>
-          }
-        />
-      </Group>
+        <Group id="global" title="Global" hint="the whole layout">
+          <TokenPane
+            id="theme"
+            title="theme"
+            scope="layout"
+            tokens={state.draft.theme}
+            chips
+            sectionsOpen={false}
+            disclosureKey="theme"
+            onSet={(name, value) => {
+              onEdit(setThemeToken(name, value));
+            }}
+            onRemove={(name) => {
+              onEdit(removeThemeToken(name));
+            }}
+            leading={
+              <Section
+                id="global/target"
+                title="Target"
+                summary={`${target.width} × ${target.height} · ${target.frameRate} fps`}
+              >
+                {targetProperties().map((property) => (
+                  <PropertyView
+                    key={property.id}
+                    property={property}
+                    subject={target}
+                    index={NOTHING_SELECTED}
+                    onEdit={onEdit}
+                  />
+                ))}
+              </Section>
+            }
+          />
+        </Group>
 
-      <Group id="entity" title="Selected entity" groupRef={entityGroup}>
-        <SelectionHeader
-          element={element}
-          index={selected}
-          onDeselect={() => {
-            onSelect(NOTHING_SELECTED);
-          }}
-        />
-        {element === undefined ? (
-          <p className="perch-editor-empty">
-            nothing selected. click an entity on the canvas, or pick one from Elements below.
-          </p>
-        ) : (
-          <EntityPanes
+        <Group
+          id="entity"
+          title="Selected entity"
+          groupRef={entityGroup}
+          action={<AddMenu target={target} onAdd={onAdd} />}
+        >
+          <SelectionHeader
             element={element}
             index={selected}
-            theme={state.draft.theme}
-            onEdit={onEdit}
+            onDeselect={() => {
+              onSelect(NOTHING_SELECTED);
+            }}
+            deleteAsked={deleteAsked}
+            onDeleteAsked={onDeleteAsked}
+            onDelete={() => {
+              onDelete(selected);
+            }}
           />
-        )}
-        <Section
-          id="entity/elements"
-          title="Elements"
-          summary={`${state.draft.elements.length} · painted top to bottom`}
-        >
-          <ElementList state={state} selected={selected} onSelect={onSelect} />
-        </Section>
-      </Group>
-    </div>
+          {element === undefined ? (
+            <p className="perch-editor-empty">
+              nothing selected. click an entity on the canvas, or pick one from Elements below.
+            </p>
+          ) : (
+            <EntityPanes
+              element={element}
+              index={selected}
+              theme={state.draft.theme}
+              onEdit={onEdit}
+            />
+          )}
+          <Section
+            id="entity/elements"
+            title="Elements"
+            summary={`${state.draft.elements.length} · painted top to bottom`}
+          >
+            <ElementList state={state} selected={selected} onSelect={onSelect} />
+          </Section>
+        </Group>
+      </div>
+    </SensorCatalogueProvider>
   );
 }
 
@@ -199,12 +227,15 @@ function Group({
   title,
   hint,
   groupRef,
+  action,
   children,
 }: {
   readonly id: string;
   readonly title: string;
   readonly hint?: string;
   readonly groupRef?: RefObject<HTMLElement | null>;
+  /** A control at the bar's right edge: the Add menu. */
+  readonly action?: ReactNode;
   readonly children: ReactNode;
 }): ReactNode {
   const headingId = `perch-editor-group-${id}`;
@@ -221,6 +252,7 @@ function Group({
           {title}
         </h2>
         {hint === undefined ? null : <span className="perch-editor-group__hint">{hint}</span>}
+        {action}
       </div>
       {children}
     </section>
@@ -235,15 +267,24 @@ const KIND_GLYPH: Readonly<Record<LayoutElement['kind'], string>> = Object.freez
   media: '▣',
 });
 
-/** The selection, named: what it is, which element, what it reads — and the way out of it. */
+/**
+ * The selection, named: what it is, which element, what it reads — and the two ways out of it:
+ * delete it, which asks first, or deselect it.
+ */
 function SelectionHeader({
   element,
   index,
   onDeselect,
+  onDelete,
+  deleteAsked,
+  onDeleteAsked,
 }: {
   readonly element: LayoutElement | undefined;
   readonly index: number;
   readonly onDeselect: () => void;
+  readonly onDelete: () => void;
+  readonly deleteAsked: boolean;
+  readonly onDeleteAsked: (asked: boolean) => void;
 }): ReactNode {
   if (element === undefined) return null;
   const { name, detail } = identify(element);
@@ -271,6 +312,15 @@ function SelectionHeader({
           )}
         </span>
       </span>
+      <ResetButton
+        action="delete"
+        subject={`elements[${index}]`}
+        consequence={`the ${element.kind} and everything set on it go, and there is no undo.`}
+        ask="delete? there is no undo."
+        confirming={deleteAsked}
+        onConfirming={onDeleteAsked}
+        onReset={onDelete}
+      />
       <button
         type="button"
         className="perch-selection__deselect"
@@ -475,6 +525,7 @@ export const INSPECTOR_STYLES = `
 }
 .perch-editor-group__hint { font-size: var(--ed-font-small); color: var(--ed-faint); }
 .perch-selection {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;

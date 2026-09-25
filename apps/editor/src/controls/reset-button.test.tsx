@@ -93,4 +93,52 @@ describe('ResetButton', () => {
     expect(screen.queryByRole('button', { name: /^confirm/ })).toBeNull();
     expect(onReset).not.toHaveBeenCalled();
   });
+
+  it('focuses the confirm when it opens, so the key that asked is followed by Enter or Escape', () => {
+    render(<ResetButton action="delete" subject="--brand-hue" onReset={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^delete --brand-hue/ }));
+
+    expect(screen.getByRole('button', { name: /^confirm: delete --brand-hue/ })).toHaveFocus();
+  });
+
+  it('says what an element delete loses, and opens its ask when a caller says so', () => {
+    const onReset = vi.fn();
+    const onConfirming = vi.fn();
+    const { rerender } = render(
+      <ResetButton
+        action="delete"
+        subject="elements[2]"
+        consequence="there is no undo."
+        ask="delete? no undo."
+        confirming={false}
+        onConfirming={onConfirming}
+        onReset={onReset}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /^delete elements\[2\]/ })).toHaveAccessibleName(
+      'delete elements[2]. there is no undo.',
+    );
+    fireEvent.click(screen.getByRole('button', { name: /^delete elements\[2\]/ }));
+    // Controlled: pressing asks the caller, and the caller decides.
+    expect(onConfirming).toHaveBeenLastCalledWith(true);
+    expect(screen.queryByRole('group')).toBeNull();
+
+    rerender(
+      <ResetButton
+        action="delete"
+        subject="elements[2]"
+        consequence="there is no undo."
+        ask="delete? no undo."
+        confirming
+        onConfirming={onConfirming}
+        onReset={onReset}
+      />,
+    );
+    expect(screen.getByText('delete? no undo.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^confirm: delete elements\[2\]/ }));
+    expect(onConfirming).toHaveBeenLastCalledWith(false);
+    expect(onReset).toHaveBeenCalledTimes(1);
+  });
 });

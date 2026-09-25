@@ -7,7 +7,7 @@
  * returns the *same object* until something changes. Everything React-shaped lives next door in
  * `sensor-context.tsx`.
  *
- * Four responsibilities and no more:
+ * Four responsibilities, a fifth below for charts, and one read-only list:
  *
  * 1. Hold **one** subscription to the source, however many widgets are on the dashboard. A
  *    dashboard with forty readouts must not open forty subscriptions, and no widget may ever
@@ -56,6 +56,14 @@
  *   line frozen against a clock that did not stop. The materiality test is whole seconds of
  *   `endsAt` plus the ring's own revision counter, so an idle retained topic republishes at 1 Hz and
  *   a busy one republishes per reading.
+ *
+ * ## The list of topics seen
+ *
+ * `topics()` is every topic the source has actually delivered a reading for, in order of first
+ * arrival. It is a read of what the one subscription already carries — nothing is subscribed, fetched
+ * or published to build it — for a consumer that has to offer a person the sensors that exist, which
+ * a topic grammar cannot enumerate: the editor's sensor picker. Published like a snapshot, the same
+ * array until a new topic arrives, so `useSyncExternalStore` can read it.
  */
 
 import {
@@ -223,6 +231,15 @@ export interface SensorStore {
   subscribeHistory(topic: string, onChange: () => void): Unsubscribe;
   /** Metadata for a topic, or `undefined`. Accepts the authored shorthand. */
   meta(topic: string): SensorMeta | undefined;
+  /**
+   * Every topic the source has delivered a reading for, in order of first arrival.
+   *
+   * A topic that was only read or watched is not here: asking about a topic is not the source
+   * publishing it. The same array until a new topic arrives.
+   */
+  topics(): readonly SensorTopic[];
+  /** Call `onChange` whenever `topics()` gains a topic. Never on a reading for a known one. */
+  subscribeTopics(onChange: () => void): Unsubscribe;
   /** Re-evaluate staleness now and notify whatever changed. */
   refresh(): void;
   /**
@@ -266,6 +283,8 @@ export function createSensorStore(options: SensorStoreOptions): SensorStore {
   const published = new Map<SensorTopic, SensorSnapshot>();
   const listeners = new Map<SensorTopic, Set<() => void>>();
   const statusListeners = new Set<() => void>();
+  const topicListeners = new Set<() => void>();
+  let publishedTopics: readonly SensorTopic[] = Object.freeze([]);
 
   /**
    * Everything history-related for one topic, in one record.
@@ -407,8 +426,16 @@ export function createSensorStore(options: SensorStoreOptions): SensorStore {
     for (const listener of [...record.historyListeners]) listener();
   };
 
+  /** Add a first-seen topic to the published list, and say so. */
+  const noteTopic = (topic: SensorTopic): void => {
+    publishedTopics = Object.freeze([...publishedTopics, topic]);
+    for (const listener of [...topicListeners]) listener();
+  };
+
   const onReading: SensorReadingHandler = (topic, reading) => {
     const previous = latest.get(topic);
+    // Before the ordering check: a topic whose first reading arrives out of order still published.
+    if (previous === undefined) noteTopic(topic);
     // Keep the newest read, not the newest arrival: MQTT can reorder, and a retained message can
     // arrive after a fresher live one.
     if (previous !== undefined && previous.at > reading.at) return;
@@ -547,6 +574,21 @@ export function createSensorStore(options: SensorStoreOptions): SensorStore {
 
     meta(topic) {
       return source.meta(canonical(topic));
+    },
+
+    topics() {
+      return publishedTopics;
+    },
+
+    subscribeTopics(onChange) {
+      topicListeners.add(onChange);
+
+      let live = true;
+      return () => {
+        if (!live) return;
+        live = false;
+        topicListeners.delete(onChange);
+      };
     },
 
     refresh,

@@ -15,6 +15,7 @@ import {
   useSensorMeta,
   useSensorStatus,
   useSensorStore,
+  useSensorTopics,
 } from '@perch/ui-kit';
 
 const CPU_TEMP = sensorTopic('cpu', 'temperature');
@@ -234,5 +235,24 @@ describe('useSensorStatus', () => {
     });
 
     expect(result.current).toBe('connecting');
+  });
+});
+
+describe('useSensorTopics', () => {
+  it('re-renders with each topic the source publishes for the first time', () => {
+    const source = fakeSource();
+    const { result } = renderHook(() => useSensorTopics(), {
+      wrapper: ({ children }: { children?: ReactNode }) => (
+        <SensorProvider source={source} recheckIntervalMs={0}>
+          {children}
+        </SensorProvider>
+      ),
+    });
+
+    expect(result.current).toEqual([]);
+    source.emit(CPU_TEMP, { value: 61, at: Date.now() });
+    source.emit(GPU_FAN, { value: 1200, at: Date.now() });
+
+    expect(result.current).toEqual([CPU_TEMP, GPU_FAN]);
   });
 });

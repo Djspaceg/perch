@@ -62,6 +62,7 @@ export {
   useSensorMeta,
   useSensorStatus,
   useSensorStore,
+  useSensorTopics,
   type SensorProviderProps,
 } from './sensor-context.js';
 

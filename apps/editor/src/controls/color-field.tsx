@@ -4,26 +4,18 @@
  * Colour first, notation second, as the pane has always ordered it. The picker does not sit open in
  * the list: it opens on demand, anchored to its swatch and placed to stay on screen (`popover.ts`),
  * and closes on Escape — focus back to the swatch — on a press anywhere outside it, or on the swatch
- * again. For a colour that takes alpha, the popover carries an opacity field in percent beside the
+ * again; that behaviour is `usePopover`'s, shared with the sensor picker. For a colour that takes alpha, the popover carries an opacity field in percent beside the
  * picker's alpha strip, because a strip is for feel and "50%" is a number.
  *
  * The popover is rendered in place, `position: fixed`, rather than portalled: it stays next to its
  * swatch in the reading order, and the inspector has no transformed ancestor to trap a fixed box.
  */
 
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useRef, type ReactNode } from 'react';
 import { HexAlphaColorPicker, HexColorPicker } from 'react-colorful';
 import { alphaPercent, withAlphaPercent } from './colour.js';
 import { NumberField } from './number-field.js';
-import { placePopover } from './popover.js';
+import { usePopover } from './popover.js';
 
 /**
  * A swatch's fill. An alpha colour is laid over a checkerboard, because a translucent swatch over the
@@ -56,75 +48,12 @@ export function ColorField({
   readonly onValue: (value: string) => void;
   readonly describedBy?: string | undefined;
 }): ReactNode {
-  const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const swatch = useRef<HTMLButtonElement>(null);
-  const popover = useRef<HTMLDivElement>(null);
-  const popoverId = useId();
+  const box = useRef<HTMLDivElement>(null);
+  const popover = usePopover(swatch, box);
+  const { open, close } = popover;
   const Picker = alpha ? HexAlphaColorPicker : HexColorPicker;
   const verb = open ? 'close' : 'open';
-
-  const close = useCallback((refocus: boolean) => {
-    setOpen(false);
-    setPosition(null);
-    if (refocus) swatch.current?.focus();
-  }, []);
-
-  // Placed against the swatch, and kept there while the page scrolls or resizes.
-  useLayoutEffect(() => {
-    if (!open) return undefined;
-    const place = (): void => {
-      const anchor = swatch.current?.getBoundingClientRect();
-      const box = popover.current?.getBoundingClientRect();
-      if (anchor === undefined || box === undefined) return;
-      setPosition(
-        placePopover(
-          anchor,
-          { width: box.width, height: box.height },
-          { width: window.innerWidth, height: window.innerHeight },
-        ),
-      );
-    };
-    place();
-    window.addEventListener('resize', place);
-    window.addEventListener('scroll', place, true);
-
-    return () => {
-      window.removeEventListener('resize', place);
-      window.removeEventListener('scroll', place, true);
-    };
-  }, [open]);
-
-  // Dismissal: Escape anywhere, or a press outside both the popover and its swatch.
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      close(true);
-    };
-    const onPress = (event: Event): void => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (popover.current?.contains(target) === true || swatch.current?.contains(target) === true) {
-        return;
-      }
-      close(false);
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onPress, true);
-
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onPress, true);
-    };
-  }, [open, close]);
-
-  // Opened, focus goes in: a keyboard user pressed Enter on the swatch in order to use the picker.
-  useEffect(() => {
-    if (!open) return;
-    popover.current?.querySelector<HTMLElement>('[tabindex="0"], input, button')?.focus();
-  }, [open]);
 
   return (
     <span className="perch-color">
@@ -137,11 +66,11 @@ export function ColorField({
         title={`${verb} colour picker for ${label}`}
         aria-expanded={open}
         aria-haspopup="dialog"
-        {...(open ? { 'aria-controls': popoverId } : {})}
+        {...(open ? { 'aria-controls': popover.id } : {})}
         style={swatchStyle(value, alpha)}
         onClick={() => {
           if (open) close(false);
-          else setOpen(true);
+          else popover.setOpen(true);
         }}
       />
       <input
@@ -159,16 +88,12 @@ export function ColorField({
       />
       {open ? (
         <div
-          ref={popover}
-          id={popoverId}
+          ref={box}
+          id={popover.id}
           className="perch-popover"
           role="dialog"
           aria-label={`${label} colour`}
-          style={
-            position === null
-              ? { top: 0, left: 0, visibility: 'hidden' }
-              : { top: position.top, left: position.left }
-          }
+          style={popover.style}
         >
           <Picker className="perch-popover__picker" color={value.trim()} onChange={onValue} />
           <div className="perch-popover__foot">

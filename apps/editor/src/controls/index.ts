@@ -35,6 +35,7 @@ export { SegmentedControl, type SegmentOption } from './segmented-control.js';
 export { TabStrip, type TabSpec } from './tab-strip.js';
 export { VectorField, type VectorComponent } from './vector-field.js';
 export { matchesQuery, queryWords } from './filter.js';
+export { usePopover, type Popover } from './popover.js';
 export { stepFor } from './scrub.js';
 
 /** Every primitive's stylesheet, chrome variables first. One `<style>` in `app.tsx` mounts it. */

@@ -42,9 +42,6 @@ import {
   type RectField,
 } from './layout-edits.js';
 
-/** The id of the topic suggestion list, referenced by every topic input. */
-export const TOPIC_LIST_ID = 'perch-editor-topics';
-
 /** The id of the widget-name suggestion list. */
 export const WIDGET_LIST_ID = 'perch-editor-widgets';
 
@@ -61,6 +58,8 @@ export type ControlSpec =
     }
   | { readonly kind: 'length'; readonly units: readonly string[] }
   | { readonly kind: 'colour'; readonly alpha: boolean }
+  /** A sensor topic: the text of it, and the sensor picker (`sensor-picker.tsx`) beside it. */
+  | { readonly kind: 'topic' }
   | {
       readonly kind: 'segmented';
       readonly options: readonly { readonly value: string; readonly label: string }[];
@@ -255,7 +254,7 @@ const TOPIC: ScalarProperty<LayoutElement> = {
   id: 'topic',
   label: 'topic',
   description: 'The sensor topic this entity reads.',
-  spec: { kind: 'text', list: TOPIC_LIST_ID },
+  spec: { kind: 'topic' },
   get: (element) => (element.kind === 'widget' || element.kind === 'chart' ? element.topic : ''),
   write: (text, index) => setElementTopic(index, text),
 };

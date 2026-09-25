@@ -38,7 +38,12 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import type { SensorMeta, SensorSource, SensorSourceStatus } from '@perch/sensor-contract';
+import type {
+  SensorMeta,
+  SensorSource,
+  SensorSourceStatus,
+  SensorTopic,
+} from '@perch/sensor-contract';
 import {
   createSensorStore,
   type SensorHistorySnapshot,
@@ -225,6 +230,22 @@ export function useSensorStatus(): SensorSourceStatus {
 
   const subscribe = useCallback((onChange: () => void) => store.subscribeStatus(onChange), [store]);
   const getSnapshot = useCallback(() => store.sourceStatus, [store]);
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+/**
+ * Every topic the source has published so far, re-rendering when a new one first arrives.
+ *
+ * For a component that offers a person the sensors that exist — the editor's sensor picker — not for
+ * a widget, which is bound to one topic and reads it through `useSensor`. A read of what the
+ * provider's one subscription already carries; it opens nothing.
+ */
+export function useSensorTopics(): readonly SensorTopic[] {
+  const store = useSensorStore();
+
+  const subscribe = useCallback((onChange: () => void) => store.subscribeTopics(onChange), [store]);
+  const getSnapshot = useCallback(() => store.topics(), [store]);
 
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

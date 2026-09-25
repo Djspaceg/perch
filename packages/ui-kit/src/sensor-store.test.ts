@@ -454,3 +454,55 @@ describe('SensorStore.close', () => {
     expect(source.unsubscribes).toBe(1);
   });
 });
+
+describe('SensorStore.topics', () => {
+  it('lists every topic the source has published, in order of first arrival, and nothing it has not', () => {
+    const source = fakeSource();
+    const root = store({ source, recheckIntervalMs: 0 });
+
+    // Read and watched but never published: a question asked is not a topic seen.
+    root.snapshot(sensorTopic('psu', 'voltage'));
+    root.subscribe(sensorTopic('psu', 'voltage'), noop);
+    expect(root.topics()).toEqual([]);
+
+    source.emit(GPU_FAN, { value: 1200, at: 10_000 });
+    source.emit(CPU_TEMP, { value: 61, at: 10_000 });
+    source.emit(GPU_FAN, { value: 1210, at: 11_000 });
+
+    expect(root.topics()).toEqual([GPU_FAN, CPU_TEMP]);
+  });
+
+  it('is the same array until a new topic arrives, and says when one does', () => {
+    const source = fakeSource();
+    const root = store({ source, recheckIntervalMs: 0 });
+    let calls = 0;
+    const unsubscribe = root.subscribeTopics(() => {
+      calls += 1;
+    });
+
+    source.emit(CPU_TEMP, { value: 61, at: 10_000 });
+    const first = root.topics();
+    source.emit(CPU_TEMP, { value: 62, at: 11_000 });
+    expect(root.topics()).toBe(first);
+    expect(calls).toBe(1);
+
+    source.emit(GPU_FAN, { value: 1200, at: 11_000 });
+    expect(root.topics()).not.toBe(first);
+    expect(calls).toBe(2);
+
+    unsubscribe();
+    unsubscribe();
+    source.emit(sensorTopic('psu', 'voltage'), { value: 12, at: 11_000 });
+    expect(calls).toBe(2);
+  });
+
+  it('counts a reading the store kept out of order as seen, since the topic did publish', () => {
+    const source = fakeSource();
+    const root = store({ source, recheckIntervalMs: 0 });
+
+    source.emit(CPU_TEMP, { value: 61, at: 20_000 });
+    source.emit(CPU_TEMP, { value: 60, at: 10_000 });
+
+    expect(root.topics()).toEqual([CPU_TEMP]);
+  });
+});
