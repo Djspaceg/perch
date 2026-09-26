@@ -452,6 +452,8 @@ function TokenRow({
       labelAs={isGroupSpec(spec) ? 'group' : 'label'}
       scrub={scrubFor(spec, value, onValue)}
       testId={rowTestId(pane, name)}
+      // A box diagram is taller than a row: the label stays level with its top.
+      className={spec.kind === 'box' ? 'perch-row--tall' : undefined}
       attributes={{ 'data-perch-overridden': state.source === 'own' ? 'true' : 'false' }}
       end={
         state.source === 'own' ? (

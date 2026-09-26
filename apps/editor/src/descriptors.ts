@@ -25,6 +25,7 @@ import {
   type LayoutElement,
 } from '@perch/layout-schema';
 import { assertNever, type TokenLabel } from '@perch/ui-kit';
+import type { BoxKind } from './controls/index.js';
 import {
   numberFromInput,
   numberToInput,
@@ -57,6 +58,13 @@ export type ControlSpec =
       readonly bar?: boolean;
     }
   | { readonly kind: 'length'; readonly units: readonly string[] }
+  /** A padding or radius: a box diagram of linked sides or corners (`BoxDiagram`). */
+  | {
+      readonly kind: 'box';
+      readonly box: BoxKind;
+      readonly min: number;
+      readonly max: number;
+    }
   | { readonly kind: 'colour'; readonly alpha: boolean }
   /** A sensor topic: the text of it, and the sensor picker (`sensor-picker.tsx`) beside it. */
   | { readonly kind: 'topic' }
@@ -77,6 +85,9 @@ export type ControlSpec =
       /** Prose rather than a token: a textarea that grows a few rows with what it holds. */
       readonly multiline?: true;
     };
+
+/** A box token the box field can show: one to four whole, unitless numbers. */
+const STORED_SHORTHAND = /^\d+(?:\s+\d+){0,3}$/;
 
 /** Few enough options to lay out as segments in a row. */
 const MAX_SEGMENTS = 4;
@@ -123,6 +134,11 @@ export function tokenSpec(entry: TokenLabel, value: string): ControlSpec {
       return isHexColor(trimmed, alpha) ? { kind: 'colour', alpha } : { kind: 'text' };
     }
     case 'pixels':
+      if (entry.shorthand !== undefined) {
+        return STORED_SHORTHAND.test(trimmed) && entry.range !== undefined
+          ? { kind: 'box', box: entry.shorthand, min: entry.range.min, max: entry.range.max }
+          : { kind: 'text', numeric: true };
+      }
       return /^\d+$/.test(trimmed) && entry.range !== undefined
         ? {
             kind: 'number',

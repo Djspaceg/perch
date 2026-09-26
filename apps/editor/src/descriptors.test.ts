@@ -10,15 +10,18 @@ import { describe, expect, it } from 'vitest';
 import { entitySections, targetProperties, tokenSpec } from './descriptors.js';
 
 describe('tokenSpec', () => {
-  it('makes a pixel token a bounded number field in layout px, with a fill bar', () => {
+  it('makes a padding or radius a box field of CSS shorthand, bounded in layout px', () => {
     expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-box-radius'], '6')).toEqual({
-      kind: 'number',
-      unit: 'px',
-      unitText: 'layout px',
+      kind: 'box',
+      box: 'corners',
       min: 0,
       max: 64,
-      step: 1,
-      bar: true,
+    });
+    expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-box-padding'], '8 16 4')).toEqual({
+      kind: 'box',
+      box: 'sides',
+      min: 0,
+      max: 48,
     });
   });
 
@@ -73,10 +76,13 @@ describe('tokenSpec', () => {
     });
     expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-fg'], 'rgb(1, 2, 3)')).toEqual({ kind: 'text' });
     expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-fg'], '#1a2b3c80')).toEqual({ kind: 'text' });
-    expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-box-radius'], '6px')).toEqual({
-      kind: 'text',
-      numeric: true,
-    });
+    // A unit, or a fifth value, is a token the canvas would paint as no radius: shown as it is.
+    for (const value of ['6px', '1 2 3 4 5', '-2', '1.5']) {
+      expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-box-radius'], value), value).toEqual({
+        kind: 'text',
+        numeric: true,
+      });
+    }
     expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-text-align'], 'start')).toEqual({ kind: 'text' });
     expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-font'], 'ui-serif')).toEqual({ kind: 'text' });
   });

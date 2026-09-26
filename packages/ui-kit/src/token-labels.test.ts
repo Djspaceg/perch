@@ -16,7 +16,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { CANVAS_TOKEN_DEFAULTS } from './layout-canvas.js';
+import { CANVAS_RESOLVED_TOKENS, CANVAS_TOKEN_DEFAULTS } from './layout-canvas.js';
 import { PERCH_TOKEN_DEFAULTS } from './tokens.js';
 import {
   PERCH_KNOWN_TOKENS,
@@ -191,6 +191,17 @@ describe('the labels table', () => {
     }
     expect(PERCH_TOKEN_LABELS['--perch-box-radius'].range).toEqual({ min: 0, max: 64 });
     expect(PERCH_TOKEN_LABELS['--perch-box-padding'].range).toEqual({ min: 0, max: 48 });
+  });
+
+  it('marks the tokens the canvas reads as a box shorthand, and only those', () => {
+    for (const name of PERCH_KNOWN_TOKENS) {
+      const shorthand = PERCH_TOKEN_LABELS[name].shorthand;
+      expect(shorthand !== undefined, name).toBe(
+        (CANVAS_RESOLVED_TOKENS as readonly string[]).includes(name),
+      );
+    }
+    expect(PERCH_TOKEN_LABELS['--perch-box-radius'].shorthand).toBe('corners');
+    expect(PERCH_TOKEN_LABELS['--perch-box-padding'].shorthand).toBe('sides');
   });
 
   it('says which element kinds read an alignment, so a kind it means nothing to is not offered it', () => {

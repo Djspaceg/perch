@@ -117,6 +117,11 @@ export interface TokenLabel {
   /** For `colour`: whether the value carries an alpha pair (`#rrggbbaa`). */
   readonly alpha?: true;
   /**
+   * For `pixels`: the value is a one-to-four-value CSS shorthand (`box-shorthand.ts`), of a box's four
+   * sides (padding) or its four corners (radius). Absent means one number.
+   */
+  readonly shorthand?: 'sides' | 'corners';
+  /**
    * The element kinds whose rendering reads this token, for a token only some kinds read.
    *
    * Absent means every styled kind. Present only where offering the token to the other kinds would be
@@ -460,20 +465,23 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
   },
   '--perch-box-radius': {
     label: 'Corner radius',
-    description: 'How round the rectangle’s corners are, in layout pixels. Scales with the panel.',
+    description:
+      'How round the rectangle’s corners are, in layout pixels: one value, or up to four from the top-left corner clockwise. Scales with the panel.',
     control: 'pixels',
     group: 'appearance',
     scope: 'box',
     range: Object.freeze({ min: 0, max: 64 }),
+    shorthand: 'corners',
   },
   '--perch-box-padding': {
     label: 'Padding',
     description:
-      'Space inside the rectangle’s edge, in layout pixels. The rectangle keeps its size; the content shrinks.',
+      'Space inside the rectangle’s edge, in layout pixels: one value, or up to four as in CSS, top right bottom left. The rectangle keeps its size; the content shrinks.',
     control: 'pixels',
     group: 'appearance',
     scope: 'box',
     range: Object.freeze({ min: 0, max: 48 }),
+    shorthand: 'sides',
   },
 
   '--perch-canvas-bg': {

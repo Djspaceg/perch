@@ -6,12 +6,15 @@
  */
 
 import type { ReactNode } from 'react';
+import { formatBoxToken, parseBoxToken } from '@perch/ui-kit';
 import {
+  BoxDiagram,
   ColorField,
   NumberField,
   PropertyRow,
   SegmentedControl,
   VectorField,
+  shiftQuad,
   type RowIds,
   type ScrubTarget,
 } from './controls/index.js';
@@ -27,6 +30,23 @@ export function scrubFor(
 ): ScrubTarget | undefined {
   if (spec.kind === 'number') {
     return { value, onChange: onValue, step: spec.step, min: spec.min, max: spec.max };
+  }
+  if (spec.kind === 'box') {
+    // Every side moves together, by the drag's distance: the largest side is what the drag reads and
+    // bounds, and each write shifts all four by however far it moved since the last one.
+    const quad = parseBoxToken(value);
+    if (quad === undefined) return undefined;
+    const largest = Math.max(...quad);
+
+    return {
+      value: String(largest),
+      onChange: (text) => {
+        onValue(formatBoxToken(shiftQuad(quad, Number(text) - largest, spec)));
+      },
+      step: 1,
+      min: spec.min,
+      max: spec.max,
+    };
   }
   if (spec.kind === 'length') {
     const parts = splitLength(value);
@@ -120,6 +140,20 @@ export function SpecControl({
         </>
       );
     }
+
+    case 'box':
+      return (
+        <BoxDiagram
+          id={ids.controlId}
+          label={label}
+          kind={spec.box}
+          value={value}
+          onValue={onValue}
+          min={spec.min}
+          max={spec.max}
+          describedBy={ids.describedBy}
+        />
+      );
 
     case 'colour':
       return (

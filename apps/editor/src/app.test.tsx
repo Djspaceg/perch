@@ -480,7 +480,7 @@ describe('the Global and Selected-entity groups', () => {
     ).toBeUndefined();
   });
 
-  it('saves a translucent background and a padding that load back unchanged', async () => {
+  it('saves a translucent background and a per-side padding that load back unchanged', async () => {
     const { result, calls } = renderEditor(boxLibrary());
 
     selectElement(result, 1);
@@ -493,10 +493,15 @@ describe('the Global and Selected-entity groups', () => {
     fireEvent.change(
       within(result.getByTestId('perch-editor-token-style-1---perch-box-padding')).getByRole(
         'spinbutton',
-        { name: new RegExp(PADDING, 'i') },
+        { name: `${PADDING} top` },
       ),
-      { target: { value: '12' } },
+      // Pasted CSS, into top: it sets every side.
+      { target: { value: '12px 4px' } },
     );
+    // The preview paints it natively, per side, from the stored shorthand.
+    expect(
+      canvasOf(result).querySelector<HTMLElement>('[data-perch-element-index="1"]')?.style.padding,
+    ).toBe('12px 4px');
     fireEvent.click(result.getByTestId('perch-editor-save'));
     await result.findByText('saved layouts/box-test.json');
 
@@ -506,7 +511,7 @@ describe('the Global and Selected-entity groups', () => {
     const element = reloaded.layout.elements[1];
     expect(element?.kind === 'widget' ? element.style : undefined).toEqual({
       '--perch-box-bg': '#1a2b3c80',
-      '--perch-box-padding': '12',
+      '--perch-box-padding': '12 4',
     });
   });
 });

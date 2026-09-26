@@ -34,6 +34,7 @@
 import { PERCH_TOKEN_LABELS, tokenLabel } from '@perch/ui-kit';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { PIXELS_PER_STEP } from './controls/scrub.js';
 import { TokenPane } from './token-pane.js';
 
 /** The labels the pane is expected to print, read from the table rather than typed twice. */
@@ -674,36 +675,66 @@ describe('the element box rows', () => {
     expect(across.lastElementChild).toBe(within(across).getByRole('button', { name: /^reset/i }));
   });
 
-  it('makes each pixel value one field that is also its slider, writing a unitless value', () => {
-    // The slider and the number box were two controls over one value; now the field carries the
-    // range itself (a fill bar, drag to scrub, arrows to nudge) and there is nothing beside it.
+  it('makes padding a box diagram whose top is always a number, writing a unitless value', () => {
     const edits = renderElementPane({ '--perch-box-padding': '12' }, 'widget');
     const padding = row('--perch-box-padding');
-    const field = within(padding).getByRole('spinbutton', { name: new RegExp(PADDING, 'i') });
+    const top = within(padding).getByRole('spinbutton', { name: `${PADDING} top` });
 
     expect(within(padding).queryByRole('slider')).toBeNull();
-    expect(field).toHaveAttribute('aria-valuemin', '0');
-    expect(field).toHaveAttribute('aria-valuemax', '48');
-    expect(field).toHaveAttribute('aria-valuenow', '12');
-    expect(field).toHaveValue('12');
+    expect(top).toHaveValue('12');
+    expect(within(padding).getByRole('group', { name: PADDING })).toBeInTheDocument();
 
-    fireEvent.keyDown(field, { key: 'ArrowUp', shiftKey: true });
-    fireEvent.change(field, { target: { value: '7' } });
+    fireEvent.keyDown(top, { key: 'ArrowUp', shiftKey: true });
+    fireEvent.change(top, { target: { value: '7' } });
+    // A shorthand pasted into top sets every side.
+    fireEvent.change(top, { target: { value: '4 8' } });
     expect(edits.set).toEqual([
       ['--perch-box-padding', '22'],
       ['--perch-box-padding', '7'],
+      ['--perch-box-padding', '4 8'],
     ]);
   });
 
-  it('says the unit is layout pixels, inside the field', () => {
-    renderElementPane({}, 'widget');
-    const radius = within(row('--perch-box-radius')).getByRole('spinbutton', {
-      name: new RegExp(RADIUS, 'i'),
+  it('shows linked sides as links and set sides as numbers, for padding and for corners', () => {
+    renderElementPane({ '--perch-box-padding': '4 8' }, 'widget');
+    const padding = row('--perch-box-padding');
+    const radius = row('--perch-box-radius');
+
+    expect(within(padding).getByRole('spinbutton', { name: `${PADDING} right` })).toHaveValue('8');
+    expect(
+      within(padding).getByRole('button', { name: `${PADDING} bottom, linked to top` }),
+    ).toBeInTheDocument();
+    expect(
+      within(padding).getByRole('button', { name: `${PADDING} left, linked to right` }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(radius).getByRole('button', { name: `${RADIUS} top-right, linked to top-left` }),
+    );
+    expect(within(radius).getByRole('spinbutton', { name: `${RADIUS} top-right` })).toHaveValue(
+      '0',
+    );
+  });
+
+  it('scrubs every side from the row label, keeping their differences', () => {
+    const edits = renderElementPane({ '--perch-box-padding': '4 8' }, 'widget');
+    const label = within(row('--perch-box-padding')).getByText(PADDING, {
+      selector: 'label',
     });
+    fireEvent.pointerDown(label, { button: 0, clientX: 100 });
+    fireEvent.pointerMove(window, { clientX: 100 + 2 * PIXELS_PER_STEP });
+    fireEvent.pointerUp(window);
+
+    expect(edits.set).toEqual([['--perch-box-padding', '6 10']]);
+  });
+
+  it('says the unit is layout pixels, beside the shorthand it stores', () => {
+    renderElementPane({}, 'widget');
 
     expect(within(row('--perch-box-radius')).getByText('px')).toBeInTheDocument();
-    expect(radius).toHaveAttribute('aria-valuetext', '0 layout px');
-    expect(radius).toHaveAttribute('aria-valuemax', '64');
+    expect(
+      within(row('--perch-box-radius')).getByRole('spinbutton', { name: `${RADIUS} top-left` }),
+    ).toHaveValue('0');
   });
 
   it('holds an alpha colour as #rrggbbaa, with the swatch first and an alpha picker behind it', () => {

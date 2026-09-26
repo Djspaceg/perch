@@ -20,22 +20,22 @@ open on four when the values already differ (Penpot, Onlook); typed CSS order in
 (Plasmic, and Figma behind Cmd-click); arrows +/-1 and Shift +/-10 everywhere; Enter commits, Esc
 reverts.
 
-## Recommendation for perch
+## What perch built
 
-One field per property that always shows the **shortest CSS shorthand** of the stored values
-(`8`, `8 16`, `8 16 4`, `8 16 4 2`). You can type or paste any shorthand into it, with `px`
-allowed. An icon toggle beside it opens four number fields in **CSS order**: T R B L for padding,
-TL TR BR BL for corners. The toggle starts open when the values differ, and it remembers your
-choice for the session.
+**Superseded by the human's choice:** Webflow's box-model diagram, with the padding ring only and
+no margin ring. Four trapezoid sides sit around a centre, and each side shows its value on that
+side. It improves on Webflow with links:
 
-- **Shorthand instead of "Mixed".** Every tool that shows "Mixed" hides the values. The shorthand
-  shows them exactly, and it doubles as the way to paste them in. The brief also asks for it.
-- **CSS order in the four fields**, not a 2x2 grid or a box diagram, so each field sits where its
-  number sits in the shorthand above it. Seeing the two side by side teaches the shorthand. It also
-  fits the 420 px sidebar's one-line row.
-- **The primitives perch already has**: a `NumberField` for each side, with scrub on its label,
-  arrows, and Shift for x10. The row label scrubs all four sides together. Arrows in the shorthand
-  field nudge every side. Enter commits and Esc reverts. Invalid input stays in the field with a
-  message and is never written.
-- **No canvas handles** in this slice. They would be a second input path to keep in step with the
-  fields.
+- Top always holds a number.
+- Right, bottom and left each show a chain link (linked) or their own number plus a broken link
+  (set). They link as CSS shorthand inherits: right and bottom from top, left from right.
+- Clicking a link unlinks the side at the value it was inheriting. Clicking the broken link
+  clears the side and relinks it.
+- Dragging a side scrubs it, and each number is a normal field with arrows and Shift for x10.
+- The centre shows the resulting shorthand, read-only. Top also accepts a pasted shorthand.
+
+Corner radius uses the same model in a four-corner diagram. Top-right and bottom-right link to
+top-left, and bottom-left links to top-right. That part is the brief's default, not the human's
+explicit design.
+
+The first recommendation, one shorthand field with a toggle to four fields, is not built.
