@@ -56,9 +56,9 @@ export const PERCH_TOKEN_DEFAULTS = {
   /**
    * Floor and cap of the value's type scale.
    *
-   * The scale itself is `clamp(min, 14cqw, max)` against the widget's own inline size — see
-   * `READOUT_STYLES` for the measurement behind the `14cqw`. A theme moves the ends of the ramp;
-   * it does not get to make the size depend on the reading.
+   * Between them the size is the largest at which the printed reading and its unit fit the
+   * widget's own inline size — see `READOUT_STYLES` for the arithmetic. A theme moves the ends of
+   * the ramp; the measurement between them is not a token.
    */
   '--perch-value-size-min': '1.5rem',
   '--perch-value-size-max': '3rem',

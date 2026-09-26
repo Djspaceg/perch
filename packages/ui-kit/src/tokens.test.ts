@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 import { ELEMENT_BOX_STYLES } from './layout-canvas.js';
 import { LINE_CHART_STYLES } from './line-chart.js';
 import { MEDIA_FRAME_STYLES } from './media-frame.js';
-import { READOUT_STYLES } from './readout.js';
+import { READOUT_GLYPH_PROPERTIES, READOUT_STYLES } from './readout.js';
 import { TEXT_BLOCK_STYLES } from './text-block.js';
 import { PERCH_TOKENS, PERCH_TOKEN_DEFAULTS, token, type PerchToken } from './tokens.js';
 
@@ -31,12 +31,20 @@ const SHEETS: Readonly<Record<string, string>> = {
 
 const ALL_SHEETS = Object.values(SHEETS).join('\n');
 
-/** Every custom-property reference in a sheet, as `[name, fallback]`. */
+/**
+ * Properties a component writes on its own element for its own sheet. Not tokens: no layout sets
+ * them, so they are neither declared nor held to a token's default.
+ */
+const COMPONENT_PROPERTIES: ReadonlySet<string> = new Set(READOUT_GLYPH_PROPERTIES);
+
+/** Every token reference in a sheet, as `[name, fallback]`. */
 function references(sheet: string): { name: string; fallback: string | undefined }[] {
-  return [...sheet.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)\s*(?:,\s*([^)]*))?\)/g)].map((match) => ({
-    name: match[1] ?? '',
-    fallback: match[2],
-  }));
+  return [...sheet.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)\s*(?:,\s*([^)]*))?\)/g)]
+    .map((match) => ({
+      name: match[1] ?? '',
+      fallback: match[2],
+    }))
+    .filter((reference) => !COMPONENT_PROPERTIES.has(reference.name));
 }
 
 describe('token()', () => {

@@ -4708,3 +4708,49 @@ red-first.log; build/typecheck/test/lint logs; connection-{1920x400,1440x900}-{1
 ## Residuals
 
 192.168.1.3 not verified live: EHOSTUNREACH from this shell (macOS Local Network privacy); a fixture server stood in. A source switch shows WAITING for about 1 s. A poll in flight at a switch may publish one tick from the old host.
+
+# Readout spacing and sizing, Content first, picker readings - decisions
+
+Outcome: Content sits above Transform. Units follow their numbers at 1ex. A readout's number is
+sized from the glyphs it actually prints, not a fixed eight-digit width. Each picker entry shows its
+live reading. Commits: 8e22582 (items 1, 2, 4) and one item-3 commit on top.
+
+Root cause 2: `packages/ui-kit/src/readout.tsx:148` (at 54e0e8a) pinned the value to an 8ch field with
+the digits at its start, so the unit sat eight digit widths out: an 80-98 px gap, measured live.
+Ruled out: the justify token (unset), unit margin (none), the flex gap (0.35em = 6 px).
+Root cause 3: `readout.tsx:306` (at 54e0e8a) set `clamp(min, 14cqw, max)`, which is 14% of the content
+width. That is the size eight digits need, whatever is printed, so `9.4` was held to 30 px in a tile
+that fits it at 40 px. Padding narrows the content box (`layout-canvas.tsx:414`), so it shrank further.
+Ruled out: theme tokens (constant), root font (16 px), preview scale (computed size is in layout px).
+
+## Decisions to evaluate
+
+D1 The whole Content section moved above Transform, not only the topic row. Why: the brief's default. If overruled: the topic gets its own leading section.
+D2 Unit follows the number, gap 1ex: the human's choice. The 1ex is on the row, so it follows the row's font (8 px at 16 px), not the number's. The unit moves one digit when a reading crosses a power of ten. Supersedes: fixed 8ch field. If overruled: put the 1ex on the value's font instead.
+D3 Size = (100cqw - unit glyphs x 0.7 x unit-size - 1ex) / (value glyphs x 0.6475em), clamped to the theme ends. Padding and box size still scale it, as the human chose ("leave it as it is") with their correction applied. The component writes the two glyph counts as properties on the readout; the token test exempts them. Supersedes: 14cqw for eight glyphs. Visible change: desk readouts print at 40 px, not 30 px. If overruled: revert to 14cqw.
+D4 Picker readings: one leaf per entry, subscribed to its own topic via `useSensor` and formatted by `readoutView`, so a tick re-renders one span. Waiting and null both read "no reading". If overruled: a snapshot taken when the picker opens.
+
+## Open questions
+
+none.
+
+## Gate facts
+
+Nothing pushed, no review cut (GitHub repo, no CRUX; AutoSDE not run). No dependency or lockfile change.
+packages/ui-kit touched: Readout / READOUT_STYLES changed; READOUT_VALUE_FIELD_CHARS removed from exports, used nowhere else. Call sites:
+- packages/ui-kit/src/widget-catalogue.tsx:139 renders `<Readout>` for widget "readout"
+- apps/runtime/src/app.tsx:165 READOUT_STYLES; :255 LayoutCanvas (runtime page)
+- apps/editor/src/app.tsx:214 READOUT_STYLES; apps/editor/src/preview.tsx:155 LayoutCanvas (editor preview)
+- packages/ui-kit/src/index.ts exports; tests readout.test.tsx, tokens.test.ts, element-box.test.tsx
+- layouts: desk-1920x400 (8 readouts), tower-720x1280 (6); trend-1920x400 none
+Lanes: build.log, test.log, typecheck.log exit 0; lint.log clean on changed files; red-first.log (items 1, 4, 2, 3 failing first). Adversarial review rounds: 0 (rule 14).
+
+## Evidence (untracked, under .evidence/)
+
+before-*.png and readout-probe-before.json / padding-probe-before.json (both defects, live);
+compare-units.png, compare-size.png (options shown to the human); after-probe.json with
+after-runtime-*, after-padding-{0,24}, after-inspector-*, after-editor-8digit-*, after-picker-* at 1920x400 and 1440x900.
+
+## Residuals
+
+evidence_capture refuses files from this worktree, so the images and logs are only on disk.

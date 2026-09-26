@@ -19,6 +19,7 @@ import {
 } from '@perch/ui-kit';
 
 const CPU_TEMP = sensorTopic('cpu', 'temperature');
+const CPU_LOAD = sensorTopic('cpu', 'load');
 const GPU_FAN = sensorTopic('gpu', 'fan');
 /** The tile that carried the truncation defect: LHM reports this in raw bytes per second. */
 const GPU_THROUGHPUT = sensorTopic('gpu', 'throughput');
@@ -358,6 +359,176 @@ describe('<Readout> — the unit follows the number', () => {
   });
 });
 
+/**
+ * The px size the sheet's own `font-size` expression gives a value, in a content box `width` wide.
+ *
+ * jsdom has no layout engine and does not resolve `cqw`, so the expression is taken from
+ * `READOUT_STYLES` verbatim and evaluated here: `var()`s resolve to the given properties or their
+ * fallbacks, `cqw` to the width, `rem` to 16px, `ex` to half the 16px row font, and `clamp`/`calc`
+ * to the arithmetic they name. What is tested is the sheet's arithmetic, not a copy of it.
+ */
+function valueSizePx(width: number, properties: Readonly<Record<string, string>>): number {
+  const rule = /\.perch-readout__value\s*{[^}]*}/.exec(READOUT_STYLES)?.[0] ?? '';
+  const expression = /font-size:\s*([\s\S]*?);\n/.exec(rule)?.[1];
+  if (expression === undefined) throw new Error('no font-size on the value');
+  let js = expression;
+  for (;;) {
+    const next = js.replace(
+      /var\(\s*(--[A-Za-z0-9_-]+)\s*(?:,\s*([^()]*))?\)/g,
+      (_all, name: string, fallback: string | undefined) => {
+        const value = properties[name] ?? fallback;
+        if (value === undefined) throw new Error(`${name} has no value and no fallback`);
+        return `(${value.trim()})`;
+      },
+    );
+    if (next === js) break;
+    js = next;
+  }
+  js = js
+    .replace(/(-?[0-9.]+)cqw/g, (_all, n: string) => `(${n} * ${width} / 100)`)
+    .replace(/(-?[0-9.]+)rem/g, (_all, n: string) => `(${n} * 16)`)
+    .replace(/(-?[0-9.]+)ex/g, (_all, n: string) => `(${n} * 8)`)
+    .replace(/clamp\(/g, '__clamp(')
+    .replace(/calc\(/g, '(');
+  return evaluate(js);
+}
+
+/** `+ - * /`, parentheses and `__clamp(a, b, c)` over numbers: all a resolved size expression has. */
+function evaluate(source: string): number {
+  const tokens = source.match(/__clamp|[0-9]*\.?[0-9]+|[-+*/(),]/g) ?? [];
+  if (tokens.join('') !== source.replace(/\s+/g, '')) {
+    throw new Error(`unevaluated CSS left: ${source}`);
+  }
+  let at = 0;
+  const peek = (): string | undefined => tokens[at];
+  const take = (expected?: string): string => {
+    const token = tokens[at++];
+    if (token === undefined || (expected !== undefined && token !== expected)) {
+      throw new Error(`expected ${expected ?? 'a token'} at ${String(at)} in ${source}`);
+    }
+    return token;
+  };
+  const primary = (): number => {
+    const token = take();
+    if (token === '-') return -primary();
+    if (token === '(') {
+      const value = sum();
+      take(')');
+      return value;
+    }
+    if (token === '__clamp') {
+      take('(');
+      const min = sum();
+      take(',');
+      const value = sum();
+      take(',');
+      const max = sum();
+      take(')');
+      return Math.min(Math.max(min, value), max);
+    }
+    return Number(token);
+  };
+  const product = (): number => {
+    let value = primary();
+    while (peek() === '*' || peek() === '/')
+      value = take() === '*' ? value * primary() : value / primary();
+    return value;
+  };
+  const sum = (): number => {
+    let value = product();
+    while (peek() === '+' || peek() === '-')
+      value = take() === '+' ? value + product() : value - product();
+    return value;
+  };
+  const value = sum();
+  if (at !== tokens.length) throw new Error(`trailing tokens in ${source}`);
+  return value;
+}
+
+/** The custom properties the rendered readout carries, as the sheet will read them. */
+function propertiesOf(readout: HTMLElement): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const name of ['--perch-readout-chars', '--perch-readout-unit-chars']) {
+    const value = readout.style.getPropertyValue(name);
+    if (value !== '') out[name] = value;
+  }
+  return out;
+}
+
+/** The desk layout's type ends: the theme the human's report was taken on. */
+const DESK_THEME = {
+  '--perch-value-size-min': '1.25rem',
+  '--perch-value-size-max': '2.5rem',
+  '--perch-unit-size': '1rem',
+};
+
+describe('<Readout> — a short reading is not shrunk by a narrower box that still fits it', () => {
+  /**
+   * The human's report, on the desk layout: `5.8 %` in one tile drawn small, `7.0 %` in a wider
+   * tile drawn big, `53.0 W` in between, though every one of them had room for its three or four
+   * glyphs at full size. The size followed the box, not the reading.
+   */
+  it('gives a three-glyph reading the same size in a wide box and a narrow one that both fit it', () => {
+    const { source } = mount(<Readout topic={CPU_LOAD} label="CPU Total" />);
+    source.emit(CPU_LOAD, { value: 5.8, at: Date.now() });
+    const readout = readoutNamed('CPU Total');
+    expect(readout).toHaveTextContent('5.8 %');
+    const properties = { ...DESK_THEME, ...propertiesOf(readout) };
+
+    const wide = valueSizePx(400, properties);
+    const narrow = valueSizePx(150, properties);
+
+    // 150px holds three digits and a `%` at 40px (about 97px), so both print at the cap.
+    expect(narrow).toBe(wide);
+    expect(wide).toBe(40);
+  });
+
+  it('still shrinks a reading that does not fit its box at full size', () => {
+    const { source } = mount(<Readout topic={GPU_THROUGHPUT} label="GPU PCIe Tx" />);
+    source.emit(GPU_THROUGHPUT, { value: 37699580, at: Date.now() });
+    const properties = { ...DESK_THEME, ...propertiesOf(readoutNamed('GPU PCIe Tx')) };
+
+    const size = valueSizePx(164, properties);
+
+    expect(size).toBeLessThan(40);
+    expect(size).toBeGreaterThanOrEqual(20);
+  });
+});
+
+describe('<Readout> — the type scale reads the reading it prints', () => {
+  /**
+   * The human's second report: the number shrank in a tile with room to spare. The scale was sized
+   * for eight digits whatever was printed, so `9.4` was held to the size an eight-digit reading
+   * needs. The readout now tells its sheet how many glyphs the value and the unit actually have.
+   */
+  it('publishes the glyph counts of the value and the unit it prints, as they change', () => {
+    const { source } = mount(<Readout topic={GPU_THROUGHPUT} label="GPU PCIe Rx" />);
+    const readout = readoutNamed('GPU PCIe Rx');
+    const counts = () => [
+      readout.style.getPropertyValue('--perch-readout-chars'),
+      readout.style.getPropertyValue('--perch-readout-unit-chars'),
+    ];
+
+    expect(counts()).toEqual([String(READOUT_WAITING_TEXT.length), '0']);
+    source.emit(GPU_THROUGHPUT, { value: 42, at: Date.now() });
+    expect(counts()).toEqual(['2', '3']);
+    source.emit(GPU_THROUGHPUT, { value: 37699580, at: Date.now() + 1 });
+    expect(counts()).toEqual(['8', '3']);
+  });
+
+  it('sizes the number from those counts and the room it has, between the theme ends', () => {
+    const value = /\.perch-readout__value\s*{[^}]*}/.exec(READOUT_STYLES)?.[0] ?? '';
+    const size = /font-size:\s*(clamp\([\s\S]*?\));/.exec(value)?.[1] ?? '';
+
+    expect(size).toContain('var(--perch-value-size-min');
+    expect(size).toContain('var(--perch-value-size-max');
+    expect(size).toContain('100cqw');
+    expect(size).toContain('var(--perch-readout-chars');
+    expect(size).toContain('var(--perch-readout-unit-chars');
+    expect(size).not.toContain('14cqw');
+  });
+});
+
 describe('<Readout> — the frame budget', () => {
   it('keeps one element shape across every state, so React only patches text', () => {
     const clock = manualClock();
@@ -445,11 +616,10 @@ describe('READOUT_STYLES', () => {
     expect(unit).not.toMatch(/margin|padding|width/);
   });
 
-  it('still sizes the number so eight digits and a unit fit the width it is given', () => {
-    // With no fixed field, "never clipped" rests on the type scale alone.
+  it('keeps an ellipsis on the number as the backstop the type scale should never reach', () => {
     const value = /\.perch-readout__value\s*{[^}]*}/.exec(READOUT_STYLES)?.[0];
-    expect(value).toMatch(/font-size:\s*clamp\(.*\b14cqw\b/);
     expect(value).toMatch(/text-overflow:\s*ellipsis/);
+    expect(value).toMatch(/overflow:\s*hidden/);
   });
 
   it('stops the label and note from driving the widget width', () => {

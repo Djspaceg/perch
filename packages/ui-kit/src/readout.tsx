@@ -40,10 +40,10 @@
  * 216px tile, at both captured viewports. An unreadable value would be obvious; `669` is a
  * plausible reading four orders of magnitude out, and nothing on the panel says so.
  *
- * The value is now exempt by its **type scale**, taken from the widget's own width: `.perch-readout`
- * is an inline-size query container and the value's `font-size` is `clamp(1.5rem, 14cqw, 3rem)`,
- * the largest size at which eight digits plus a unit still fit the width the page granted. The size
- * depends on the *container*, never on the reading, so it is constant across a capture.
+ * The value is now exempt by its **type scale**, taken from the widget's own width and the glyphs it
+ * prints: `.perch-readout` is an inline-size query container, and the value's `font-size` is the
+ * largest size, between the theme's two ends, at which *this* reading and its unit fit the width the
+ * page granted. See `READOUT_STYLES` for the arithmetic.
  *
  * ## The unit follows the number
  *
@@ -62,7 +62,7 @@
  * neighbour — but no plausible reading reaches it.
  */
 
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import { normalizeSensorTopic, parseSensorTopic, type SensorMetric } from '@perch/sensor-contract';
 import { assertNever } from './exhaustive.js';
 import { readoutView, type ReadoutStateKind } from './readout-view.js';
@@ -95,6 +95,20 @@ export interface ReadoutProps {
  */
 type ReadoutTone = 'none' | 'quiet' | 'warn' | 'alert';
 
+/**
+ * How wide one glyph of the value is, in `em` of the value's own size.
+ *
+ * Measured: at weight 650 in the system sans a `tabular-nums` digit advances 0.6475em. A decimal
+ * point is usually narrower, so counting it as a digit errs toward a size that fits.
+ */
+const READOUT_DIGIT_ADVANCE_EM = 0.6475;
+
+/**
+ * How wide one glyph of the unit is, in `em` of `--perch-unit-size`. Generous, because units are
+ * proportional letters and `M` and `W` are the widest of them.
+ */
+const READOUT_UNIT_ADVANCE_EM = 0.7;
+
 export function Readout(props: ReadoutProps): ReactNode {
   const { topic, label, decimals } = props;
 
@@ -118,6 +132,7 @@ export function Readout(props: ReadoutProps): ReactNode {
       data-state={view.state}
       data-tone={toneOf(view.state)}
       data-topic={parsed.canonical}
+      style={glyphCounts(view.value, view.unit)}
     >
       <div className="perch-readout__primary">
         <span className="perch-readout__value">{view.value}</span>
@@ -134,6 +149,32 @@ export function Readout(props: ReadoutProps): ReactNode {
       <span className="perch-readout__note">{view.note}</span>
     </div>
   );
+}
+
+/**
+ * The custom properties the component writes for its own sheet, and never a theme token.
+ *
+ * They are set on the readout itself, so a layout that wrote one into an element's `style` would be
+ * overridden on the way down: the counts always describe the text actually printed.
+ */
+export const READOUT_GLYPH_PROPERTIES = Object.freeze([
+  '--perch-readout-chars',
+  '--perch-readout-unit-chars',
+] as const);
+
+/**
+ * The two numbers the type scale divides by, as custom properties on the readout.
+ *
+ * Counted in code points, so `°C` is two glyphs. React patches the attribute only when a count
+ * changes, which within a decade of readings is never.
+ */
+function glyphCounts(value: string, unit: string): CSSProperties {
+  const [chars, unitChars] = READOUT_GLYPH_PROPERTIES;
+  const counts: Record<string, string> = {
+    [chars]: String(Math.max(1, Array.from(value).length)),
+    [unitChars]: String(Array.from(unit).length),
+  };
+  return counts;
 }
 
 /**
@@ -206,15 +247,19 @@ function parseTopic(topic: string): { canonical: string; metric: SensorMetric } 
  *
  * The value's size is measured, not chosen, and it is now measured per widget instead of once:
  *
- * - **Eight digits** is the widest reading the scale is sized for, measured rather than chosen:
- *   `fixtures/lhm-data.sample.json` reports GPU PCIe Tx as `37699580 B/s`. A ninth character may
- *   ellipsise in the narrowest tile, and the answer to that is a display-unit scale, which belongs
- *   with `layout-schema` rather than with a defect fix.
- * - **`clamp(1.5rem, 14cqw, 3rem)`** is the type scale, against the widget's own inline size. At
- *   weight 650 in the system sans a digit advances 0.6475em, so eight of them plus the 1ex gap
- *   and a three-glyph unit fit a container down to ~174px — which is what a 13rem tile grants, the
- *   narrowest this page produces. The old fixed 3rem needs 249px for the same eight characters and
- *   is kept as the cap, so a widget with room to spare still prints at the size it always did.
+ * - **The room** is `100cqw`, the widget's own content width, less the unit and the 1ex gap before
+ *   it. The unit has its own fixed size (`--perch-unit-size`), so it is reserved at
+ *   `READOUT_UNIT_ADVANCE_EM` of that size per glyph.
+ * - **The reading** is `--perch-readout-chars` glyphs at `READOUT_DIGIT_ADVANCE_EM` each, written
+ *   on the element by the component from the text it prints (`--perch-readout-unit-chars` likewise
+ *   for the unit). The size is the room divided by the reading, clamped to the theme's ends.
+ *
+ * It used to be a fixed `14cqw`: the size eight digits and a unit need, whatever was printed. The
+ * human's report was that `9.4` shrank in a tile with room for it at full size — it was being held
+ * to an eight-digit reading's size. Now a short reading prints at the cap until the room runs out,
+ * and `37699580 B/s` (GPU PCIe Tx in `fixtures/lhm-data.sample.json`, the widest measured) still
+ * shrinks to fit. The cost is the one the human chose: a reading that gains a glyph in a tight tile
+ * steps the size down, where before only the container could move it.
  *
  * `container-type: inline-size` is what makes `cqw` mean the widget's width, and it earns its place
  * twice: the same containment makes the widget's inline size independent of its contents, so the
@@ -229,7 +274,7 @@ function parseTopic(topic: string): { canonical: string; metric: SensorMetric } 
  *
  * What is deliberately *not* tokenised is the geometry that the frame budget depends on: the note
  * row's fixed height, the `min-width: 0`/`nowrap`/ellipsis triple on the label and note, and the
- * `14cqw` measurement. Those are not presentation — they are the
+ * glyph-advance measurement. Those are not presentation — they are the
  * guarantees that an update cannot reflow the widget and that a label cannot set its width. A theme
  * token able to switch one of them off would make a layout file capable of reintroducing the defect
  * this file's history is mostly about.
@@ -244,10 +289,10 @@ function parseTopic(topic: string): { canonical: string; metric: SensorMetric } 
  * matter of where the ink sits inside rows whose geometry does not change: a centred readout centres
  * the number and its unit together. Both default to `start`, which is where a readout sat before.
  *
- * Padding, read by the element box rather than here, narrows the container the `14cqw` scale is
- * measured against. So a padded readout's number scales down with the room padding leaves it, exactly
- * as a narrower rect's would, and the measured floor above — eight digits and a unit need about 174px
- * of content width at the default floor — is now a claim about the content box, not the rect.
+ * Padding, read by the element box rather than here, narrows the container the scale is measured
+ * against. So a padded readout's number scales down with the room padding leaves it, exactly as a
+ * narrower rect's would — but only once the reading no longer fits at the cap. The human confirmed
+ * that padding and size should keep moving the number that way.
  */
 export const READOUT_STYLES = `
 .perch-readout {
@@ -275,7 +320,14 @@ export const READOUT_STYLES = `
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: clamp(${token('--perch-value-size-min')}, 14cqw, ${token('--perch-value-size-max')});
+  font-size: clamp(
+    ${token('--perch-value-size-min')},
+    calc(
+      (100cqw - var(--perch-readout-unit-chars, 3) * ${String(READOUT_UNIT_ADVANCE_EM)} * ${token('--perch-unit-size')} - 1ex) /
+        (var(--perch-readout-chars, 8) * ${String(READOUT_DIGIT_ADVANCE_EM)})
+    ),
+    ${token('--perch-value-size-max')}
+  );
   font-weight: ${token('--perch-value-weight')};
   font-variant-numeric: tabular-nums;
   line-height: 1;
