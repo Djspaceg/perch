@@ -2,7 +2,7 @@
  * Browser entry point. Builds the source, reads the URL, mounts the editor, and nothing else.
  *
  * The only file in `apps/editor` that constructs anything global: the sensor sources, the relay's
- * control path, the layout library, and the transport a save travels over. Everything downstream receives one, which is what
+ * control path, the editor store, the layout library, and the transport a save travels over. Everything downstream receives one, which is what
  * lets `app.test.tsx` mount the editor with its own two-layout library and its own recording
  * transport, and assert that a refused save never reached it.
  *
@@ -22,9 +22,10 @@
  *
  * ## `?layout=`
  *
- * Read once at startup and not watched. The picker is the way to change layouts once the page is up;
- * the query parameter exists so a link can open a particular file, including one under
- * `layouts/invalid/` that the picker deliberately does not offer.
+ * Read once at startup and not watched. It beats the layout last picked, which the editor store
+ * remembers (`store.ts`) and opens when there is no query. The picker is the way to change layouts
+ * once the page is up; the query parameter exists so a link can open a particular file, including
+ * one under `layouts/invalid/` that the picker deliberately does not offer.
  */
 
 import { StrictMode } from 'react';
@@ -36,10 +37,10 @@ import {
   isRelayBrokerUrl,
 } from '@perch/sensor-sources';
 import { Editor } from './app.js';
-import type { ConnectionStorage } from './connection.js';
 import type { RelayLink } from './connection-control.js';
 import { LAYOUT_LIBRARY } from './layout-library.js';
 import { browserSaveTransport } from './save.js';
+import { createEditorStore, type SettingsStorage } from './store.js';
 
 const source = createMockSource();
 
@@ -59,7 +60,7 @@ function buildRelay(url: string | undefined): RelayLink | undefined {
 }
 
 /** `localStorage`, or `undefined` where reading the property itself throws (some privacy modes). */
-function browserStorage(): ConnectionStorage | undefined {
+function browserStorage(): SettingsStorage | undefined {
   try {
     return window.localStorage;
   } catch {
@@ -73,6 +74,12 @@ function requestedLayout(search: string): string | undefined {
 
   return name === null || name === '' ? undefined : name;
 }
+
+/**
+ * The page's editor store, made here rather than inside `Editor` so StrictMode's second render
+ * cannot make a second one: each would connect to Redux DevTools as its own `perch-editor`.
+ */
+const store = createEditorStore({ storage: browserStorage() });
 
 const host = document.getElementById('perch-editor-root');
 if (host === null) {
@@ -88,7 +95,7 @@ createRoot(host).render(
       // connected, the picker lists what the relay publishes instead.
       topics={source.topics}
       relay={buildRelay(import.meta.env.PERCH_RELAY_URL)}
-      storage={browserStorage()}
+      store={store}
       transport={browserSaveTransport}
       initialLayout={requestedLayout(window.location.search)}
     />

@@ -8,27 +8,25 @@
  * - **host** enables the field. Connect is enabled for a valid `host` or `host:port` (default port
  *   8085), disabled while connecting to or connected to that same host, and enabled again once the
  *   connection is lost — so "Connect is available" and "not connected to what you typed" are one fact.
- * - The choice in effect and the typed text are remembered in `localStorage`, and the remembered
- *   choice is asked for again on the next load.
+ * - The radio, the choice in effect and the typed text are the editor store's settings (`store.ts`),
+ *   so they are remembered in `localStorage`, and the remembered choice is asked for again on the next
+ *   load.
  *
- * The state lives in `useConnection`, above the sensor provider, because it decides which source the
- * preview reads: the relay's once connected, the mock until then (see `app.tsx`).
+ * `useConnection` reads them above the sensor provider, because the connection decides which source
+ * the preview reads: the relay's once connected, the mock until then (see `app.tsx`).
  */
 
 import type { SensorSource } from '@perch/sensor-contract';
 import type { RelayControl } from '@perch/sensor-sources';
-import { useEffect, useReducer, useState, type ReactNode } from 'react';
+import { useEffect, useReducer, type ReactNode } from 'react';
 import {
   choiceRequest,
   deriveConnection,
-  loadConnection,
   parseHostInput,
-  saveConnection,
   type ConnectionState,
-  type ConnectionStorage,
   type HostInput,
-  type SavedConnection,
 } from './connection.js';
+import { useEditorStore, type ConnectionMode } from './store.js';
 
 /** The relay this editor was started against: its URL, its live source and its control path. */
 export interface RelayLink {
@@ -46,7 +44,7 @@ export interface RelayLink {
 const STATUS_RECHECK_MS = 500;
 
 export interface Connection {
-  readonly mode: 'localhost' | 'remote';
+  readonly mode: ConnectionMode;
   readonly draft: string;
   readonly parsed: HostInput;
   readonly state: ConnectionState;
@@ -57,18 +55,14 @@ export interface Connection {
   connect(): void;
 }
 
-export function useConnection(
-  relay: RelayLink | undefined,
-  storage: ConnectionStorage | undefined,
-): Connection {
-  const [saved, setSaved] = useState<SavedConnection>(() => loadConnection(storage));
-  const [mode, setMode] = useState<'localhost' | 'remote'>(() => saved.choice.kind);
+export function useConnection(relay: RelayLink | undefined): Connection {
+  const saved = useEditorStore((state) => state.settings.connection);
+  const selectLocalhost = useEditorStore((state) => state.selectLocalhost);
+  const selectRemote = useEditorStore((state) => state.selectRemote);
+  const setConnectionHost = useEditorStore((state) => state.setConnectionHost);
+  const connectTo = useEditorStore((state) => state.connectTo);
   const [, recheck] = useReducer((count: number) => count + 1, 0);
-
-  const remember = (next: SavedConnection): void => {
-    setSaved(next);
-    saveConnection(storage, next);
-  };
+  const { mode } = saved;
 
   useEffect(() => {
     if (relay === undefined) return undefined;
@@ -110,22 +104,12 @@ export function useConnection(
     parsed,
     state,
     canConnect: mode === 'remote' && parsed.ok && !alreadyThere,
-    selectLocalhost: () => {
-      setMode('localhost');
-      remember({ choice: { kind: 'localhost' }, draft: saved.draft });
-    },
-    selectRemote: () => {
-      setMode('remote');
-    },
-    setDraft: (text) => {
-      remember({ choice, draft: text });
-    },
+    selectLocalhost,
+    selectRemote,
+    setDraft: setConnectionHost,
     connect: () => {
       if (!parsed.ok) return;
-      remember({
-        choice: { kind: 'remote', host: parsed.host, port: parsed.port },
-        draft: saved.draft,
-      });
+      connectTo(parsed.host, parsed.port);
     },
   };
 }

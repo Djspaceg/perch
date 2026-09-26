@@ -87,10 +87,11 @@ import {
 } from './layout-edits.js';
 import { PropertyView } from './property-view.js';
 import { AddMenu, SensorCatalogueProvider } from './sensor-picker.js';
+import { NOTHING_SELECTED } from './store.js';
 import { TokenPane } from './token-pane.js';
 
-/** The selection when there is none. Any out-of-range index means the same. */
-export const NOTHING_SELECTED = -1;
+/** The selection when there is none, kept with the selection in the editor store. */
+export { NOTHING_SELECTED };
 
 export interface InspectorProps {
   readonly state: DraftState;

@@ -1,6 +1,6 @@
 /**
- * Section: a full-width bar with a disclosure triangle, its open state remembered for the session, and
- * a quieter Advanced foldout for inside one.
+ * Section: a full-width bar with a disclosure triangle, its open state remembered in the editor
+ * store, and a quieter Advanced foldout for inside one.
  */
 
 import { fireEvent, render, screen } from '@testing-library/react';
@@ -46,7 +46,7 @@ describe('Section', () => {
     );
   });
 
-  it('remembers being closed for the session, across a remount', () => {
+  it('remembers being closed, across a remount', () => {
     const first = renderSection();
     fireEvent.click(screen.getByRole('button', { name: 'Transform' }));
     first.unmount();

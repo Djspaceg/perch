@@ -64,6 +64,7 @@ import {
 } from './controls/index.js';
 import { isHexColor, optionLabel, tokenSpec } from './descriptors.js';
 import { SpecControl, TextControl, isGroupSpec, scrubFor } from './property-view.js';
+import { useEditorStore, type TokenTab } from './store.js';
 
 export { isHexColor } from './descriptors.js';
 
@@ -90,13 +91,15 @@ export interface TokenPaneProps {
   readonly chips?: boolean;
   /** Which token sections start open: all (`true`, the default), none, or the ones named. */
   readonly sectionsOpen?: boolean | readonly TokenGroup[];
-  /** What the sections' open state is remembered under. Defaults to `id`. */
+  /**
+   * What the sections' open state, the tab and the chip are remembered under in the editor store.
+   * Defaults to `id`. Every element's `style` pane shares `style`, so the tab picked on one readout is
+   * the tab the next one opens on, as a fold is.
+   */
   readonly disclosureKey?: string;
 }
 
-type Tab = 'customize' | 'developer';
-
-const TABS: readonly TabSpec<Tab>[] = Object.freeze([
+const TABS: readonly TabSpec<TokenTab>[] = Object.freeze([
   {
     id: 'customize',
     label: 'Customize',
@@ -194,9 +197,14 @@ export function TokenPane({
   sectionsOpen = true,
   disclosureKey,
 }: TokenPaneProps): ReactNode {
-  const [tab, setTab] = useState<Tab>('customize');
+  const key = disclosureKey ?? id;
+  const tab = useEditorStore((state) => state.settings.tabs[key]) ?? 'customize';
+  const remembered = useEditorStore((state) => state.settings.chips[key]);
+  const setPaneTab = useEditorStore((state) => state.setTab);
+  const setPaneChip = useEditorStore((state) => state.setChip);
   const [query, setQuery] = useState('');
-  const [chip, setChip] = useState<string>('all');
+  // A chip no section is called any more reads as All, rather than as a filter that hides everything.
+  const chip = CHIPS.some((entry) => entry.id === remembered) ? (remembered ?? 'all') : 'all';
   const base = `perch-token-pane-${id}`;
   const known = tokensFor(scope, kind);
 
@@ -207,7 +215,9 @@ export function TokenPane({
         idBase={base}
         tabs={TABS}
         selected={tab}
-        onSelect={setTab}
+        onSelect={(next) => {
+          setPaneTab(key, next);
+        }}
         trailing={<FilterBar label={`search ${title} tokens`} query={query} onQuery={setQuery} />}
       />
       <div
@@ -219,7 +229,15 @@ export function TokenPane({
       >
         {tab === 'customize' ? (
           <>
-            {chips ? <FilterBar chips={CHIPS} chip={chip} onChip={setChip} /> : null}
+            {chips ? (
+              <FilterBar
+                chips={CHIPS}
+                chip={chip}
+                onChip={(next) => {
+                  setPaneChip(key, next);
+                }}
+              />
+            ) : null}
             {leading}
             <CustomizeSections
               pane={id}
@@ -230,7 +248,7 @@ export function TokenPane({
               query={query}
               chip={chip}
               sectionsOpen={sectionsOpen}
-              disclosureKey={disclosureKey ?? id}
+              disclosureKey={key}
               onSet={onSet}
               onRemove={onRemove}
             />

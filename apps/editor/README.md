@@ -19,10 +19,19 @@ LibreHardwareMonitor host to poll (`perch/relay/lhm/request`) and reads whether 
 its retained status (`perch/relay/lhm/status`). "Connected" means the relay's poll succeeds *and*
 readings arrive here; only then do the preview and the sensor picker read the relay. Otherwise the
 preview reads `createMockSource()` under a **sample data** badge, because authoring must not
-require hardware. The choice and typed host are remembered in `localStorage`. The header marks the
+require hardware. The choice and typed host are remembered (see [Settings](#settings)). The header marks the
 source with `data-perch-source-kind` (`mock` or `mqtt`) so no
 capture can be misread as a live panel. Open a specific file with `?layout=`,
 including one under `layouts/invalid/` that the picker does not offer.
+
+## Settings
+
+The editor's settings live in one zustand store (`src/store.ts`), persisted to `localStorage` under
+`perch-editor`: the sensor host, which sidebar sections and Advanced folds are open, each token
+pane's tab and chip, and the layout last picked (`?layout=` still wins). The open draft and the
+selection are in the same store but never persisted, so a reload always opens the file on disk.
+With the Redux DevTools extension installed, every change shows on its timeline by name
+(`toggle/section`, `set/connectionHost`, `edit/draft`, ...).
 
 ## Scope
 

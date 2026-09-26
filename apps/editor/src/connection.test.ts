@@ -1,32 +1,16 @@
 /**
- * The connection control's model, without the control: what a typed host means, what is remembered,
- * and which of connecting / connected / disconnected the editor is in.
+ * The connection control's model, without the control: what a typed host means, what a remembered
+ * one must look like, and which of connecting / connected / disconnected the editor is in.
  */
 
 import { describe, expect, it } from 'vitest';
 import {
-  CONNECTION_STORAGE_KEY,
   DEFAULT_LHM_PORT,
   choiceRequest,
   deriveConnection,
-  loadConnection,
   parseHostInput,
-  saveConnection,
-  type ConnectionStorage,
+  readSavedConnection,
 } from './connection.js';
-
-function memoryStorage(initial: Record<string, string> = {}): ConnectionStorage & {
-  readonly data: Record<string, string>;
-} {
-  const data = { ...initial };
-  return {
-    data,
-    getItem: (key) => data[key] ?? null,
-    setItem: (key, value) => {
-      data[key] = value;
-    },
-  };
-}
 
 describe('parseHostInput', () => {
   it('takes a host alone and gives it LibreHardwareMonitor’s default port', () => {
@@ -76,48 +60,30 @@ describe('choiceRequest', () => {
   });
 });
 
-describe('loadConnection and saveConnection', () => {
-  it('defaults to localhost with an empty field when nothing is stored', () => {
-    expect(loadConnection(memoryStorage())).toEqual({ choice: { kind: 'localhost' }, draft: '' });
-    expect(loadConnection(undefined)).toEqual({ choice: { kind: 'localhost' }, draft: '' });
-  });
-
-  it('round-trips the last choice and the typed host', () => {
-    const storage = memoryStorage();
+describe('readSavedConnection', () => {
+  it('reads back a remembered choice and the typed host', () => {
     const saved = {
       choice: { kind: 'remote', host: '192.168.1.3', port: 8085 },
       draft: '192.168.1.3',
     } as const;
 
-    saveConnection(storage, saved);
-
-    expect(storage.data[CONNECTION_STORAGE_KEY]).toBeDefined();
-    expect(loadConnection(storage)).toEqual(saved);
+    expect(readSavedConnection(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    expect(readSavedConnection({ choice: { kind: 'localhost' } })).toEqual({
+      choice: { kind: 'localhost' },
+      draft: '',
+    });
   });
 
-  it('falls back to the default when what is stored is not a connection', () => {
-    for (const junk of ['not json', '{}', '{"choice":{"kind":"remote","host":"a b","port":1}}']) {
-      expect(loadConnection(memoryStorage({ [CONNECTION_STORAGE_KEY]: junk })), junk).toEqual({
-        choice: { kind: 'localhost' },
-        draft: '',
-      });
+  it('refuses what is not a connection', () => {
+    for (const junk of [
+      undefined,
+      'not json',
+      {},
+      { choice: { kind: 'remote', host: 'a b', port: 1 } },
+      { choice: { kind: 'remote', host: 'h', port: 70_000 } },
+    ]) {
+      expect(readSavedConnection(junk), JSON.stringify(junk)).toBeUndefined();
     }
-  });
-
-  it('survives a storage that throws, as a private window’s does', () => {
-    const throwing: ConnectionStorage = {
-      getItem: () => {
-        throw new Error('denied');
-      },
-      setItem: () => {
-        throw new Error('denied');
-      },
-    };
-
-    expect(loadConnection(throwing)).toEqual({ choice: { kind: 'localhost' }, draft: '' });
-    expect(() => {
-      saveConnection(throwing, { choice: { kind: 'localhost' }, draft: '' });
-    }).not.toThrow();
   });
 });
 

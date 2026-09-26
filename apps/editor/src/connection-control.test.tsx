@@ -17,9 +17,9 @@ import { createMockSource, type RelayLhmRequest, type RelayLhmStatus } from '@pe
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Editor } from './app.js';
-import { CONNECTION_STORAGE_KEY, type ConnectionStorage } from './connection.js';
 import type { RelayLink } from './connection-control.js';
 import { createLayoutLibrary } from './layout-library.js';
+import { EDITOR_STORE_KEY, type SettingsStorage } from './store.js';
 
 const TOPIC = 'sensors/cpu/0/temperature/0' as SensorTopic;
 
@@ -94,7 +94,7 @@ function fakeRelay(): RelayLink & {
   };
 }
 
-function memoryStorage(initial: Record<string, string> = {}): ConnectionStorage & {
+function memoryStorage(initial: Record<string, string> = {}): SettingsStorage & {
   data: Record<string, string>;
 } {
   const data = { ...initial };
@@ -249,7 +249,7 @@ describe('the connection control', () => {
     const relay = fakeRelay();
     const second = renderEditor(relay, storage);
 
-    expect(storage.data[CONNECTION_STORAGE_KEY]).toBeDefined();
+    expect(storage.data[EDITOR_STORE_KEY]).toBeDefined();
     expect(second.remote).toBeChecked();
     expect(second.field).toHaveValue('192.168.1.3');
     expect(relay.requests).toEqual([{ host: '192.168.1.3', port: 8085 }]);

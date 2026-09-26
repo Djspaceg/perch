@@ -15,16 +15,18 @@
  * registered by hand. Without it each test inherits the previous test's DOM, and `screen`, which
  * queries the whole document, starts finding two of everything.
  *
- * Session storage is cleared for the same reason: see `src/disclosure.ts`.
+ * The detached editor store is reset for the same reason: see `src/store.ts`.
  */
 
 import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+import { DETACHED_EDITOR_STORE } from './src/store.js';
 
 afterEach(() => {
   cleanup();
-  // The inspector remembers which sections are open in `sessionStorage`, for the tab's session. A
-  // test that folds one must not hand that fold to the next test.
-  sessionStorage.clear();
+  // A primitive rendered outside an editor remembers its folds, tabs and chips in the detached store.
+  // A test that folds one must not hand that fold to the next test. A mounted editor makes its own
+  // store, so it needs nothing here.
+  DETACHED_EDITOR_STORE.setState(DETACHED_EDITOR_STORE.getInitialState(), true);
 });

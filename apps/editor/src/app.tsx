@@ -58,8 +58,7 @@
  * would have cost a browser API that does not exist in jsdom.
  */
 
-import { loadLayoutJson, type LayoutIssue, type LoadLayoutOptions } from '@perch/layout-schema';
-import { normalizeSensorTopic, type SensorSource } from '@perch/sensor-contract';
+import type { SensorSource } from '@perch/sensor-contract';
 import {
   LAYOUT_CANVAS_STYLES,
   MEDIA_FRAME_STYLES,
@@ -67,12 +66,10 @@ import {
   SensorProvider,
   TEXT_BLOCK_STYLES,
   WIDGET_NAMES,
-  WIDGET_REGISTRY,
 } from '@perch/ui-kit';
 import type { LayoutElement, Rect } from '@perch/layout-schema';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CANVAS_HANDLES_STYLES } from './canvas-handles.js';
-import type { ConnectionStorage } from './connection.js';
 import {
   CONNECTION_STYLES,
   ConnectionControl,
@@ -81,8 +78,8 @@ import {
   type RelayLink,
 } from './connection-control.js';
 import { CONTROLS_STYLES, escapeIsTaken } from './controls/index.js';
-import { canSave, draftSaved, editDraft, isDirty, openDraft, type DraftState } from './draft.js';
-import { INSPECTOR_STYLES, Inspector, NOTHING_SELECTED } from './inspector.js';
+import { canSave, isDirty } from './draft.js';
+import { INSPECTOR_STYLES, Inspector } from './inspector.js';
 import type { LayoutLibrary } from './layout-library.js';
 import { addElement, removeElement, setElementRect, type LayoutUpdate } from './layout-edits.js';
 import { LAYOUT_PROBLEMS_STYLES, LayoutProblems } from './problems.js';
@@ -97,77 +94,21 @@ import {
   usePreviewViewport,
 } from './preview-viewport.js';
 import { saveDraft, type SaveTransport } from './save.js';
+import { openLayoutByName, type Opened } from './open-layout.js';
+import {
+  EditorStoreProvider,
+  NOTHING_SELECTED,
+  createEditorStore,
+  useEditorStore,
+  type EditorStore,
+  type SettingsStorage,
+} from './store.js';
 
-/**
- * What every layout opened here is validated against.
- *
- * Identical to the runtime's `LOAD_OPTIONS`, and identical on purpose: the registry is
- * `WIDGET_REGISTRY` from `ui-kit` and the topic rule is `normalizeSensorTopic`, so the editor accepts
- * exactly the documents the runtime accepts. A stricter rule here would refuse layouts the panel can
- * draw; a looser one would let this editor save a file the panel then rejects, which is the failure
- * `SPEC.md` hard rule 2 names.
- *
- * The two apps cannot share the constant — `apps/` may not import `apps/` — so they share its
- * ingredients instead. That is the finding recorded in DECISIONS.md, not a divergence: both sides
- * name the same two exported values.
- */
-const LOAD_OPTIONS: LoadLayoutOptions = Object.freeze({
-  widgets: WIDGET_REGISTRY,
-  isTopic: (topic: string) => normalizeSensorTopic(topic) !== null,
-});
+export { openLayoutByName } from './open-layout.js';
 
 /** What the badge's tooltip says about the numbers in the preview while not connected. */
 const SAMPLE_PROVENANCE =
   'sample data: generated here, not hardware. The preview reads the sensor host once connected.';
-
-/** A layout open for editing, or the reason one is not. */
-type Opened =
-  | { readonly ok: true; readonly state: DraftState }
-  | {
-      readonly ok: false;
-      readonly name: string;
-      readonly reason: string;
-      readonly issues: readonly LayoutIssue[];
-    };
-
-/**
- * Open a named document from the library.
- *
- * Exported because it is the app's wiring decision — which loader, which options, what happens to a
- * file that is not a layout — and a test asserting "an invalid file shows its problems and paints
- * nothing" should be able to ask this directly rather than through a rendered tree.
- *
- * `loadLayoutJson`, not `validateLayout`: the text came from a file, so it is migrated forward first
- * and the steps are carried into the draft. See `draft.ts`.
- */
-export function openLayoutByName(library: LayoutLibrary, name: string): Opened {
-  const entry = library.entry(name);
-
-  if (entry === undefined) {
-    return {
-      ok: false,
-      name,
-      reason:
-        library.names.length === 0
-          ? `there is no layout named "${name}", and the library is empty`
-          : `there is no layout named "${name}". offered: ${library.names.join(', ')}`,
-      issues: [],
-    };
-  }
-
-  const loaded = loadLayoutJson(entry.text, LOAD_OPTIONS);
-
-  if (!loaded.ok) {
-    return {
-      ok: false,
-      name,
-      reason: `layouts/${name}.json is not a valid layout, so there is nothing to edit yet`,
-      issues: loaded.issues,
-    };
-  }
-
-  return { ok: true, state: openDraft(name, loaded.layout, LOAD_OPTIONS, loaded.migrations) };
-}
 
 export interface EditorProps {
   /** Which layouts exist. Injected, so a test supplies its own two. */
@@ -178,24 +119,58 @@ export interface EditorProps {
   readonly topics: readonly string[];
   /** The relay the dev stack started, or `undefined` when there is none (`--no-relay`). */
   readonly relay?: RelayLink | undefined;
-  /** Where the connection choice is remembered. `localStorage` in the page; absent, nothing is. */
-  readonly storage?: ConnectionStorage | undefined;
+  /**
+   * Where the editor's settings are remembered when no `store` is given. `localStorage` in the page;
+   * absent, nothing outlives the editor.
+   */
+  readonly storage?: SettingsStorage | undefined;
+  /**
+   * The editor store (`store.ts`). `main.tsx` makes the page's once; given none, the editor makes its
+   * own over `storage`, which is what a test does.
+   */
+  readonly store?: EditorStore | undefined;
   /** How a save reaches the filesystem. Injected, so a test can assert no request was made. */
   readonly transport: SaveTransport;
-  /** Which layout to open first. Defaults to the library's first offered name. */
+  /**
+   * Which layout to open first: `?layout=`. Given, it beats the layout last picked; absent, that one
+   * opens, else the library's first offered name.
+   */
   readonly initialLayout?: string | undefined;
 }
 
 export function Editor({
+  store,
+  storage,
+  library,
+  initialLayout,
+  ...rest
+}: EditorProps): ReactNode {
+  // Made once per mounted editor, and the first layout opened in it before anything renders, so the
+  // shell never sees a store with nothing open. `openFirst` does nothing to a store that already has
+  // a layout open: StrictMode's second call, or a page store handed to a remount.
+  const [editorStore] = useState(() => {
+    const made = store ?? createEditorStore({ storage });
+    made.getState().openFirst(library, initialLayout);
+
+    return made;
+  });
+
+  return (
+    <EditorStoreProvider store={editorStore}>
+      <ConnectedEditor library={library} {...rest} />
+    </EditorStoreProvider>
+  );
+}
+
+/** The editor inside its store: the connection, which source the preview reads, and the sheets. */
+function ConnectedEditor({
   library,
   source,
   topics,
   transport,
-  initialLayout,
   relay,
-  storage,
-}: EditorProps): ReactNode {
-  const connection = useConnection(relay, storage);
+}: Omit<EditorProps, 'store' | 'storage' | 'initialLayout'>): ReactNode {
+  const connection = useConnection(relay);
   const live = relay !== undefined && connection.state.phase === 'connected';
 
   return (
@@ -259,7 +234,6 @@ export function Editor({
         // topics beside a real machine's would suggest sensors that machine does not have.
         topics={live ? [] : topics}
         transport={transport}
-        initialLayout={initialLayout}
         connection={connection}
         live={live}
       />
@@ -279,28 +253,31 @@ function EditorShell({
   library,
   topics,
   transport,
-  initialLayout,
   connection,
   live,
-}: Omit<EditorProps, 'source' | 'relay' | 'storage'> & {
+}: Omit<EditorProps, 'source' | 'relay' | 'storage' | 'store' | 'initialLayout'> & {
   readonly connection: Connection;
   readonly live: boolean;
 }): ReactNode {
   const viewport = usePreviewViewport();
 
   /**
-   * The name to open when nothing has been picked: the first offered layout, sorted.
+   * The document and the selection are the store's session (`store.ts`): in the store so each edit
+   * is a named action, never persisted so a reload opens the file on disk. Which layout opened first
+   * is `openFirst`'s: `?layout=`, else the one last picked, else the first offered, sorted.
    *
    * Defaulting rather than showing a chooser, for the reason the runtime gives: the common case is
    * `npm run dev` with no query string, and a first screen that made the interesting state — a layout
    * on screen — the one needing extra clicks would be the wrong way round. The name is in the picker,
    * so it is never ambiguous which file is open.
    */
-  const firstName = initialLayout ?? library.names[0] ?? '';
-
-  const [opened, setOpened] = useState<Opened>(() => openLayoutByName(library, firstName));
+  const opened = useOpened();
   /** Nothing, until the author picks something: see `inspector.tsx` for why not element 0. */
-  const [selected, setSelected] = useState(NOTHING_SELECTED);
+  const selected = useEditorStore((state) => state.session.selected);
+  const selectInStore = useEditorStore((state) => state.select);
+  const openLayout = useEditorStore((state) => state.openLayout);
+  const editDraft = useEditorStore((state) => state.editDraft);
+  const markSaved = useEditorStore((state) => state.markSaved);
   /** Whether the selection header's delete is asking. Any change of selection withdraws the ask. */
   const [deleteAsked, setDeleteAsked] = useState(false);
   /** A switch waiting on the author's decision about unsaved edits. `null` when there is none. */
@@ -308,29 +285,34 @@ function EditorShell({
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const select = useCallback((index: number) => {
-    setSelected(index);
-    setDeleteAsked(false);
-  }, []);
+  const select = useCallback(
+    (index: number) => {
+      selectInStore(index);
+      setDeleteAsked(false);
+    },
+    [selectInStore],
+  );
 
+  /** Open `name`. `remember`: it was picked in the header, so it is the layout to reopen next time. */
   const open = useCallback(
-    (name: string) => {
-      setOpened(openLayoutByName(library, name));
-      select(NOTHING_SELECTED);
+    (name: string, remember: boolean) => {
+      openLayout(openLayoutByName(library, name), { remember });
+      setDeleteAsked(false);
       setPendingName(null);
       setNotice('');
     },
-    [library, select],
+    [library, openLayout],
   );
 
-  const onEdit = useCallback((update: LayoutUpdate) => {
-    setOpened((current) =>
-      current.ok ? { ok: true, state: editDraft(current.state, update) } : current,
-    );
-    // A stale "saved layouts/x.json" over a document that has since been edited reads as though the
-    // edit is on disk. The edit clears it.
-    setNotice('');
-  }, []);
+  const onEdit = useCallback(
+    (update: LayoutUpdate) => {
+      editDraft(update);
+      // A stale "saved layouts/x.json" over a document that has since been edited reads as though the
+      // edit is on disk. The edit clears it.
+      setNotice('');
+    },
+    [editDraft],
+  );
 
   /** A dragged or resized element's rect, as one edit. The same `editDraft` path as the field form. */
   const onRect = useCallback(
@@ -400,7 +382,7 @@ function EditorShell({
         setPendingName(name);
         return;
       }
-      open(name);
+      open(name, true);
     },
     [opened, open],
   );
@@ -420,14 +402,10 @@ function EditorShell({
           return;
         }
         setNotice(`saved ${outcome.path}`);
-        // Read from the current state rather than the captured one: the author may have typed during
-        // the write, and marking *that* document as on-disk would report a clean tree over unsaved
-        // edits. Only the document actually written is recorded as saved.
-        setOpened((current) =>
-          current.ok && current.state.name === state.name
-            ? { ok: true, state: draftSaved(current.state, outcome.written) }
-            : current,
-        );
+        // Recorded against the store's current state rather than the captured one: the author may have
+        // typed during the write, and marking *that* document as on-disk would report a clean tree
+        // over unsaved edits. Only the document actually written is recorded as saved.
+        markSaved(state.name, outcome.written);
       })
       .catch((error: unknown) => {
         setSaving(false);
@@ -435,7 +413,7 @@ function EditorShell({
           `the save request failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       });
-  }, [opened, saving, transport]);
+  }, [opened, saving, transport, markSaved]);
 
   const name = opened.ok ? opened.state.name : opened.name;
   const dirty = opened.ok && isDirty(opened.state);
@@ -508,7 +486,7 @@ function EditorShell({
           className="perch-editor-button"
           disabled={!opened.ok || !dirty}
           onClick={() => {
-            open(name);
+            open(name, false);
           }}
         >
           revert
@@ -543,7 +521,7 @@ function EditorShell({
             type="button"
             className="perch-editor-button"
             onClick={() => {
-              open(pendingName);
+              open(pendingName, true);
             }}
           >
             {`discard and open ${pendingName}`}
@@ -609,6 +587,14 @@ function EditorShell({
       </div>
     </div>
   );
+}
+
+/** The document open for editing. `Editor` opens one before the shell first renders. */
+function useOpened(): Opened {
+  const opened = useEditorStore((state) => state.session.opened);
+  if (opened === null) throw new Error('the editor store has no layout open; Editor opens one');
+
+  return opened;
 }
 
 /**

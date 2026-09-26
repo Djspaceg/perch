@@ -1,6 +1,7 @@
 /**
- * Which sensor host the editor reads, as data: the typed host, what is remembered between visits,
- * and which of connecting / connected / disconnected the editor is in.
+ * Which sensor host the editor reads, as data: the typed host, what a remembered one must look like,
+ * and which of connecting / connected / disconnected the editor is in. Remembering it is the editor
+ * store's (`store.ts`).
  *
  * "Host" is the machine running LibreHardwareMonitor. The relay stays on this machine (the dev stack
  * starts it) and is told which LHM host to poll over its one control path
@@ -87,40 +88,22 @@ export interface SavedConnection {
   readonly draft: string;
 }
 
+/**
+ * Where the connection control kept its choice before the editor store (`store.ts`) held it. The
+ * store reads it once, on the first load that finds no store of its own, and never writes it.
+ */
 export const CONNECTION_STORAGE_KEY = 'perch.editor.connection';
 
-/** The part of `localStorage` this uses, so a test supplies a record. */
-export interface ConnectionStorage {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-}
-
-const FIRST_VISIT: SavedConnection = Object.freeze({
-  choice: Object.freeze({ kind: 'localhost' }),
-  draft: '',
-});
-
-/** The remembered connection, or localhost with an empty field. Never throws. */
-export function loadConnection(storage: ConnectionStorage | undefined): SavedConnection {
-  let text: string | null;
-  try {
-    text = storage?.getItem(CONNECTION_STORAGE_KEY) ?? null;
-  } catch {
-    return FIRST_VISIT;
-  }
-  if (text === null) return FIRST_VISIT;
-
-  let body: unknown;
-  try {
-    body = JSON.parse(text);
-  } catch {
-    return FIRST_VISIT;
-  }
-  if (typeof body !== 'object' || body === null) return FIRST_VISIT;
+/**
+ * A remembered connection read back from storage, or `undefined` when `body` is not one: a choice
+ * of localhost, or of a host and port `parseHostInput` accepts, and the field's text.
+ */
+export function readSavedConnection(body: unknown): SavedConnection | undefined {
+  if (typeof body !== 'object' || body === null) return undefined;
 
   const { choice, draft } = body as { choice?: unknown; draft?: unknown };
   const saved = typeof draft === 'string' ? draft : '';
-  if (typeof choice !== 'object' || choice === null) return FIRST_VISIT;
+  if (typeof choice !== 'object' || choice === null) return undefined;
   const { kind, host, port } = choice as { kind?: unknown; host?: unknown; port?: unknown };
 
   if (kind === 'localhost') return { choice: { kind: 'localhost' }, draft: saved };
@@ -129,19 +112,7 @@ export function loadConnection(storage: ConnectionStorage | undefined): SavedCon
     if (parsed.ok) return { choice: { kind: 'remote', host, port }, draft: saved };
   }
 
-  return FIRST_VISIT;
-}
-
-/** Remember a connection. A storage that refuses (a private window, a full quota) is ignored. */
-export function saveConnection(
-  storage: ConnectionStorage | undefined,
-  saved: SavedConnection,
-): void {
-  try {
-    storage?.setItem(CONNECTION_STORAGE_KEY, JSON.stringify(saved));
-  } catch {
-    // Remembering is a convenience; failing to must not break the control.
-  }
+  return undefined;
 }
 
 export type ConnectionPhase = 'connecting' | 'connected' | 'disconnected';

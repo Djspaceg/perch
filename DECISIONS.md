@@ -4797,3 +4797,48 @@ red-first.log, build.log, typecheck.log, test.log, lint.log.
 ## Residuals
 
 Not checked in a real browser (no Playwright): the diagram layout at 420 px is unverified. Side drags are horizontal on every side.
+
+# Editor settings in a zustand store - decisions
+
+Outcome: one store per editor (`apps/editor/src/store.ts`), `devtools(persist(...), { name: 'perch-editor' })`.
+Settings persist to localStorage key `perch-editor` (version 1). The draft and selection are in the store as
+named actions but never persisted. The old connection key migrates on first load. Commits: 9e6a004 (dependency and lockfile), then the store commit.
+
+| State (useState today) | Where now |
+|---|---|
+| connection radio, host in effect, host text (connection-control) | persisted |
+| section and Advanced open state (was sessionStorage) | persisted |
+| token pane tab and chip (token-pane) | persisted, keyed `theme` / `style` |
+| layout last picked (new) | persisted |
+| opened draft, selection (app) | store, not persisted |
+| delete confirm, pending switch, notice, saving (app); status tick (connection) | local |
+| token search, custom-token name and value (token-pane) | local |
+| sensor search, device chip, hidden toggle, Add step (sensor-picker) | local |
+| collapse phase x3, popover open and position, presence rows, box-diagram unlinks and text, reset confirm | local |
+
+## Decisions to evaluate
+
+D1 One element `style` tab and chip for every element (key `style`), as folds already were. Before, each selection reset it to Customize. Why: an index key would restore a tab onto a different element after a reload. If overruled: keep the tab local per element and persist only the theme pane's.
+D2 Folds move from sessionStorage (one tab) to localStorage (every tab, and after a browser restart). Old sessionStorage folds are not carried over, so they reset once. Why: the ask was to remember disclosures between reloads. If overruled: persist only the other settings, and keep folds per tab.
+D3 The radio is persisted as well as the host in effect. Picking "host" without Connect survives a reload, with localhost still connected. Why: the brief lists the connection mode. If overruled: derive the radio from the host in effect on load.
+D4 The old `perch.editor.connection` key is read once, as version 0 through `migrate`, then never read or written, and left in place. Why: main, served on the same origin, still finds its host. If overruled: delete it after migrating.
+D5 Only a header pick (including discard-and-open) is remembered as the layout; `?layout=` and revert are not. A remembered name the library no longer offers falls back to the first. Why: a link is a one-off. If overruled: remember whatever opens.
+D6 Store per editor through a React context, made in `main.tsx` (so StrictMode cannot connect two DevTools instances). A primitive outside an editor gets a detached memory-only store that the test setup resets. Why: tests mount many editors. If overruled: a module singleton with a reset in the test setup.
+
+## Open questions
+
+Q1 The sensor picker's device chip is also a filter chip. Default: local, reset on each opening, because a chip for a device the new source lacks would hide every sensor.
+
+## Gate facts
+
+Nothing pushed and no review cut (GitHub repo, no CRUX; AutoSDE not run). Dependency: zustand ^5.0.15 in apps/editor only. The lockfile was regenerated, not edited. 43 other packages resolved to newer versions within their ranges, 4 dropped out, and 24 optional platform binaries were added (lockfile-diff.log).
+packages/*: none touched.
+Lanes: build.log, typecheck.log, test.log exit 0; lint.log clean on changed files; red-first.log. Adversarial review rounds: 0 (rule 14).
+
+## Evidence (untracked, under .evidence/)
+
+red-first.log (new tests failing before the store), build/typecheck/test/lint logs, lockfile-diff.log (every resolved-version change).
+
+## Residuals
+
+Not run in a browser: the DevTools timeline is checked against a stubbed extension only. Undo and panel placement are not built; `panels` is an empty reserved slot.

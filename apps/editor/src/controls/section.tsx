@@ -7,7 +7,8 @@
  * inside loses its state by being folded, and the bar's `summary` still says what the body holds — so
  * a column of folded sections is still a map of the whole.
  *
- * `id` is the disclosure key the open state is remembered under for the session (`disclosure.ts`).
+ * `id` is the key the open state is remembered under, in the editor store's persisted settings
+ * (`../store.ts`), so a fold survives a reload.
  * `forceOpen` shows the body without touching what is remembered; a search uses it, so clearing the
  * search puts every section back the way the author left it.
  *
@@ -21,7 +22,7 @@
 
 import { useId, type ReactNode } from 'react';
 import { Collapse } from './collapse.js';
-import { useDisclosure } from './disclosure.js';
+import { useDisclosure } from '../store.js';
 
 export interface SectionProps {
   readonly id: string;
