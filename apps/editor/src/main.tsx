@@ -1,17 +1,21 @@
 /**
  * Browser entry point. Builds the source, reads the URL, mounts the editor, and nothing else.
  *
- * The only file in `apps/editor` that constructs anything global: the sensor source, the layout
- * library, and the transport a save travels over. Everything downstream receives one, which is what
+ * The only file in `apps/editor` that constructs anything global: the sensor sources, the relay's
+ * control path, the layout library, and the transport a save travels over. Everything downstream receives one, which is what
  * lets `app.test.tsx` mount the editor with its own two-layout library and its own recording
  * transport, and assert that a refused save never reached it.
  *
- * ## One source, and it is the mock
+ * ## Two sources: the relay's, and the mock for when it is not connected
  *
- * No `PERCH_BROKER_URL` seam here, unlike `apps/runtime/src/main.tsx`. Authoring must not require
- * hardware: the machine this dashboard watches is off for days at a time, and an editor that needed a
- * relay to draw a readout would be an editor that could not be used to lay one out. The values in the
- * preview are generated in this process and the header says so.
+ * `PERCH_RELAY_URL` is set by the dev stack (`tools/dev-stack.mjs`) to the WebSocket port the relay
+ * *reported* binding, and by nothing else — this page never assumes 9001, which on this machine may be
+ * a mosquitto that accepts the connection and delivers nothing. It reaches the page because
+ * `vite.config.ts` adds `PERCH_` to `envPrefix`, as the runtime's does. Unset (`--no-relay`), there is
+ * no relay: the connection control says so and the preview stays on sample data.
+ *
+ * `PERCH_BROKER_URL` is the runtime page's variable, not this one: the runtime dials a broker; this
+ * editor dials the relay the stack started and tells it which sensor host to poll.
  *
  * The mock is unseeded, so values differ run to run and the preview looks like a machine rather than a
  * fixture — a seeded page invites reading the same numbers back as proof that something works.
@@ -25,12 +29,43 @@
 
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createMockSource } from '@perch/sensor-sources';
+import {
+  createMockSource,
+  createMqttSource,
+  createRelayControl,
+  isRelayBrokerUrl,
+} from '@perch/sensor-sources';
 import { Editor } from './app.js';
+import type { ConnectionStorage } from './connection.js';
+import type { RelayLink } from './connection-control.js';
 import { LAYOUT_LIBRARY } from './layout-library.js';
 import { browserSaveTransport } from './save.js';
 
 const source = createMockSource();
+
+/** The relay the stack started, or `undefined`. A malformed URL is a thrown error, not the mock. */
+function buildRelay(url: string | undefined): RelayLink | undefined {
+  const trimmed = url?.trim() ?? '';
+  if (trimmed === '') return undefined;
+  if (!isRelayBrokerUrl(trimmed)) {
+    throw new TypeError(`PERCH_RELAY_URL is not a ws:// or wss:// URL: ${JSON.stringify(trimmed)}`);
+  }
+
+  return {
+    url: trimmed,
+    source: createMqttSource({ url: trimmed, origin: 'env' }),
+    control: createRelayControl({ url: trimmed }),
+  };
+}
+
+/** `localStorage`, or `undefined` where reading the property itself throws (some privacy modes). */
+function browserStorage(): ConnectionStorage | undefined {
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
 
 /** The layout named in the URL, or `undefined` to take the library's first. */
 function requestedLayout(search: string): string | undefined {
@@ -49,9 +84,11 @@ createRoot(host).render(
     <Editor
       library={LAYOUT_LIBRARY}
       source={source}
-      // The mock's own canonical topics, as the inspector's suggestions. This is SPEC.md's "topic
-      // picker populated from live topics", reduced to what is available with the sensor host off.
+      // The mock's own canonical topics, as the inspector's suggestions while not connected. Once
+      // connected, the picker lists what the relay publishes instead.
       topics={source.topics}
+      relay={buildRelay(import.meta.env.PERCH_RELAY_URL)}
+      storage={browserStorage()}
       transport={browserSaveTransport}
       initialLayout={requestedLayout(window.location.search)}
     />

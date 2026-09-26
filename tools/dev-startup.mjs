@@ -58,13 +58,63 @@ export const USAGE = [
   '',
   '  --editor-port <port>   where the editor listens (default 5402, or PERCH_EDITOR_PORT)',
   '  --runtime-port <port>  where the runtime listens (default 5173, or PERCH_RUNTIME_PORT)',
-  '  --relay                also start the relay, whatever the environment says',
-  '  --no-relay             never start the relay',
+  '  --relay                start the relay (the default; kept so old commands still work)',
+  '  --no-relay             do not start the relay; the editor then shows sample data only',
   '  -h, --help             this list',
   '',
-  'Without --relay or --no-relay the relay starts only when PERCH_BROKER_URL or',
-  'PERCH_LHM_HOST is set, because those are the only settings that give it a reader.',
+  'The relay starts by default because the editor reads it: its connection control tells the',
+  "relay which LibreHardwareMonitor host to poll, and the preview shows that host's readings.",
 ].join('\n');
+
+/**
+ * The variable the editor reads the relay's WebSocket URL from.
+ *
+ * Set by this stack and nothing else, from the port the relay *reported* binding — never from a
+ * default. On this machine 9001 is often a Homebrew mosquitto, which accepts a connection and
+ * delivers nothing, so an editor that assumed 9001 would look connected and stay on sample data.
+ */
+export const EDITOR_RELAY_URL_ENV_VAR = 'PERCH_RELAY_URL';
+
+/** The relay's listen settings: its flag, its variable, and the default a mosquitto may hold. */
+const RELAY_LISTENERS = [
+  { key: 'mqtt', flag: '--mqtt-port', env: 'PERCH_MQTT_PORT' },
+  { key: 'ws', flag: '--ws-port', env: 'PERCH_WS_PORT' },
+];
+
+/**
+ * Extra relay arguments: an OS-chosen port for each default port something else already holds.
+ *
+ * Only for a port the human did not choose, and only while `PERCH_BROKER_URL` is unset. With it set,
+ * the runtime page dials a fixed URL, so moving the relay would strand that page; the fixed port is
+ * kept and a clash stops the stack loudly, as before. Without it, the only reader is the editor, and
+ * the editor is told whatever port the relay got (`parseBrokerListening`, `editorRelayEnv`).
+ *
+ * @param {{ env: Record<string, string | undefined>, held: { mqtt: boolean, ws: boolean } }} input
+ */
+export function relayListenArgs({ env, held }) {
+  if ((env.PERCH_BROKER_URL ?? '').length > 0) return [];
+
+  return RELAY_LISTENERS.filter(
+    (listener) => held[listener.key] && (env[listener.env] ?? '').length === 0,
+  ).flatMap((listener) => [listener.flag, '0']);
+}
+
+/**
+ * The ports in the relay's `broker listening: mqtt://…:<p>, ws://…:<p>` line, or null for any other
+ * line. That line is printed once both listeners are bound, with the ports actually bound, which is
+ * the only trustworthy source once a port may be 0.
+ */
+export function parseBrokerListening(line) {
+  const match = /^broker listening: mqtt:\/\/\S+:(\d+), ws:\/\/\S+:(\d+)\s*$/.exec(line);
+  if (match === null) return null;
+
+  return { mqttPort: Number(match[1]), wsPort: Number(match[2]) };
+}
+
+/** The editor's environment: this one, plus the relay URL on localhost at the bound port. */
+export function editorRelayEnv(env, wsPort) {
+  return { ...env, [EDITOR_RELAY_URL_ENV_VAR]: `ws://localhost:${wsPort}` };
+}
 
 /**
  * Wrap `text` to the body column, as a list of lines with no indent of their own.
@@ -202,43 +252,32 @@ export function portSettings(options) {
 /**
  * Whether to start the relay, and the sentence the banner shows about it either way.
  *
- * The default is conditional rather than always-on, and that is the one behaviour change here
- * worth arguing for. `PERCH_BROKER_URL` decides which source the page reads and nothing else does
- * — README.md states that, and an unset variable means the page reads its generated mock. So a
- * relay started into an unset environment serves a broker that this stack's own page will not
- * dial: it costs a `tsc -b`, it can prompt about somebody's Mosquitto, and against a sensor host
- * that is switched off it writes `[error] poll failed` into the first screen of a startup that
- * worked. Three costs, no reader.
+ * On by default. It used to start only when `PERCH_BROKER_URL` or `PERCH_LHM_HOST` was set, because
+ * then nothing read it otherwise; now the editor always does — its connection control is how an
+ * author picks the sensor host, and "connected" means readings from this relay. `--no-relay` still
+ * leaves it out, and the editor then says it has no relay and stays on sample data.
  *
- * `--relay` still starts it into that environment, because "I want the broker up" is a real thing
- * to want; it just says plainly that the page is still on mock data.
+ * The runtime page is unchanged: it reads the relay only when `PERCH_BROKER_URL` says where, so the
+ * note says which of the two it is doing.
  */
 export function decideRelay(mode, env = {}) {
   const brokerUrl = env.PERCH_BROKER_URL ?? '';
-  const lhmHost = env.PERCH_LHM_HOST ?? '';
   const pageReadsRelay = brokerUrl.length > 0;
 
   if (mode === 'off') {
     return {
       start: false,
       note: pageReadsRelay
-        ? `Not started (--no-relay), but PERCH_BROKER_URL is set to ${brokerUrl}, so the page will try to dial a broker that is not there and show its error badge.`
-        : 'Not started (--no-relay). The page reads generated mock data.',
-    };
-  }
-
-  if (mode === 'auto' && !pageReadsRelay && lhmHost.length === 0) {
-    return {
-      start: false,
-      note: 'Not started: PERCH_BROKER_URL is unset, so the page reads generated mock data and nothing would read the relay. Add --relay to start it anyway, or set PERCH_BROKER_URL=ws://localhost:9001 to point the page at it.',
+        ? `Not started (--no-relay), but PERCH_BROKER_URL is set to ${brokerUrl}, so the page will try to dial a broker that is not there and show its error badge. The editor has no relay and shows sample data.`
+        : 'Not started (--no-relay). The editor has no relay and shows sample data; the runtime page reads generated mock data.',
     };
   }
 
   return {
     start: true,
     note: pageReadsRelay
-      ? `Started. The page dials ${brokerUrl}.`
-      : 'Started, but PERCH_BROKER_URL is unset, so the page still reads generated mock data rather than this relay. Set it to ws://localhost:9001 to change that.',
+      ? `Started. The editor dials it at the port it reports, and the runtime page dials ${brokerUrl}.`
+      : 'Started. The editor dials it at the port it reports; pick the sensor host in the editor. PERCH_BROKER_URL is unset, so the runtime page reads generated mock data; set it to the relay URL to change that. --no-relay leaves the relay out.',
   };
 }
 

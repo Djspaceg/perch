@@ -43,6 +43,7 @@ knowledge.
 |---|---|---|
 | **mock** | **built** | Generates plausible values on an interval, deterministic when seeded. `createMockSource()` in `src/mock-source.ts`. The source the editor and tests run against. |
 | **mqtt** | **built** | MQTT-over-WebSockets, browser and Node. The real one. `createMqttSource()` in `src/mqtt-source.ts`. Validates every payload at the boundary, reads retained `/meta` companions, reconnects with backoff. |
+| **relay control** | **built** | Not a source: `createRelayControl()` in `src/relay-control.ts` asks the relay which LibreHardwareMonitor host to poll (`perch/relay/lhm/request`) and reads its retained status (`perch/relay/lhm/status`). The editor's connection control is its caller. |
 | **http-poll** | later | Polls a JSON endpoint directly, no broker. Useful for a single-machine setup. |
 | **external-metrics** | later | Consumes a metrics tick from a host that already enumerates sensors, rather than polling hardware ourselves. |
 

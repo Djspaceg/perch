@@ -6,7 +6,7 @@ A web server, service, and tooling to make and display web pages that show senso
 ```sh
 npm install
 
-npm run dev          # the editor and the dashboard, one terminal, mock data
+npm run dev          # the editor, the dashboard and the relay, one terminal
 ```
 
 That is the whole loop: author a layout in the editor, save, and the dashboard
@@ -26,9 +26,11 @@ perch dev stack
             Add ?layout=<name> to either URL for a specific one; without it each page
             opens desk-1920x400.
 
-  relay     Not started: PERCH_BROKER_URL is unset, so the page reads generated mock
-            data and nothing would read the relay. Add --relay to start it anyway, or
-            set PERCH_BROKER_URL=ws://localhost:9001 to point the page at it.
+  relay     Started. The editor dials it at the port it reports; pick the sensor host in
+            the editor. PERCH_BROKER_URL is unset, so the runtime page reads generated
+            mock data; set it to the relay URL to change that. --no-relay leaves the
+            relay out. Editor: ws://localhost:9001. Polling
+            http://localhost:8085/data.json, where nothing is listening. ...
 
   Ctrl-C stops everything this started.
 ```
@@ -47,7 +49,26 @@ npm run dev:editor                     # just the editor (saves work here too)
 npm run dev -- --runtime-port 5502     # when something else holds 5173
 ```
 
-### Against real hardware
+### Picking the sensor host in the editor
+
+The editor's header has the connection control: **localhost** (the default,
+which takes effect as soon as it is picked) or **host** with a field for
+`host` or `host:port` (port 8085 if omitted) and a **connect** button. The
+relay keeps running on this machine and is told which LibreHardwareMonitor host
+to poll; the label says `connecting`, `connected` or `disconnected`, with the
+relay's reason (`EHOSTUNREACH`, `ECONNREFUSED`) when it has one. Connected means
+the relay's poll of that host works *and* readings are arriving in the editor;
+only then do the preview and the sensor picker use live data. Until then the
+preview shows sample values under a **sample data** badge. The choice and the
+typed host are remembered in the browser.
+
+The stack starts the relay first and hands the editor the WebSocket port the
+relay actually bound. If 1883 or 9001 is already held (a Homebrew mosquitto) and
+`PERCH_BROKER_URL` is unset, the relay takes free ports instead and the editor
+is told which, so nothing needs stopping. `--no-relay` leaves the relay out; the
+editor then says there is no relay and stays on sample data.
+
+### The dashboard against real hardware
 
 Point the relay at your LibreHardwareMonitor host and the page at the relay, and
 the same one command brings all three up:
@@ -58,20 +79,18 @@ PERCH_BROKER_URL=ws://localhost:9001 \
 npm run dev
 ```
 
-The relay is started **only** when `PERCH_BROKER_URL` or `PERCH_LHM_HOST` is
-set, because `PERCH_BROKER_URL` decides what the page reads and nothing else
-does: with it unset the page reads its generated mock, so a relay would be
-serving a broker this stack's own page will not dial. `--relay` starts it
-anyway; `--no-relay` never does.
+`PERCH_BROKER_URL` decides what the runtime page reads and nothing else does:
+unset, the page reads its generated mock. The relay starts either way, for the
+editor; `--no-relay` leaves it out.
 
 With the sensor host switched off the relay still comes up — it serves its
 broker, logs one `poll failed` line and then a summary on a widening interval,
 and keeps retrying. Startup says so before the line appears, so it does not read
 as a failed start.
 
-If another MQTT broker already holds 1883 or 9001 — a Homebrew `mosquitto` is
-the usual culprit — the stack names it and offers to stop it before building
-anything. It only offers for a process it can identify, only on a terminal, and
+If another MQTT broker already holds 1883 or 9001 while `PERCH_BROKER_URL` is
+set — a Homebrew `mosquitto` is the usual culprit — the stack names it and
+offers to stop it before building anything. It only offers for a process it can identify, only on a terminal, and
 never when you have set your own ports. Otherwise the relay fails with the flag,
 the variable and a suggested port in the error itself — and, for the WebSocket
 listener, the `PERCH_BROKER_URL` the page has to move with it.

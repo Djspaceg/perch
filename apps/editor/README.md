@@ -12,8 +12,15 @@ so a layout this editor accepts is a layout the runtime can draw.
 npm run dev -w @perch/editor      # http://localhost:5402/
 ```
 
-The source is always the mock (`createMockSource()`); authoring must not require
-hardware, and the header says `mock data · generated here, not hardware` so no
+The header's connection control picks the sensor host: **localhost** (default, applies at once)
+or **host** with a `host`/`host:port` field and **connect**. The dev stack starts the relay and
+hands this page its WebSocket URL as `PERCH_RELAY_URL`; the page tells the relay which
+LibreHardwareMonitor host to poll (`perch/relay/lhm/request`) and reads whether that works from
+its retained status (`perch/relay/lhm/status`). "Connected" means the relay's poll succeeds *and*
+readings arrive here; only then do the preview and the sensor picker read the relay. Otherwise the
+preview reads `createMockSource()` under a **sample data** badge, because authoring must not
+require hardware. The choice and typed host are remembered in `localStorage`. The header marks the
+source with `data-perch-source-kind` (`mock` or `mqtt`) so no
 capture can be misread as a live panel. Open a specific file with `?layout=`,
 including one under `layouts/invalid/` that the picker does not offer.
 

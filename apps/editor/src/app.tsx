@@ -27,15 +27,15 @@
  *    `validateLayout`; the save button is gated on `canSave`; and `saveDraft` refuses independently of
  *    the button. See `draft.ts` and `save.ts`.
  *
- * ## The source is always the mock, and the page says so
+ * ## Live once connected, sample data until then, and the header says which
  *
- * The runtime has a mock/MQTT seam. This app does not, on purpose: authoring must not require
- * hardware, the sensor host is off for days at a time, and an editor that needed a live relay to show
- * a readout would be an editor nobody could use. So `main.tsx` builds `createMockSource()`
- * unconditionally and the header says `mock data · generated here, not hardware` with
- * `data-perch-source-kind="mock"` on it — the same wording and the same attribute as the runtime's
- * chrome, because every screenshot in this repo is mock-driven and the only thing standing between
- * that fact and a misread image is the sentence being *in* the image.
+ * The header's connection control (`connection-control.tsx`) picks the sensor host — localhost or a
+ * typed one — and tells the relay the dev stack started to poll it. Once the relay reports that host
+ * `ok` and readings are arriving, the preview and the sensor picker read the relay. Until then, and
+ * whenever the connection is lost, they read the mock, because authoring must not require hardware:
+ * the sensor host is off for days at a time. The header says which with `data-perch-source-kind` —
+ * `mock` under a "sample data" badge, `mqtt` beside the host — so no capture of sample values can be
+ * read as a live panel.
  *
  * ## Adding and deleting are edits like any other
  *
@@ -72,6 +72,14 @@ import {
 import type { LayoutElement, Rect } from '@perch/layout-schema';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CANVAS_HANDLES_STYLES } from './canvas-handles.js';
+import type { ConnectionStorage } from './connection.js';
+import {
+  CONNECTION_STYLES,
+  ConnectionControl,
+  useConnection,
+  type Connection,
+  type RelayLink,
+} from './connection-control.js';
 import { CONTROLS_STYLES, escapeIsTaken } from './controls/index.js';
 import { canSave, draftSaved, editDraft, isDirty, openDraft, type DraftState } from './draft.js';
 import { INSPECTOR_STYLES, Inspector, NOTHING_SELECTED } from './inspector.js';
@@ -108,8 +116,9 @@ const LOAD_OPTIONS: LoadLayoutOptions = Object.freeze({
   isTopic: (topic: string) => normalizeSensorTopic(topic) !== null,
 });
 
-/** What the header says about where the numbers in the preview came from. */
-const MOCK_PROVENANCE = 'mock data · generated here, not hardware';
+/** What the badge's tooltip says about the numbers in the preview while not connected. */
+const SAMPLE_PROVENANCE =
+  'sample data: generated here, not hardware. The preview reads the sensor host once connected.';
 
 /** A layout open for editing, or the reason one is not. */
 type Opened =
@@ -163,10 +172,14 @@ export function openLayoutByName(library: LayoutLibrary, name: string): Opened {
 export interface EditorProps {
   /** Which layouts exist. Injected, so a test supplies its own two. */
   readonly library: LayoutLibrary;
-  /** The readings the preview's widgets draw. Always the mock; see the module comment. */
+  /** The sample readings the preview draws while not connected: the mock. */
   readonly source: SensorSource;
-  /** Topic suggestions for the inspector. The mock source's own topics. */
+  /** Topic suggestions for the inspector while not connected. The mock source's own topics. */
   readonly topics: readonly string[];
+  /** The relay the dev stack started, or `undefined` when there is none (`--no-relay`). */
+  readonly relay?: RelayLink | undefined;
+  /** Where the connection choice is remembered. `localStorage` in the page; absent, nothing is. */
+  readonly storage?: ConnectionStorage | undefined;
   /** How a save reaches the filesystem. Injected, so a test can assert no request was made. */
   readonly transport: SaveTransport;
   /** Which layout to open first. Defaults to the library's first offered name. */
@@ -179,9 +192,16 @@ export function Editor({
   topics,
   transport,
   initialLayout,
+  relay,
+  storage,
 }: EditorProps): ReactNode {
+  const connection = useConnection(relay, storage);
+  const live = relay !== undefined && connection.state.phase === 'connected';
+
   return (
-    <SensorProvider source={source}>
+    // The provider rebuilds its store when `source` changes, so switching between the relay and the
+    // mock drops every reading of the other rather than mixing the two in one tile.
+    <SensorProvider source={live ? relay.source : source}>
       {/*
        * React 19 hoists a `<style>` with `href` and `precedence` into the document head and dedupes
        * it by `href`, so each sheet travels with the code that needs it. The four `ui-kit` sheets are
@@ -226,15 +246,22 @@ export function Editor({
       <style href="perch-editor-problems" precedence="default">
         {LAYOUT_PROBLEMS_STYLES}
       </style>
+      <style href="perch-editor-connection" precedence="default">
+        {CONNECTION_STYLES}
+      </style>
       <style href="perch-editor" precedence="default">
         {EDITOR_STYLES}
       </style>
 
       <EditorShell
         library={library}
-        topics={topics}
+        // Connected, the picker lists what the relay publishes and nothing else: offering the mock's
+        // topics beside a real machine's would suggest sensors that machine does not have.
+        topics={live ? [] : topics}
         transport={transport}
         initialLayout={initialLayout}
+        connection={connection}
+        live={live}
       />
     </SensorProvider>
   );
@@ -253,7 +280,12 @@ function EditorShell({
   topics,
   transport,
   initialLayout,
-}: Omit<EditorProps, 'source'>): ReactNode {
+  connection,
+  live,
+}: Omit<EditorProps, 'source' | 'relay' | 'storage'> & {
+  readonly connection: Connection;
+  readonly live: boolean;
+}): ReactNode {
   const viewport = usePreviewViewport();
 
   /**
@@ -442,13 +474,26 @@ function EditorShell({
           </span>
         ) : null}
 
-        <span
-          className="perch-editor-item"
-          data-testid="perch-editor-source"
-          data-perch-source-kind="mock"
-        >
-          {MOCK_PROVENANCE}
-        </span>
+        <ConnectionControl connection={connection} />
+
+        {live ? (
+          <span
+            className="perch-editor-live"
+            data-testid="perch-editor-source"
+            data-perch-source-kind="mqtt"
+          >
+            {`live · ${connection.state.target}`}
+          </span>
+        ) : (
+          <span
+            className="perch-editor-sample"
+            data-testid="perch-editor-source"
+            data-perch-source-kind="mock"
+            title={SAMPLE_PROVENANCE}
+          >
+            sample data
+          </span>
+        )}
 
         <span className="perch-editor-spacer" />
 

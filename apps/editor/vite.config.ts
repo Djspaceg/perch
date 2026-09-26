@@ -10,6 +10,8 @@
  *     helpfully moves to the next free port turns a screenshot into a picture of whatever else was
  *     listening.
  *  2. **A save endpoint**, below.
+ *  3. **`PERCH_` reaches the page**, as it does the runtime's, for `PERCH_RELAY_URL`: the relay URL the
+ *     dev stack hands the editor. See `src/main.tsx`.
  *
  * ## The save endpoint
  *
@@ -229,6 +231,9 @@ export default defineConfig({
    * resolve `@perch/ui-kit` identically — to source. See the runtime's config for the full argument.
    */
   resolve: { alias: perchAliases },
+
+  // `VITE_` kept beside it; see the runtime's config for why both.
+  envPrefix: ['VITE_', 'PERCH_'],
 
   build: {
     // `dist/` belongs to `tsc -b` and Vite empties its `outDir`. Covered by the existing `dist` entry

@@ -43,7 +43,7 @@ import {
   type FailureKind,
   type FailureRun,
 } from './failure-log.js';
-import type { LhmDataFetcher } from './lhm-client.js';
+import { LhmRequestError, type LhmDataFetcher } from './lhm-client.js';
 import { readLhmPayload, type LhmTopicCollision } from './lhm-tree.js';
 
 /** Where the relay's own diagnostics go. Injected so a test can read them instead of stderr. */
@@ -59,6 +59,12 @@ export interface RelayDeps {
   readonly logger: RelayLogger;
   /** Epoch milliseconds. Injected so `at` is assertable. */
   readonly now: () => number;
+  /**
+   * Told about every completed poll of the *current* host, for the status the relay reports to
+   * clients (`lhm-control.ts`). A poll that was already in flight when the host changed is not
+   * reported, so a late answer from the old host is never read as news about the new one.
+   */
+  readonly onPoll?: ((report: PollReport) => void) | undefined;
 }
 
 /** What one tick did. Returned for the log line and for tests to assert on. */
@@ -77,11 +83,23 @@ export interface PollReport {
   readonly collisions: readonly LhmTopicCollision[];
   /** Set when the poll failed; every count above is then zero. */
   readonly failure?: string;
+  /** The failure in a few words (`EHOSTUNREACH`), for the status clients see. See `LhmRequestError`. */
+  readonly reason?: string;
 }
 
 export interface RelayHandle {
   /** Resolves once the loop has stopped and no further publish will happen. */
   stop(): Promise<void>;
+  /**
+   * Poll through `fetchLhmData` from the next tick on — a different LHM host.
+   *
+   * Applied between ticks, never under one. Before the first poll of the new host, every retained
+   * metadata companion the old host published is withdrawn (an empty retained publish, which the
+   * mqtt source reads as "this label is gone"), and the per-host memory — which metadata was sent,
+   * which warnings were given, the failure run in progress — starts over, so the new host's labels
+   * are published and its outage is reported as its own.
+   */
+  retarget(fetchLhmData: LhmDataFetcher): void;
 }
 
 /** How a poll that could not read LHM is named in the log. */
@@ -119,6 +137,7 @@ export async function runOnePoll(deps: RelayDeps, state: RelayState): Promise<Po
       unmapped: [],
       collisions: [],
       failure,
+      reason: error instanceof LhmRequestError ? error.reason : failure,
     };
   }
 
@@ -204,14 +223,27 @@ export function createRelayState(): RelayState {
  * reports what it found rather than failing silently".
  */
 export function startRelay(pollIntervalMs: number, deps: RelayDeps): RelayHandle {
-  const state = createRelayState();
+  let state = createRelayState();
+  let fetcher = deps.fetchLhmData;
+  let next: LhmDataFetcher | undefined;
+  /** Bumped by every `retarget`, so a tick can tell whether the host changed under it. */
+  let generation = 0;
   let stopped = false;
   let timer: NodeJS.Timeout | undefined;
   let inFlight: Promise<void> = Promise.resolve();
 
   const tick = async (): Promise<void> => {
-    const report = await runOnePoll(deps, state);
+    if (next !== undefined) {
+      await withdrawMetadata(deps.broker, state);
+      state = createRelayState();
+      fetcher = next;
+      next = undefined;
+    }
+
+    const polledGeneration = generation;
+    const report = await runOnePoll({ ...deps, fetchLhmData: fetcher }, state);
     logTick(deps.logger, report);
+    if (generation === polledGeneration) deps.onPoll?.(report);
     noteSuccess(deps.logger, state.tickFailures, TICK_FAILURES, deps.now());
   };
 
@@ -244,7 +276,18 @@ export function startRelay(pollIntervalMs: number, deps: RelayDeps): RelayHandle
       if (timer !== undefined) clearTimeout(timer);
       await inFlight;
     },
+    retarget: (fetchLhmData: LhmDataFetcher): void => {
+      next = fetchLhmData;
+      generation += 1;
+    },
   };
+}
+
+/** Empty retained publishes for every metadata companion this host sent. */
+async function withdrawMetadata(broker: BrokerPublisher, state: RelayState): Promise<void> {
+  for (const topic of state.metaSent) {
+    await broker.publish(`${topic}/${SENSOR_META_SUFFIX}`, '', { retain: true });
+  }
 }
 
 /**

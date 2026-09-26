@@ -18,14 +18,18 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_EDITOR_PORT,
   DEFAULT_RUNTIME_PORT,
+  EDITOR_RELAY_URL_ENV_VAR,
   classifyLayouts,
   decideRelay,
   describeLayouts,
   describeSensorHost,
   formatBanner,
   formatPortClash,
+  editorRelayEnv,
+  parseBrokerListening,
   parseStackOptions,
   portSettings,
+  relayListenArgs,
 } from './dev-startup.mjs';
 
 /** Unwrap an expected-good parse, so a broken parse fails on the assertion and not a `.options`. */
@@ -118,28 +122,33 @@ describe('parseStackOptions', () => {
 });
 
 describe('decideRelay', () => {
-  it('leaves the relay out of an unconfigured environment, and says how to get it', () => {
+  it('starts the relay by default, because the editor reads it for its connection control', () => {
     const decision = decideRelay('auto', {});
-    expect(decision.start).toBe(false);
-    expect(decision.note).toContain('PERCH_BROKER_URL is unset');
-    expect(decision.note).toContain('mock data');
-    expect(decision.note).toContain('--relay');
+    expect(decision.start).toBe(true);
+    expect(decision.note).toContain('editor');
+    expect(decision.note).toContain('--no-relay');
   });
 
-  it('starts the relay when the page is pointed at a broker', () => {
+  it('says the runtime page stays on mock data unless PERCH_BROKER_URL points it at the relay', () => {
+    const decision = decideRelay('auto', {});
+    expect(decision.note).toContain('PERCH_BROKER_URL is unset');
+    expect(decision.note).toContain('mock data');
+  });
+
+  it('names the broker URL the runtime page dials when it is set', () => {
     const decision = decideRelay('auto', { PERCH_BROKER_URL: 'ws://localhost:9001' });
     expect(decision.start).toBe(true);
     expect(decision.note).toContain('ws://localhost:9001');
   });
 
-  it('starts the relay when only the sensor host is set, since that is a hardware run', () => {
-    expect(decideRelay('auto', { PERCH_LHM_HOST: '192.168.1.3' }).start).toBe(true);
+  it('starts the relay for --relay as well', () => {
+    expect(decideRelay('on', {}).start).toBe(true);
   });
 
-  it('warns that the page is still on mock data when the relay is forced on without a broker URL', () => {
-    const decision = decideRelay('on', {});
-    expect(decision.start).toBe(true);
-    expect(decision.note).toContain('still reads generated mock data');
+  it('leaves it out for --no-relay, and says the editor then has only sample data', () => {
+    const decision = decideRelay('off', {});
+    expect(decision.start).toBe(false);
+    expect(decision.note).toContain('sample data');
   });
 
   it('warns that the page will show an error badge when --no-relay contradicts PERCH_BROKER_URL', () => {
@@ -147,6 +156,66 @@ describe('decideRelay', () => {
     expect(decision.start).toBe(false);
     expect(decision.note).toContain('ws://localhost:9001');
     expect(decision.note).toContain('error badge');
+  });
+});
+
+describe('relayListenArgs', () => {
+  const free = { mqtt: false, ws: false };
+  const held = { mqtt: true, ws: true };
+
+  it('passes nothing when the default ports are free, so the relay takes 1883 and 9001', () => {
+    expect(relayListenArgs({ env: {}, held: free })).toEqual([]);
+  });
+
+  it('moves a held default port to an OS-chosen one instead of dialling whoever holds it', () => {
+    expect(relayListenArgs({ env: {}, held })).toEqual(['--mqtt-port', '0', '--ws-port', '0']);
+    expect(relayListenArgs({ env: {}, held: { mqtt: false, ws: true } })).toEqual([
+      '--ws-port',
+      '0',
+    ]);
+  });
+
+  it('never overrides a port the human chose', () => {
+    expect(relayListenArgs({ env: { PERCH_WS_PORT: '19001' }, held })).toEqual([
+      '--mqtt-port',
+      '0',
+    ]);
+    expect(
+      relayListenArgs({ env: { PERCH_WS_PORT: '19001', PERCH_MQTT_PORT: '11883' }, held }),
+    ).toEqual([]);
+  });
+
+  it('keeps the fixed ports when the runtime page dials a fixed URL, so a clash still stops', () => {
+    expect(relayListenArgs({ env: { PERCH_BROKER_URL: 'ws://localhost:9001' }, held })).toEqual([]);
+  });
+});
+
+describe('parseBrokerListening', () => {
+  it('reads both ports the relay actually bound from its startup line', () => {
+    expect(
+      parseBrokerListening('broker listening: mqtt://0.0.0.0:53122, ws://0.0.0.0:53123'),
+    ).toEqual({ mqttPort: 53122, wsPort: 53123 });
+  });
+
+  it('ignores every other line', () => {
+    expect(parseBrokerListening('polling http://localhost:8085/data.json')).toBeNull();
+    expect(parseBrokerListening('[error] poll failed: ws://0.0.0.0:1')).toBeNull();
+  });
+});
+
+describe('editorRelayEnv', () => {
+  it('hands the editor the URL of the port the relay bound, on localhost', () => {
+    expect(editorRelayEnv({ PATH: '/bin' }, 53123)).toEqual({
+      PATH: '/bin',
+      [EDITOR_RELAY_URL_ENV_VAR]: 'ws://localhost:53123',
+    });
+    expect(EDITOR_RELAY_URL_ENV_VAR).toBe('PERCH_RELAY_URL');
+  });
+
+  it('overrides a stale value in the shell, since only the stack knows the port it got', () => {
+    expect(editorRelayEnv({ PERCH_RELAY_URL: 'ws://localhost:9001' }, 60000)).toEqual({
+      PERCH_RELAY_URL: 'ws://localhost:60000',
+    });
   });
 });
 

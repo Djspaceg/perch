@@ -36,18 +36,6 @@
       }
     },
     {
-      "kind": "text",
-      "text": "mock source · generated values, not hardware",
-      "rect": { "x": 1100, "y": 20, "w": 786, "h": 36 },
-      "style": {
-        "--perch-text-justify": "flex-end",
-        "--perch-text-size": "0.8125rem",
-        "--perch-text-tracking": "0.18em",
-        "--perch-text-transform": "uppercase",
-        "--perch-text-color": "#6b7a91"
-      }
-    },
-    {
       "kind": "widget",
       "widget": "readout",
       "topic": "sensors/cpu/0/temperature/0",

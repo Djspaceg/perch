@@ -75,3 +75,13 @@ export {
   type RelayCliResult,
   type RunningRelay,
 } from './cli.js';
+
+export {
+  LHM_REQUEST_TOPIC,
+  LHM_STATUS_TOPIC,
+  parseLhmRequest,
+  startLhmControl,
+  type ControlBroker,
+  type LhmControl,
+  type LhmControlDeps,
+} from './lhm-control.js';

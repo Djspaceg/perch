@@ -7,7 +7,9 @@
  * the runtime's dev server watches it, so authoring a layout and seeing it render is a save and a
  * glance at the other tab. Running them from two terminals was the previous arrangement and the
  * save endpoint only exists under `npm run dev`, which made "the editor cannot save" a thing you
- * could arrange by accident. Relay third, and only when something would read it; see `decideRelay`.
+ * could arrange by accident. The relay too, by default, because the editor reads it; see
+ * `decideRelay`. The editor is started only once the relay has said which WebSocket port it bound,
+ * and is handed that URL — it never assumes 9001, which on this machine may be a mosquitto.
  *
  * Stdlib only, deliberately. A process runner would be a dependency, and `a & b` in an npm script
  * is a shell feature that does not survive Windows — where the relay is eventually expected to run.
@@ -37,10 +39,13 @@ import {
   classifyLayouts,
   decideRelay,
   describeSensorHost,
+  editorRelayEnv,
   formatBanner,
   formatPortClash,
+  parseBrokerListening,
   parseStackOptions,
   portSettings,
+  relayListenArgs,
 } from './dev-startup.mjs';
 
 const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -90,13 +95,13 @@ function listenerOn(port) {
  * taken in the moment between this closing and Vite listening — and that is fine: Vite still fails,
  * just without the better message.
  */
-function isPortFree(port) {
+function isPortFree(port, host = 'localhost') {
   return new Promise((resolve) => {
     const server = createServer();
     server.once('error', () => {
       resolve(false);
     });
-    server.listen({ port, host: 'localhost' }, () => {
+    server.listen({ port, host }, () => {
       server.close(() => {
         resolve(true);
       });
@@ -281,9 +286,12 @@ let shuttingDown = false;
  */
 let failingChild = null;
 
-/** Spawn a long-lived child, prefixing every line it writes so the streams stay legible. */
-function start(name, args) {
-  const child = spawn(NPM, args, { stdio: ['ignore', 'pipe', 'pipe'], env: process.env });
+/**
+ * Spawn a long-lived child, prefixing every line it writes so the streams stay legible.
+ * `onLine`, when given, also sees each line unprefixed — how the relay's bound port is read.
+ */
+function start(name, args, { env = process.env, onLine } = {}) {
+  const child = spawn(NPM, args, { stdio: ['ignore', 'pipe', 'pipe'], env });
   children.add(child);
 
   for (const stream of [child.stdout, child.stderr]) {
@@ -292,6 +300,7 @@ function start(name, args) {
     stream.on('data', (chunk) => {
       const lines = (partial + chunk).split('\n');
       partial = lines.pop() ?? '';
+      if (onLine) for (const line of lines) onLine(line);
       if (shuttingDown && child !== failingChild) return;
       for (const line of lines) process.stdout.write(`${TAGS[name]}${line}\n`);
     });
@@ -370,10 +379,31 @@ if (clashes.length > 0) {
 
 const relay = decideRelay(options.relay, process.env);
 
+/** The port the relay reported binding for WebSockets, once it has; `null` without a relay. */
+let relayWsPort = null;
+
 if (relay.start) {
-  // Ask before anything is built or started: if the ports are taken the relay cannot run at all,
-  // and finding that out after a compile is a worse experience than being asked up front.
-  await offerToFreePorts();
+  // Ask before anything is built or started — but only when the runtime page dials a fixed URL.
+  // Without PERCH_BROKER_URL the editor is the only reader and is told whatever port the relay got,
+  // so a held default is moved to a free port instead (`relayListenArgs`) and nobody's mosquitto is
+  // offered for stopping on every `npm run dev`.
+  if (process.env.PERCH_BROKER_URL) await offerToFreePorts();
+
+  // Probed on the interface the relay binds, not localhost: a mosquitto on 0.0.0.0 does not stop a
+  // bind to 127.0.0.1 on macOS, and would still take the relay's 0.0.0.0 bind down.
+  const bindHost = process.env.PERCH_BIND_HOST || '0.0.0.0';
+  const listenArgs = relayListenArgs({
+    env: process.env,
+    held: {
+      mqtt: !(await isPortFree(DEFAULT_PORTS.mqtt, bindHost)),
+      ws: !(await isPortFree(DEFAULT_PORTS.ws, bindHost)),
+    },
+  });
+  if (listenArgs.length > 0) {
+    process.stdout.write(
+      `${TAGS.relay}a default port is already held here; the relay takes a free one (${listenArgs.join(' ')}) and the editor is told which.\n`,
+    );
+  }
 
   // The relay runs from its build output, so it has to be compiled before it can start. Do this in
   // the foreground: starting the dev servers first would bury the compiler's errors.
@@ -385,7 +415,26 @@ if (relay.start) {
     process.exit(buildCode ?? 1);
   }
 
-  start('relay', ['start', '-w', '@perch/agent']);
+  relayWsPort = await new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      resolve(null);
+    }, 30_000);
+    start(
+      'relay',
+      ['start', '-w', '@perch/agent', ...(listenArgs.length > 0 ? ['--', ...listenArgs] : [])],
+      {
+        onLine: (line) => {
+          const bound = parseBrokerListening(line);
+          if (bound === null) return;
+          clearTimeout(timer);
+          resolve(bound.wsPort);
+        },
+      },
+    );
+  });
+  if (relayWsPort === null && !shuttingDown) {
+    process.stderr.write('the relay never reported its ports; the editor starts without it.\n');
+  }
 }
 
 // ---- the two dev servers ------------------------------------------------------------------
@@ -397,7 +446,9 @@ if (relay.start) {
 const editorUrl = `http://localhost:${options.editorPort}/`;
 const runtimeUrl = `http://localhost:${options.runtimePort}/`;
 
-start('editor', ['run', 'dev', '-w', '@perch/editor', '--', '--port', String(options.editorPort)]);
+start('editor', ['run', 'dev', '-w', '@perch/editor', '--', '--port', String(options.editorPort)], {
+  env: relayWsPort === null ? process.env : editorRelayEnv(process.env, relayWsPort),
+});
 start('runtime', [
   'run',
   'dev',
@@ -428,14 +479,16 @@ if (statuses.includes(null)) {
   }
 } else {
   const relayNote = relay.start
-    ? `${relay.note} ${describeSensorHost({
-        host: process.env.PERCH_LHM_HOST || DEFAULT_LHM.host,
-        port: Number(process.env.PERCH_LHM_PORT || DEFAULT_LHM.port),
-        reachable: await probeTcp(
-          process.env.PERCH_LHM_HOST || DEFAULT_LHM.host,
-          Number(process.env.PERCH_LHM_PORT || DEFAULT_LHM.port),
-        ),
-      })}`
+    ? `${relay.note}${relayWsPort === null ? '' : ` Editor: ws://localhost:${relayWsPort}.`} ${describeSensorHost(
+        {
+          host: process.env.PERCH_LHM_HOST || DEFAULT_LHM.host,
+          port: Number(process.env.PERCH_LHM_PORT || DEFAULT_LHM.port),
+          reachable: await probeTcp(
+            process.env.PERCH_LHM_HOST || DEFAULT_LHM.host,
+            Number(process.env.PERCH_LHM_PORT || DEFAULT_LHM.port),
+          ),
+        },
+      )}`
     : relay.note;
 
   process.stdout.write(

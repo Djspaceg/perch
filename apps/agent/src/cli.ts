@@ -16,6 +16,7 @@ import {
 } from './config.js';
 import { startEmbeddedBroker, type EmbeddedBroker } from './broker.js';
 import { createLhmDataFetcher } from './lhm-client.js';
+import { startLhmControl, type LhmControl } from './lhm-control.js';
 import { startRelay, type RelayHandle, type RelayLogger } from './relay.js';
 
 /** Where the CLI writes. Two sinks rather than one, because a startup report and an error are not the same stream. */
@@ -35,6 +36,8 @@ export interface RunningRelay {
   readonly config: RelayConfig;
   readonly broker: EmbeddedBroker;
   readonly relay: RelayHandle;
+  /** Which LHM host is polled, as a client last asked; see `lhm-control.ts`. */
+  readonly control: LhmControl;
   stop(): Promise<void>;
 }
 
@@ -85,23 +88,46 @@ export async function runRelayCli(options: RelayCliOptions): Promise<RelayCliRes
   );
 
   const logger = createStreamLogger(options.streams);
-  const relay = startRelay(config.pollIntervalMs, {
-    fetchLhmData: createLhmDataFetcher(config.lhm, config.requestTimeoutMs),
+  const fetcherFor = (endpoint: RelayConfig['lhm']) =>
+    createLhmDataFetcher(endpoint, config.requestTimeoutMs);
+
+  // The control first, so the status topic is retained before the first poll reports into it. The
+  // loop is handed to it through a closure because each needs the other: the control retargets
+  // the loop, and the loop reports every poll to the control.
+  const loopRef: { current?: RelayHandle } = {};
+  const control = await startLhmControl({
+    broker,
+    initial: config.lhm,
+    defaultPort: config.lhm.port,
+    fetcherFor,
+    retarget: (fetchLhmData) => {
+      loopRef.current?.retarget(fetchLhmData);
+    },
+    logger,
+  });
+  const loop = startRelay(config.pollIntervalMs, {
+    fetchLhmData: fetcherFor(config.lhm),
     broker,
     logger,
     now: () => Date.now(),
+    onPoll: (report) => {
+      control.onPoll(report);
+    },
   });
+  loopRef.current = loop;
 
   return {
     kind: 'running',
     running: {
       config,
       broker,
-      relay,
+      relay: loop,
+      control,
       stop: async (): Promise<void> => {
         // Loop first, then broker: stopping the broker under a tick in flight would reject a
         // publish that the loop would then report as a defect in itself.
-        await relay.stop();
+        await loop.stop();
+        await control.stop();
         await broker.close();
       },
     },

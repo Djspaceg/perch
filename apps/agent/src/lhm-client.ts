@@ -30,10 +30,17 @@ export type LhmDataFetcher = () => Promise<unknown>;
 export class LhmRequestError extends Error {
   override readonly name = 'LhmRequestError';
   readonly url: string;
+  /**
+   * The failure in a few words, without the URL: `EHOSTUNREACH`, `no response within 1500 ms`,
+   * `HTTP 404 Not Found`. The relay reports this to the editor, whose status label has room for a
+   * code and not for a sentence. Defaults to `detail`.
+   */
+  readonly reason: string;
 
-  constructor(url: string, detail: string, cause?: unknown) {
+  constructor(url: string, detail: string, cause?: unknown, reason: string = detail) {
     super(`GET ${url} failed: ${detail}`, cause === undefined ? undefined : { cause });
     this.url = url;
+    this.reason = reason;
   }
 }
 
@@ -61,7 +68,8 @@ export function createLhmDataFetcher(
         headers: { accept: 'application/json' },
       });
     } catch (cause) {
-      throw new LhmRequestError(url, describeFetchFailure(cause, timeoutMs), cause);
+      const failure = describeFetchFailure(cause, timeoutMs);
+      throw new LhmRequestError(url, failure.detail, cause, failure.reason);
     }
 
     if (!response.ok) {
@@ -87,17 +95,45 @@ export function createLhmDataFetcher(
  * first thing a human debugging "no readings" needs to know is whether LHM refused the
  * connection or was never reached at all.
  */
-function describeFetchFailure(cause: unknown, timeoutMs: number): string {
+function describeFetchFailure(
+  cause: unknown,
+  timeoutMs: number,
+): { readonly detail: string; readonly reason: string } {
   if (cause instanceof Error && cause.name === 'TimeoutError') {
-    return `no response within ${timeoutMs} ms`;
+    const waited = `no response within ${timeoutMs} ms`;
+    return { detail: waited, reason: waited };
   }
 
   if (cause instanceof Error) {
     const inner = cause.cause;
-    const detail = inner instanceof Error ? inner.message : undefined;
+    const code = systemErrorCode(inner);
+    // An `AggregateError` is what a refused `localhost` produces: Node tries `::1` and `127.0.0.1`,
+    // both refuse, and the aggregate's own message is empty. Its members carry the real messages.
+    const detail =
+      inner instanceof AggregateError
+        ? (inner.errors as unknown[])
+            .map((member) => (member instanceof Error ? member.message : String(member)))
+            .join('; ')
+        : inner instanceof Error
+          ? inner.message
+          : '';
+    const described = detail.length > 0 ? detail : code;
 
-    return detail === undefined ? cause.message : `${cause.message} (${detail})`;
+    return {
+      detail: described === undefined ? cause.message : `${cause.message} (${described})`,
+      reason: code ?? (detail.length > 0 ? detail : cause.message),
+    };
   }
 
-  return String(cause);
+  return { detail: String(cause), reason: String(cause) };
+}
+
+/** `ECONNREFUSED`, `EHOSTUNREACH`… from a system error or from the first member of an aggregate. */
+function systemErrorCode(error: unknown): string | undefined {
+  const candidate: unknown =
+    error instanceof AggregateError ? (error.errors as unknown[])[0] : error;
+  if (candidate instanceof Error && 'code' in candidate && typeof candidate.code === 'string') {
+    return candidate.code;
+  }
+  return undefined;
 }

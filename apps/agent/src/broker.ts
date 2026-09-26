@@ -66,6 +66,13 @@ export interface EmbeddedBroker extends BrokerPublisher {
   readonly wsPort: number;
   /** How many clients are connected right now. Reported in the poll summary. */
   readonly clientCount: number;
+  /**
+   * Receive every message published on `topic` by any client, as text, in process.
+   *
+   * The relay's one inbound path: the control request in `lhm-control.ts`. Resolves once the
+   * subscription is in place; the returned function removes it.
+   */
+  subscribe(topic: string, onMessage: (payload: string) => void): Promise<() => Promise<void>>;
   close(): Promise<void>;
 }
 
@@ -148,6 +155,23 @@ export async function startEmbeddedBroker(address: BrokerAddress): Promise<Embed
       },
       publish: async (topic, payload, options) => {
         await publishThrough(aedes, topic, payload, options);
+      },
+      subscribe: async (topic, onMessage) => {
+        // `aedes.subscribe` delivers through the same matching a client subscription gets. The
+        // callback must be called for aedes to move on to the next subscriber.
+        const deliver = (packet: { payload: Buffer | string }, done: () => void): void => {
+          onMessage(
+            typeof packet.payload === 'string' ? packet.payload : packet.payload.toString('utf8'),
+          );
+          done();
+        };
+        await new Promise<void>((resolve) => {
+          aedes.subscribe(topic, deliver, resolve);
+        });
+        return () =>
+          new Promise<void>((resolve) => {
+            aedes.unsubscribe(topic, deliver, resolve);
+          });
       },
       close: async () => {
         await closeAll(parts);

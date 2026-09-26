@@ -50,3 +50,19 @@ export {
   type SensorMessageRejection,
   type SourceLogger,
 } from './mqtt-source.js';
+
+export {
+  RELAY_LHM_REQUEST_TOPIC,
+  RELAY_LHM_STATES,
+  RELAY_LHM_STATUS_TOPIC,
+  createRelayControl,
+  isLhmHost,
+  isRelayLhmRequest,
+  isRelayLhmStatus,
+  relayStatusMatches,
+  type RelayControl,
+  type RelayControlOptions,
+  type RelayLhmRequest,
+  type RelayLhmState,
+  type RelayLhmStatus,
+} from './relay-control.js';

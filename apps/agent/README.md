@@ -117,6 +117,23 @@ A failed poll publishes **nothing at all**. It does not publish `null` for every
 relay cannot reach LHM" would destroy the distinction. Staleness is `at`'s job, and the failure
 is reported to the log — once, plus the lines that say something new.
 
+## Which LHM host it polls: the one control path
+
+It starts on `--lhm-host`/`--lhm-port`, and a client can move it (`src/lhm-control.ts`; the editor's
+connection control is that client):
+
+- `perch/relay/lhm/request` — `{"host": "192.168.1.3", "port": 8085}`, qos 1, not retained. `port`
+  may be omitted and then means `--lhm-port`. A host is a name, a dotted address or a bracketed
+  IPv6 literal and nothing else; anything more is ignored with a `[warn]`.
+- `perch/relay/lhm/status` — `{"host", "port", "state": "polling" | "ok" | "failed", "reason"?}`,
+  **retained**, published only when it changes. `ok` means the last poll published readings;
+  `reason` is short (`EHOSTUNREACH`, `ECONNREFUSED`, `no response within 1500 ms`).
+
+The switch happens between polls: the old host's retained `/meta` companions are withdrawn (empty
+retained publishes) and the new host's are published on its first successful poll. The broker has
+no authentication, so any LAN client can move the poll; the request can only name a host and port,
+the path is always `GET /data.json`, and only what maps onto the sensor contract is published.
+
 ## What it logs while the source is down
 
 The source here is a machine a human switches off for days, so "log every failure" is 86 400

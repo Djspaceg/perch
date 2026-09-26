@@ -4667,3 +4667,44 @@ No adversarial review, per the standing rule; `code-review.md` sits in the same 
 The confirm wraps to its own line at 1920x400, pushing the value field down a row. It reads correctly
 and is transient, but a fixed width would stop the reflow. No shipped layout has a custom token, so
 that path's only exercise is the tests and the capture draft.
+
+# The editor's connection control, and the relay's one control path - decisions
+
+Outcome: the editor header picks the sensor host (localhost, or host[:port]); the relay, which
+`npm run dev` now always starts, polls it. Preview and sensor picker read live data once connected,
+sample data under a badge otherwise. The runtime's "still all mock" was the layouts' own caption.
+
+Control message. Request `perch/relay/lhm/request` `{"host": string, "port"?: 1-65535}`, qos 1, not
+retained; no port = the relay's `--lhm-port`. Status `perch/relay/lhm/status`
+`{"host","port","state":"polling"|"ok"|"failed","reason"?}`, qos 1, retained, sent on change. Owned
+by `packages/sensor-sources/src/relay-control.ts`; `apps/agent/src/lhm-control.ts` restates the two
+topic strings. Sensor topic grammar untouched.
+
+## Decisions to evaluate
+
+D1 Protocol in sensor-sources, not sensor-contract. Why: contract rule 3 keeps hosts and ports out of it; the relay restates two strings as it does 9001. If overruled: move the guards into sensor-contract and import them in the agent.
+D2 Removed the "mock source - generated values, not hardware" text from all three layouts; the layouts test now forbids source claims in canvas text. Supersedes: "a crop still says where the numbers came from", because the caption was painted over live relay data. If overruled: restore a source-neutral caption.
+D3 The relay starts by default (`--relay` kept, a no-op). The editor gets `PERCH_RELAY_URL` from the port the relay reports. PERCH_BROKER_URL unset and 1883/9001 held: free ports, no mosquitto prompt; set: the old prompt/fail. Why: only the runtime dials a fixed URL. If overruled: always prompt.
+D4 Any LAN client can retarget the poll (broker unauthenticated); host and port only, always GET /data.json. If overruled: loopback-only control, or a token.
+D5 One relay, one host: an editor switch also moves a runtime page on that relay; the last tab to ask wins. If overruled: a relay per host.
+D6 Briefed defaults: localhost default, immediate; choice and text in localStorage, re-requested on load; label with the relay's reason; connected = relay ok for that host AND live readings; host or host:port, 8085 default, empty rejected. Localhost sends no port (= relay's configured port).
+D7 Connect is disabled while connecting or connected to the typed host; picking the host radio alone changes nothing until Connect.
+
+## Open questions
+
+Q1 desk-1920x400 still says "every other tile on this panel is reading"; on the real capture 4 of 8 tiles wait. Default: left as content.
+Q2 Collapse not reused: a one-row header control has nothing to fold. Default: chrome variables, `.perch-input`, the focus-ring pattern.
+
+## Gate facts
+
+Nothing pushed, no review cut (brief forbids; GitHub repo, no CRUX, AutoSDE not run). No dependency or lockfile change.
+Call sites, packages/sensor-sources, additions only: createRelayControl, isRelayBrokerUrl, createMqttSource -> apps/editor/src/main.tsx; isLhmHost, relayStatusMatches, RelayLhm* types -> apps/editor/src/connection.ts; RelayControl -> apps/editor/src/connection-control.tsx. Other packages untouched.
+Lanes: build.log, typecheck.log, test.log all exit 0; lint.log clean on changed files. Adversarial review rounds: 0 (rule 14).
+
+## Evidence (untracked, under .evidence/)
+
+red-first.log; build/typecheck/test/lint logs; connection-{1920x400,1440x900}-{1..5}-*.png (localhost connected, host typed, sensor PC EHOSTUNREACH, host connected, lost ECONNREFUSED) with connection-capture-report.json; runtime-probe-before.png, runtime-after-fix-1920x400.png.
+
+## Residuals
+
+192.168.1.3 not verified live: EHOSTUNREACH from this shell (macOS Local Network privacy); a fixture server stood in. A source switch shows WAITING for about 1 s. A poll in flight at a switch may publish one tick from the old host.

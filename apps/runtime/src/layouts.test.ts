@@ -168,17 +168,19 @@ describe.each(SHIPPED)('layouts/%s.json', (name) => {
     }
   });
 
-  it('says on the canvas that its numbers are generated', () => {
-    // Not only in the page chrome: the chrome is the runtime's guarantee, and this is the layout's
-    // own. A capture cropped to the canvas still has to carry the provenance.
+  it('claims no data source in its own canvas text, because a layout cannot know its source', () => {
+    // The page chrome says which source is live (`data-perch-source-kind`), and it is right either
+    // way. Canvas text is fixed content: a caption reading "mock source" is still painted when the
+    // page reads the real relay, which is how a live dashboard came to read as "still all mock".
     const text = layout.elements
       .filter((element): element is TextElement => element.kind === 'text')
       .map((element) => element.text)
       .join(' ')
       .toLowerCase();
 
-    expect(text).toContain('mock');
-    expect(text).toContain('not hardware');
+    expect(text).not.toContain('mock');
+    expect(text).not.toContain('not hardware');
+    expect(text).not.toContain('generated values');
   });
 });
 
