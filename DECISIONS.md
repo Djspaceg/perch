@@ -4759,20 +4759,21 @@ evidence_capture refuses files from this worktree, so the images and logs are on
 
 Outcome: `--perch-box-padding` and `--perch-box-radius` hold a 1-4 value CSS shorthand. The canvas
 paints it as native `padding` and `border-radius`, and a chart sizes to the real sides. The inspector
-edits each token with a box diagram of linked sides or corners. One-number layouts render as before.
-Commits: 884e5bf (format and rendering), then the control commit. Research: RESEARCH.md.
+edits each with a box diagram of linked sides or corners. One-number layouts render as before.
+Commits: 884e5bf (format and rendering), 40b5a20 (control), then the nits commit. Research: RESEARCH.md.
 
 ## Decisions to evaluate
 
-D1 Each token holds the whole shorthand; there are no longhand tokens. Why: the element's value replaces the theme's in one piece, as the cascade does now. If overruled: per-side tokens, plus rules for how they combine.
-D2 No layout-schema change or version step. Why: `"8 16"` is already a legal token string, and ui-kit owns the vocabulary. If overruled: an identity 2 -> 3 step, so an old build refuses the file instead of drawing no padding.
-D3 The canvas resolves radius and padding (element, then theme, then default) and writes them inline. The sheet reads only the background. Why: `calc()` cannot turn a list into px. If overruled: keep calc for one-number values.
-D4 Over-large padding shrinks by one factor so it fits both axes; for even padding this equals the old half-the-smaller-side rule. If overruled: clamp each side on its own.
-D5 A token part CSS would reject (a negative, a unit, a fifth value) voids the whole token, as CSS drops the whole declaration.
-D6 The padding control is the human's design, Webflow's padding ring with links. Supersedes: a shorthand field with a toggle to four fields, because the human chose the diagram.
-D7 Corners use the same link model (top-right and bottom-right link to top-left, bottom-left to top-right) in a four-corner diagram. This is the brief's default, not the human's explicit design. If overruled: a different corner layout.
-D8 Links are not stored. A side reads as linked when it equals the position it copies, which is identical on screen. A side unlinked at an equal value is remembered only while the field is mounted. Why: the stored value stays plain CSS shorthand. If overruled: store explicit link flags, which would change the format.
-D9 Top also accepts a typed or pasted shorthand (`8 16`, `4px 8px 12px`) that sets every side. Dragging the row label moves every side together. Invalid input stays in its field with a message and is never written.
+D1 One token holds the whole shorthand; there are no longhand tokens. Why: an element's value replaces the theme's in one piece, as today. If overruled: per-side tokens plus rules for combining them.
+D2 No layout-schema change or version step: `"8 16"` was already a legal token string. If overruled: an identity 2 -> 3 step, so an old build refuses the file instead of drawing no padding.
+D3 The canvas resolves radius and padding (element, theme, default) and writes them inline, because `calc()` cannot turn a list into px. The sheet reads only the background.
+D4 Over-large padding shrinks by one factor so it fits both axes; for even padding this equals the old half-the-smaller-side rule.
+D5 A token part CSS would reject (a negative, a unit, a fifth value) voids the whole token, as in CSS.
+D6 The padding control is the human's design, Webflow's padding ring with links. The centre shows only `px`. Supersedes: a shorthand field with a toggle to four fields, and the stored values in the centre, both at the human's request.
+D7 Links follow CSS pairing, the human's rule. Bottom follows top. Right and left are a pair: both follow top until either is set, then the other follows that one. Corners use the matching border-radius rule: bottom-right follows top-left, and top-right with bottom-left are the pair. The four-corner layout is the brief's default. Supersedes: left linked to right and right to top.
+D8 Links are not stored. A side reads as linked when it equals what it would follow, and an equal pair reads as right set with left following, as CSS writes it. Which half of an equal pair was set, and a side unlinked at an equal value, are remembered only while the field is mounted. What is drawn always matches CSS; after a reload, only which half of an equal pair shows the number can differ. If overruled: store link flags, which would change the format.
+D9 Top also accepts a typed or pasted shorthand (`4px 8px 12px`). Dragging the row label moves every side together. Invalid input stays in its field with a message and is never written.
+D10 The padding and radius maximums are now 999 for arrows and drags (previously 48 and 64). The only caps were the two token-label ranges; typing could always go past them, and the canvas clamps padding to the rect.
 
 ## Open questions
 
@@ -4781,11 +4782,11 @@ none.
 ## Gate facts
 
 Nothing pushed and no review cut (GitHub repo, no CRUX, AutoSDE not run). No dependency or lockfile change.
-packages/ui-kit call sites (changed: `ContentBox.padding` from a number to `BoxInsets`, `elementContentSize`, `ELEMENT_BOX_STYLES`, the LayoutCanvas box styles, the padding/radius labels; new: `box-shorthand.ts`, `CANVAS_RESOLVED_TOKENS`, `TokenLabel.shorthand`):
+packages/ui-kit call sites (changed: `ContentBox.padding` -> `BoxInsets`, `elementContentSize`, `ELEMENT_BOX_STYLES`, the canvas box styles, the padding/radius labels (range 0-999, `shorthand`); new: `box-shorthand.ts`, `CANVAS_RESOLVED_TOKENS`):
 - ui-kit widget-catalogue.tsx render signatures; layout-canvas.tsx boxOf, elementStyle, LAYOUT_CANVAS_STYLES
 - apps/runtime/src/app.tsx:174, :255; apps/editor/src/app.tsx:223, preview.tsx:155
-- apps/editor descriptors.ts tokenSpec; property-view.tsx scrubFor, SpecControl; token-pane.tsx; controls/box-diagram.tsx, box-input.ts, box-links.ts
-- tests: ui-kit element-box, box-shorthand, tokens, token-labels, widget-catalogue; editor app, token-pane, descriptors
+- editor descriptors.ts tokenSpec; property-view.tsx scrubFor, SpecControl; token-pane.tsx; controls/box-diagram.tsx, box-input.ts, box-links.ts
+- tests: ui-kit element-box, box-shorthand, tokens, token-labels, widget-catalogue; editor app, token-pane, descriptors, box-*
 - layouts/*.json: none set a box token
 Lanes: build.log, typecheck.log, test.log exit 0; lint.log clean on changed files; red-first.log. Adversarial review rounds: 0 (rule 14).
 
@@ -4795,4 +4796,4 @@ red-first.log, build.log, typecheck.log, test.log, lint.log.
 
 ## Residuals
 
-Not checked in a real browser (no Playwright here): the trapezoid layout at 420 px is unverified. The side drag is horizontal on every side.
+Not checked in a real browser (no Playwright): the diagram layout at 420 px is unverified. Side drags are horizontal on every side.

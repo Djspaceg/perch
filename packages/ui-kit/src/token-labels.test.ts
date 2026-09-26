@@ -189,8 +189,8 @@ describe('the labels table', () => {
       expect(value, name).toBeGreaterThanOrEqual(range?.min ?? Infinity);
       expect(value, name).toBeLessThanOrEqual(range?.max ?? -Infinity);
     }
-    expect(PERCH_TOKEN_LABELS['--perch-box-radius'].range).toEqual({ min: 0, max: 64 });
-    expect(PERCH_TOKEN_LABELS['--perch-box-padding'].range).toEqual({ min: 0, max: 48 });
+    expect(PERCH_TOKEN_LABELS['--perch-box-radius'].range).toEqual({ min: 0, max: 999 });
+    expect(PERCH_TOKEN_LABELS['--perch-box-padding'].range).toEqual({ min: 0, max: 999 });
   });
 
   it('marks the tokens the canvas reads as a box shorthand, and only those', () => {

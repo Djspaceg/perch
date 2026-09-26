@@ -15,13 +15,13 @@ describe('tokenSpec', () => {
       kind: 'box',
       box: 'corners',
       min: 0,
-      max: 64,
+      max: 999,
     });
     expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-box-padding'], '8 16 4')).toEqual({
       kind: 'box',
       box: 'sides',
       min: 0,
-      max: 48,
+      max: 999,
     });
   });
 

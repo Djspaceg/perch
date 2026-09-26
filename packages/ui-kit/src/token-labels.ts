@@ -466,11 +466,11 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
   '--perch-box-radius': {
     label: 'Corner radius',
     description:
-      'How round the rectangle’s corners are, in layout pixels: one value, or up to four from the top-left corner clockwise. Scales with the panel.',
+      'How round the rectangle’s corners are, in layout pixels: one value, or up to four from the top-left corner clockwise, as in CSS. Scales with the panel.',
     control: 'pixels',
     group: 'appearance',
     scope: 'box',
-    range: Object.freeze({ min: 0, max: 64 }),
+    range: Object.freeze({ min: 0, max: 999 }),
     shorthand: 'corners',
   },
   '--perch-box-padding': {
@@ -480,7 +480,7 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     control: 'pixels',
     group: 'appearance',
     scope: 'box',
-    range: Object.freeze({ min: 0, max: 48 }),
+    range: Object.freeze({ min: 0, max: 999 }),
     shorthand: 'sides',
   },
 

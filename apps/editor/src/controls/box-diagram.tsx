@@ -5,10 +5,11 @@
  *
  * - **Top always holds a number** (top-left, for a radius). It cannot be unlinked or cleared.
  * - **Every other side is linked or set.** Linked shows a chain link and no number: the side copies
- *   the position CSS shorthand would copy it from — right and bottom from top, left from right; for
- *   corners, top-right and bottom-right from top-left, bottom-left from top-right. Set shows its own
- *   number and a broken link. So every-side-linked is `8`, right set is `8 16`, right and bottom set is
- *   `8 16 4`, and all set is four values. Left alone may be set; right and bottom stay on top.
+ *   what CSS shorthand would copy it from. Bottom follows top. Right and left are a pair: both follow
+ *   top until either is set, then the other follows that one, so every-side-linked is `8`, one of the
+ *   pair set is `8 16`, bottom set too is `8 16 4`, and both of the pair set is four values. Corners
+ *   match by position: bottom-right follows top-left; top-right and bottom-left are the pair. Set
+ *   shows its own number and a broken link (`box-links.ts`).
  * - **Clicking a link unlinks** the side at the value it was inheriting, with focus on its number.
  *   **Clicking the broken link** clears the number and relinks it; what followed it follows again.
  * - **Each side's area scrubs** its value when dragged, as Webflow's does. A drag on a linked side
@@ -19,14 +20,15 @@
  * stays, and the reason is shown under the diagram and read as the field's description. Top also
  * takes a whole CSS shorthand, typed or pasted (`8 16`, `4px 8px 12px`), and sets every side from it.
  *
- * What is stored is only the shortest shorthand; which side is linked is read back from it, and the
- * one case that cannot be — unlinked but equal — is remembered while the field lives (`box-links.ts`).
+ * What is stored is only the shortest shorthand; which side is linked is read back from it, and what
+ * cannot be — unlinked but equal, or which half of an equal pair was set — is remembered while the
+ * field lives (`box-links.ts`). The centre shows only the unit: the values are on their sides.
  */
 
 import { useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { formatBoxToken, parseBoxToken, type BoxQuad } from '@perch/ui-kit';
 import { boxPositions, parseBoxInput, parseBoxPart, type BoxKind } from './box-input.js';
-import { LINK_SOURCE, linksOf, relink, setPosition, type Linked } from './box-links.js';
+import { linksOf, relink, relinkTarget, setPosition, type Linked } from './box-links.js';
 import { NumberField } from './number-field.js';
 import { SCRUB_THRESHOLD_PX, scrubValue } from './scrub.js';
 
@@ -74,16 +76,14 @@ export function BoxDiagram({
   // A reset, the other pane or a drag on the row label wrote a value this state was not made for.
   const unlinked = unlinks !== null && unlinks.base === value ? unlinks.of : NO_UNLINKS;
   const typed = draft !== null && draft.base === value ? draft.of : null;
-  const linked = linksOf(stored, unlinked);
+  const links = linksOf(stored, unlinked);
 
   const fieldId = (index: number): string =>
     index === 0 && id !== undefined ? id : `${base}-${positions[index] ?? index}`;
   const linkId = (index: number): string => `${base}-${positions[index] ?? index}-link`;
   const name = (index: number): string => `${label} ${positions[index] ?? ''}`;
-  const sourceOf = (index: number): string => {
-    const source = LINK_SOURCE[index];
-    return source === undefined ? '' : (positions[source] ?? '');
-  };
+  const positionName = (index: number | undefined): string =>
+    index === undefined ? '' : (positions[index] ?? '');
 
   const commit = (next: Linked): void => {
     const written = formatBoxToken(next.quad);
@@ -141,9 +141,9 @@ export function BoxDiagram({
   })();
 
   // A drag spans many renders: it reads the latest value and links, never the ones it began with.
-  const latest = useRef({ stored, unlinked, linked, commit, unlink, fieldId });
+  const latest = useRef({ stored, unlinked, links, commit, unlink, fieldId });
   useLayoutEffect(() => {
-    latest.current = { stored, unlinked, linked, commit, unlink, fieldId };
+    latest.current = { stored, unlinked, links, commit, unlink, fieldId };
   });
 
   const beginScrub = (index: number, event: PointerEvent<HTMLElement>): void => {
@@ -171,7 +171,7 @@ export function BoxDiagram({
       document.body.classList.remove('perch-scrubbing');
       if (scrubbing) return;
       const now = latest.current;
-      if (now.linked[index] === true) {
+      if (now.links[index] !== undefined) {
         now.unlink(index);
         return;
       }
@@ -187,14 +187,15 @@ export function BoxDiagram({
 
   const slot = (index: number): ReactNode => {
     const position = positions[index] ?? '';
-    if (linked[index] === true) {
+    const follows = links[index];
+    if (follows !== undefined) {
       return (
         <button
           id={linkId(index)}
           type="button"
           className="perch-box-diagram__link"
-          aria-label={`${name(index)}, linked to ${sourceOf(index)}`}
-          title={`linked to ${sourceOf(index)}: click to give ${position} its own value`}
+          aria-label={`${name(index)}, linked to ${positionName(follows)}`}
+          title={`linked to ${positionName(follows)}: click to give ${position} its own value`}
           onClick={() => {
             unlink(index);
           }}
@@ -226,8 +227,8 @@ export function BoxDiagram({
             id={linkId(index)}
             type="button"
             className="perch-box-diagram__link perch-box-diagram__link--broken"
-            aria-label={`relink ${name(index)} to ${sourceOf(index)}`}
-            title={`clear ${position} and link it to ${sourceOf(index)} again`}
+            aria-label={`relink ${name(index)} to ${positionName(relinkTarget(stored, unlinked, index))}`}
+            title={`clear ${position} and link it to ${positionName(relinkTarget(stored, unlinked, index))}`}
             onClick={() => {
               commit(relink(stored, unlinked, index));
               focusNext.current = linkId(index);
@@ -252,7 +253,7 @@ export function BoxDiagram({
             key={position}
             className={`perch-box-diagram__area perch-box-diagram__area--${position}`}
             data-testid={`perch-box-${kind}-${position}-area`}
-            data-perch-linked={linked[index] === true ? 'true' : 'false'}
+            data-perch-linked={links[index] === undefined ? 'false' : 'true'}
             onPointerDown={(event) => {
               beginScrub(index, event);
             }}
@@ -261,12 +262,11 @@ export function BoxDiagram({
           </div>
         ))}
         <span
-          className="perch-box-diagram__shorthand"
-          data-testid={`perch-box-shorthand-${base}`}
-          title={`as CSS: ${kind === 'sides' ? 'padding' : 'border-radius'}, in layout px`}
+          className="perch-box-diagram__unit"
+          data-testid={`perch-box-unit-${base}`}
+          title="layout pixels"
         >
-          {formatBoxToken(stored)}
-          <span className="perch-box-diagram__unit"> px</span>
+          px
         </span>
       </div>
       {message === undefined ? null : (
@@ -384,27 +384,15 @@ export const BOX_DIAGRAM_STYLES = `
 .perch-box-diagram__link:hover { color: var(--ed-accent); background: var(--ed-bg-recessed); }
 .perch-box-diagram__link--broken { width: 14px; color: var(--ed-faint); }
 .perch-box-diagram__link:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 0; }
-.perch-box-diagram__shorthand {
+.perch-box-diagram__unit {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  max-width: calc(100% - 2 * var(--bd-w) - 8px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   pointer-events: none;
-  font-family: var(--ed-mono);
   font-size: var(--ed-font-small);
-  color: var(--ed-text-2);
+  color: var(--ed-faint);
 }
-.perch-box-diagram--corners .perch-box-diagram__shorthand {
-  max-width: 40%;
-  padding: 1px 4px;
-  border-radius: var(--ed-radius);
-  background: var(--ed-bg-recessed);
-}
-.perch-box-diagram__unit { color: var(--ed-faint); }
 .perch-box-diagram__error {
   padding-top: 2px;
   font-size: var(--ed-font-small);

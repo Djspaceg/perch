@@ -1,80 +1,98 @@
 /**
  * The link model behind the box diagram: which side follows which, as CSS shorthand has it.
  *
- * Right and bottom follow top, left follows right; for corners, top-right and bottom-right follow
- * top-left and bottom-left follows top-right. The first position is always set.
+ * Bottom follows top. Right and left are a pair: with neither set both follow top, and once either
+ * is set the other follows it, as CSS's two- and three-value forms copy one to the other. Corners run
+ * the same way by position: bottom-right follows top-left, and top-right and bottom-left are the pair.
+ * The first position is always set. `undefined` in a link array means set.
  */
 
 import { describe, expect, it } from 'vitest';
-import { LINK_SOURCE, linksOf, relink, setPosition } from './box-links.js';
+import { linksOf, relink, setPosition, type Linked } from './box-links.js';
 
 const none = new Set<number>();
-
-describe('LINK_SOURCE', () => {
-  it('is CSS shorthand inheritance: right and bottom from top, left from right', () => {
-    expect(LINK_SOURCE).toEqual([undefined, 0, 0, 1]);
-  });
-});
+const links = (next: Linked): readonly (number | undefined)[] => linksOf(next.quad, next.unlinked);
 
 describe('linksOf', () => {
-  it('reads a one-number value as every side linked', () => {
-    expect(linksOf([8, 8, 8, 8], none)).toEqual([false, true, true, true]);
+  it('reads a one-number value as every side following top', () => {
+    expect(linksOf([8, 8, 8, 8], none)).toEqual([undefined, 0, 0, 0]);
   });
 
-  it('reads each shorthand length as the sides it sets', () => {
-    // 8 16: right set, bottom follows top, left follows right.
-    expect(linksOf([8, 16, 8, 16], none)).toEqual([false, false, true, true]);
-    // 8 16 4: right and bottom set.
-    expect(linksOf([8, 16, 4, 16], none)).toEqual([false, false, false, true]);
-    expect(linksOf([8, 16, 4, 2], none)).toEqual([false, false, false, false]);
+  it('reads 8 16 as right set, left following right, bottom following top', () => {
+    expect(linksOf([8, 16, 8, 16], none)).toEqual([undefined, undefined, 0, 1]);
   });
 
-  it('lets left be set alone, with right and bottom still following top', () => {
-    expect(linksOf([8, 8, 8, 4], none)).toEqual([false, true, true, false]);
+  it('reads 8 16 4 as right and bottom set, left following right', () => {
+    expect(linksOf([8, 16, 4, 16], none)).toEqual([undefined, undefined, undefined, 1]);
   });
 
-  it('keeps a side the author unlinked unlinked, even while it equals its source', () => {
-    expect(linksOf([8, 8, 8, 8], new Set([1]))).toEqual([false, false, true, true]);
+  it('reads four different values as four set', () => {
+    expect(linksOf([8, 16, 4, 2], none)).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it('reads a pair the author set from the left as right following left', () => {
+    expect(linksOf([8, 4, 8, 4], new Set([3]))).toEqual([undefined, 3, 0, undefined]);
+  });
+
+  it('keeps a side the author unlinked unlinked, even while it equals top', () => {
+    expect(linksOf([8, 8, 8, 8], new Set([1]))).toEqual([undefined, undefined, 0, 1]);
+    expect(linksOf([8, 8, 8, 8], new Set([2]))).toEqual([undefined, 0, undefined, 0]);
   });
 });
 
 describe('setPosition', () => {
-  it('moves every linked side with top', () => {
-    expect(setPosition([8, 8, 8, 8], none, 0, 12)).toEqual({
-      quad: [12, 12, 12, 12],
-      unlinked: new Set(),
-    });
+  it('moves every side that follows top with top', () => {
+    expect(setPosition([8, 8, 8, 8], none, 0, 12).quad).toEqual([12, 12, 12, 12]);
+    // Right is set, left follows right: only bottom moves with top.
+    expect(setPosition([8, 16, 8, 16], none, 0, 12).quad).toEqual([12, 16, 12, 16]);
   });
 
-  it('sets a side and unlinks it; a side linked to it follows', () => {
-    expect(setPosition([8, 8, 8, 8], none, 1, 16)).toEqual({
-      quad: [8, 16, 8, 16],
-      unlinked: new Set([1]),
-    });
+  it('setting right takes left with it', () => {
+    const next = setPosition([8, 8, 8, 8], none, 1, 16);
+
+    expect(next.quad).toEqual([8, 16, 8, 16]);
+    expect(links(next)).toEqual([undefined, undefined, 0, 1]);
   });
 
-  it('setting left first leaves right and bottom on top', () => {
+  it('setting left alone takes right with it, not top: CSS has no left without right', () => {
     const next = setPosition([8, 8, 8, 8], none, 3, 2);
 
-    expect(next.quad).toEqual([8, 8, 8, 2]);
-    expect(linksOf(next.quad, next.unlinked)).toEqual([false, true, true, false]);
+    expect(next.quad).toEqual([8, 2, 8, 2]);
+    expect(links(next)).toEqual([undefined, 3, 0, undefined]);
+  });
+
+  it('setting the other of a pair once one is set gives four values', () => {
+    const next = setPosition([8, 16, 8, 16], none, 3, 2);
+
+    expect(next.quad).toEqual([8, 16, 8, 2]);
+    expect(links(next)).toEqual([undefined, undefined, 0, undefined]);
+  });
+
+  it('setting bottom leaves the pair alone', () => {
+    expect(setPosition([8, 16, 8, 16], none, 2, 4).quad).toEqual([8, 16, 4, 16]);
   });
 });
 
 describe('relink', () => {
-  it('clears a side back to its source, and what follows it follows along', () => {
-    // Right set to 16, left linked to right: relinking right brings both back to top.
-    expect(relink([8, 16, 8, 16], new Set([1]), 1)).toEqual({
-      quad: [8, 8, 8, 8],
-      unlinked: new Set(),
-    });
+  it('relinks the one set side of a pair: both follow top again', () => {
+    const next = relink([8, 16, 8, 16], none, 1);
+
+    expect(next.quad).toEqual([8, 8, 8, 8]);
+    expect(links(next)).toEqual([undefined, 0, 0, 0]);
   });
 
-  it('leaves a side that was set on its own alone', () => {
-    expect(relink([8, 16, 8, 2], new Set([1, 3]), 1)).toEqual({
-      quad: [8, 8, 8, 2],
-      unlinked: new Set([3]),
-    });
+  it('relinks one of two set sides to the other, which stays set', () => {
+    const right = relink([8, 16, 8, 2], none, 1);
+    expect(right.quad).toEqual([8, 2, 8, 2]);
+    expect(links(right)).toEqual([undefined, 3, 0, undefined]);
+
+    const left = relink([8, 16, 8, 2], none, 3);
+    expect(left.quad).toEqual([8, 16, 8, 16]);
+    expect(links(left)).toEqual([undefined, undefined, 0, 1]);
+  });
+
+  it('relinks bottom to top', () => {
+    expect(relink([8, 16, 4, 16], none, 2).quad).toEqual([8, 16, 8, 16]);
   });
 
   it('never unlinks or clears the first position', () => {

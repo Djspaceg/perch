@@ -30,7 +30,7 @@ function Harness({
       kind={kind}
       value={value}
       min={0}
-      max={48}
+      max={999}
       onValue={(next) => {
         writes.push(next);
         setValue(next);
@@ -49,9 +49,15 @@ describe('BoxDiagram, padding', () => {
     expect(spin('Padding top')).toHaveValue('8');
     expect(button('Padding right, linked to top')).toBeInTheDocument();
     expect(button('Padding bottom, linked to top')).toBeInTheDocument();
-    expect(button('Padding left, linked to right')).toBeInTheDocument();
+    expect(button('Padding left, linked to top')).toBeInTheDocument();
     expect(screen.queryByRole('spinbutton', { name: 'Padding right' })).toBeNull();
-    expect(screen.getByTestId('perch-box-shorthand-box')).toHaveTextContent('8');
+  });
+
+  it('shows only the unit in the centre, not the values again', () => {
+    render(<Harness initial="1 2 3 4" writes={[]} />);
+
+    expect(screen.getByTestId('perch-box-unit-box')).toHaveTextContent(/^px$/);
+    expect(screen.queryByText('1 2 3 4')).toBeNull();
   });
 
   it('never offers to unlink or clear top', () => {
@@ -74,18 +80,27 @@ describe('BoxDiagram, padding', () => {
 
     fireEvent.change(spin('Padding right'), { target: { value: '16' } });
     expect(writes).toEqual(['8 16']);
-    expect(screen.getByTestId('perch-box-shorthand-box')).toHaveTextContent('8 16');
+    expect(button('Padding left, linked to right')).toBeInTheDocument();
   });
 
-  it('lets left be set first, leaving bottom on top and right on top', () => {
+  it('sets left first with right following left, as CSS pairs them, and bottom on top', () => {
     const writes: string[] = [];
     render(<Harness initial="8" writes={writes} />);
-    fireEvent.click(button('Padding left, linked to right'));
+    fireEvent.click(button('Padding left, linked to top'));
     fireEvent.change(spin('Padding left'), { target: { value: '2' } });
 
-    expect(writes).toEqual(['8 8 8 2']);
-    expect(button('Padding right, linked to top')).toBeInTheDocument();
+    expect(writes).toEqual(['8 2']);
+    expect(button('Padding right, linked to left')).toBeInTheDocument();
     expect(button('Padding bottom, linked to top')).toBeInTheDocument();
+  });
+
+  it('relinks one of a set pair to the other, and names where it goes', () => {
+    const writes: string[] = [];
+    render(<Harness initial="8 16 8 2" writes={writes} />);
+    fireEvent.click(button('relink Padding right to left'));
+
+    expect(writes).toEqual(['8 2']);
+    expect(button('Padding right, linked to left')).toHaveFocus();
   });
 
   it('relinks a side with its broken link, clearing its number; what follows it follows along', () => {
@@ -95,7 +110,7 @@ describe('BoxDiagram, padding', () => {
 
     expect(writes).toEqual(['8']);
     expect(button('Padding right, linked to top')).toHaveFocus();
-    expect(button('Padding left, linked to right')).toBeInTheDocument();
+    expect(button('Padding left, linked to top')).toBeInTheDocument();
   });
 
   it('moves every linked side with top', () => {
@@ -158,13 +173,23 @@ describe('BoxDiagram, padding', () => {
 });
 
 describe('BoxDiagram, corners', () => {
-  it('links corners as border-radius does: top-right and bottom-right to top-left, bottom-left to top-right', () => {
+  it('links corners as border-radius does: all to top-left, top-right and bottom-left as a pair', () => {
     render(<Harness initial="6" writes={[]} kind="corners" />);
 
     expect(spin('Corner radius top-left')).toHaveValue('6');
     expect(button('Corner radius top-right, linked to top-left')).toBeInTheDocument();
     expect(button('Corner radius bottom-right, linked to top-left')).toBeInTheDocument();
-    expect(button('Corner radius bottom-left, linked to top-right')).toBeInTheDocument();
+    expect(button('Corner radius bottom-left, linked to top-left')).toBeInTheDocument();
+  });
+
+  it('sets bottom-left alone with top-right following it', () => {
+    const writes: string[] = [];
+    render(<Harness initial="6" writes={writes} kind="corners" />);
+    fireEvent.click(button('Corner radius bottom-left, linked to top-left'));
+    fireEvent.change(spin('Corner radius bottom-left'), { target: { value: '12' } });
+
+    expect(writes).toEqual(['6 12']);
+    expect(button('Corner radius top-right, linked to bottom-left')).toBeInTheDocument();
   });
 
   it('writes a corner in CSS corner order', () => {

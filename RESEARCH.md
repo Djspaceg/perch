@@ -28,14 +28,15 @@ side. It improves on Webflow with links:
 
 - Top always holds a number.
 - Right, bottom and left each show a chain link (linked) or their own number plus a broken link
-  (set). They link as CSS shorthand inherits: right and bottom from top, left from right.
+  (set). They link as CSS shorthand pairs them: bottom follows top, and right and left follow top
+  until either is set, then follow each other.
 - Clicking a link unlinks the side at the value it was inheriting. Clicking the broken link
   clears the side and relinks it.
 - Dragging a side scrubs it, and each number is a normal field with arrows and Shift for x10.
-- The centre shows the resulting shorthand, read-only. Top also accepts a pasted shorthand.
+- The centre shows only the unit, `px`. Top also accepts a pasted shorthand.
 
-Corner radius uses the same model in a four-corner diagram. Top-right and bottom-right link to
-top-left, and bottom-left links to top-right. That part is the brief's default, not the human's
+Corner radius uses the matching border-radius rule in a four-corner diagram: bottom-right follows
+top-left, and top-right and bottom-left are the pair. That part is the brief's default, not the human's
 explicit design.
 
 The first recommendation, one shorthand field with a toggle to four fields, is not built.

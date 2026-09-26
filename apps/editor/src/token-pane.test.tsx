@@ -707,6 +707,8 @@ describe('the element box rows', () => {
     expect(
       within(padding).getByRole('button', { name: `${PADDING} left, linked to right` }),
     ).toBeInTheDocument();
+    // The centre carries the unit only; the values are on their sides.
+    expect(within(padding).queryByText('4 8')).toBeNull();
 
     fireEvent.click(
       within(radius).getByRole('button', { name: `${RADIUS} top-right, linked to top-left` }),
@@ -714,6 +716,29 @@ describe('the element box rows', () => {
     expect(within(radius).getByRole('spinbutton', { name: `${RADIUS} top-right` })).toHaveValue(
       '0',
     );
+  });
+
+  it('lets padding and radius go far past the old caps with the arrows', () => {
+    const edits = renderElementPane(
+      { '--perch-box-padding': '48', '--perch-box-radius': '64' },
+      'widget',
+    );
+    fireEvent.keyDown(
+      within(row('--perch-box-padding')).getByRole('spinbutton', { name: `${PADDING} top` }),
+      { key: 'ArrowUp', shiftKey: true },
+    );
+    fireEvent.keyDown(
+      within(row('--perch-box-radius')).getByRole('spinbutton', { name: `${RADIUS} top-left` }),
+      { key: 'ArrowUp', shiftKey: true },
+    );
+
+    expect(edits.set).toEqual([
+      ['--perch-box-padding', '58'],
+      ['--perch-box-radius', '74'],
+    ]);
+    expect(
+      within(row('--perch-box-padding')).getByRole('spinbutton', { name: `${PADDING} top` }),
+    ).toHaveAttribute('aria-valuemax', '999');
   });
 
   it('scrubs every side from the row label, keeping their differences', () => {
