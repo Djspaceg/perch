@@ -190,7 +190,7 @@ describe('switching layouts', () => {
     fireEvent.change(result.getByLabelText('w'), { target: { value: '150' } });
     fireEvent.change(picker(result), { target: { value: 'tower-test' } });
 
-    // Still on the edited document, with the discard offered explicitly: there is no undo here.
+    // Still on the edited document, with the discard offered explicitly: opening clears the undo.
     expect(canvasOf(result).getAttribute('data-perch-canvas-width')).toBe('640');
     expect(result.getByTestId('perch-editor-pending').textContent).toContain('unsaved changes');
 
@@ -805,7 +805,7 @@ describe('deleting an element', () => {
     selectElement(result, 1);
 
     fireEvent.click(result.getByRole('button', { name: /^delete elements\[1\]/ }));
-    // Asked, not done: there is no undo, so the first press only asks.
+    // Asked, not done: the first press only asks.
     expect(elementCount(result)).toBe(2);
     const ask = result.getByRole('group', { name: /delete elements\[1\]/ });
     fireEvent.click(within(ask).getByRole('button', { name: /^confirm/ }));
@@ -939,7 +939,7 @@ describe('the element delete', () => {
     });
 
     expect(destroy).toHaveAccessibleName(
-      'delete elements[1]. the widget and everything set on it go, and there is no undo.',
+      'delete elements[1]. the widget and everything set on it go. undo brings them back.',
     );
     expect(destroy).toHaveAttribute('title', destroy.getAttribute('aria-label'));
     expect(destroy).toHaveClass('perch-reset--delete');

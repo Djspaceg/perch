@@ -10,10 +10,10 @@
  *   `EDITOR_STORE_KEY` (`persist`, with `partialize` choosing it and nothing else), so it survives a
  *   reload and a new tab alike. How a sidebar is folded is not a fact about a dashboard, so none of
  *   it is ever written into a layout.
- * - **`session`** is the document open for editing and the selection. In the store, so every change
- *   to the draft is a named action a later undo can wrap, and never persisted: a reload must not
- *   resurrect unsaved edits over the file on disk, and a selection is an index into a draft that no
- *   longer exists after one.
+ * - **`session`** is the document open for editing, the selection, and the undo history. In the
+ *   store, so every change to the draft is a named action that undo and redo (`history.ts`) wrap, and
+ *   never persisted: a reload must not resurrect unsaved edits over the file on disk, a selection is
+ *   an index into a draft that no longer exists after one, and a history is steps through that draft.
  *
  * Everything else — a hover, an open popover, a search being typed, a confirm being asked — stays in
  * the component that shows it. DECISIONS.md has the table of which `useState` went where.
@@ -57,6 +57,14 @@ import {
   type ConnectionChoice,
 } from './connection.js';
 import { draftSaved, editDraft as applyEdit } from './draft.js';
+import {
+  EMPTY_HISTORY,
+  followSelection,
+  recordEdit,
+  redoStep,
+  undoStep,
+  type EditHistory,
+} from './history.js';
 import type { LayoutUpdate } from './layout-edits.js';
 import type { LayoutLibrary } from './layout-library.js';
 import { openLayoutByName, type Opened } from './open-layout.js';
@@ -108,6 +116,8 @@ export interface EditorSession {
   readonly opened: Opened | null;
   /** Which element is selected. Out of range means none. */
   readonly selected: number;
+  /** Undo and redo for `opened`. Emptied whenever a layout is opened, a revert included. */
+  readonly history: EditHistory;
 }
 
 export interface EditorActions {
@@ -126,8 +136,15 @@ export interface EditorActions {
   readonly openFirst: (library: LayoutLibrary, initialLayout: string | undefined) => void;
   /** Open a layout, dropping the selection. `remember` records it as the layout last picked. */
   readonly openLayout: (opened: Opened, options: { readonly remember: boolean }) => void;
-  /** One edit to the draft, through `editDraft`'s validation. */
-  readonly editDraft: (update: LayoutUpdate) => void;
+  /**
+   * One edit to the draft, through `editDraft`'s validation, recorded for undo. Edits sharing a
+   * `gesture` are one step; one with none is a step of its own. See `history.ts`.
+   */
+  readonly editDraft: (update: LayoutUpdate, gesture?: string) => void;
+  /** Back one step, keeping the selection on its element while that element exists. */
+  readonly undo: () => void;
+  /** Forward one step, the same way. */
+  readonly redo: () => void;
   /** The layout named `name` was written as `written`. Ignored if another layout is open by now. */
   readonly markSaved: (name: string, written: Layout) => void;
   readonly select: (index: number) => void;
@@ -198,10 +215,28 @@ export function createEditorStore(
           const connection = (patch: Partial<ConnectionSettings>): Partial<EditorSettings> => ({
             connection: { ...get().settings.connection, ...patch },
           });
+          /** An undo or redo. With nothing to go to, nothing is set, so DevTools shows nothing. */
+          const step = (move: typeof undoStep, type: string): void => {
+            const { opened, history, selected } = get().session;
+            if (opened?.ok !== true) return;
+            const moved = move(history, opened.state);
+            if (moved === null) return;
+            set(
+              {
+                session: {
+                  opened: { ok: true, state: moved.state },
+                  selected: followSelection(selected, opened.state, moved.state, NOTHING_SELECTED),
+                  history: moved.history,
+                },
+              },
+              undefined,
+              type,
+            );
+          };
 
           return {
             settings: DEFAULT_SETTINGS,
-            session: { opened: null, selected: NOTHING_SELECTED },
+            session: { opened: null, selected: NOTHING_SELECTED, history: EMPTY_HISTORY },
 
             selectLocalhost: () => {
               // A new choice object even when it already was localhost: the control asks the relay
@@ -251,7 +286,11 @@ export function createEditorStore(
               const name = firstLayoutName(initialLayout, get().settings.layout, library.names);
               set(
                 {
-                  session: { opened: openLayoutByName(library, name), selected: NOTHING_SELECTED },
+                  session: {
+                    opened: openLayoutByName(library, name),
+                    selected: NOTHING_SELECTED,
+                    history: EMPTY_HISTORY,
+                  },
                 },
                 undefined,
                 { type: 'open/layout', name, remember: false },
@@ -261,29 +300,37 @@ export function createEditorStore(
               const name = opened.ok ? opened.state.name : opened.name;
               set(
                 (state) => ({
-                  session: { opened, selected: NOTHING_SELECTED },
+                  session: { opened, selected: NOTHING_SELECTED, history: EMPTY_HISTORY },
                   settings: remember ? { ...state.settings, layout: name } : state.settings,
                 }),
                 undefined,
                 { type: 'open/layout', name, remember },
               );
             },
-            editDraft: (update) => {
+            editDraft: (update, gesture) => {
               set(
                 (state) => {
-                  const { opened } = state.session;
+                  const { opened, history } = state.session;
                   if (opened?.ok !== true) return {};
+                  const edited = applyEdit(opened.state, update);
 
                   return {
                     session: {
                       ...state.session,
-                      opened: { ok: true, state: applyEdit(opened.state, update) },
+                      opened: { ok: true, state: edited },
+                      history: recordEdit(history, opened.state, edited, gesture),
                     },
                   };
                 },
                 undefined,
                 'edit/draft',
               );
+            },
+            undo: () => {
+              step(undoStep, 'history/undo');
+            },
+            redo: () => {
+              step(redoStep, 'history/redo');
             },
             markSaved: (name, written) => {
               set(

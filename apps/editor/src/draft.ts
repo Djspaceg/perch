@@ -173,6 +173,6 @@ export function draftSaved(state: DraftState, written: Layout): DraftState {
  * draft containing one never validates, so it can never reach a save, and `dirty` being briefly wrong
  * about an unsaveable document changes nothing a user can act on.
  */
-function sameDocument(left: Layout, right: Layout): boolean {
+export function sameDocument(left: Layout, right: Layout): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }

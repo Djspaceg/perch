@@ -4842,3 +4842,36 @@ red-first.log (new tests failing before the store), build/typecheck/test/lint lo
 ## Residuals
 
 Not run in a browser: the DevTools timeline is checked against a stubbed extension only. Undo and panel placement are not built; `panels` is an empty reserved slot.
+
+# Undo and redo for layout edits - decisions
+
+Outcome: every change to the layout document is undoable and redoable from the header's undo/redo buttons or the keys (Cmd-Z / Ctrl-Z; Shift-Cmd-Z / Ctrl-Shift-Z / Ctrl-Y), never from inside a text field. The history lives in the store's session (`history.ts`), in memory, 200 steps deep. Where one step ends is `edit-gestures.ts`. No new dependency.
+
+## Decisions to evaluate
+
+D1 Where a step ends is read from the page, not passed in by each control: one pointer press (a scrub, a colour drag), else one stay in a text field (focus to blur, Enter or native change), else one dispatched event, else the edit is its own step. Why: every control writes as it goes, and threading a key through about twenty of them is how one gets missed. If overruled: each control calls an explicit begin/commit.
+D2 One click that writes several tokens is one step (the placement grid writes two, a linked box side up to four). Why: the author did one thing. If overruled: one step per token written.
+D3 A step holds the draft, the preview's last valid document and the problems, never the saved copy. So "unsaved changes" follows undo (back to the saved document reads clean), and a save keeps the history. Why: the brief. If overruled: a save clears the history.
+D4 Selection after undo/redo follows the element by identity (elements have no id), keeps its index when the step rewrote that element in place, and clears when it is gone. Why: undoing a delete of an earlier element should not move the selection onto a neighbour. If overruled: keep the plain index while in range.
+D5 Revert clears the history, like a switch (it reloads from disk). Why: the brief's "reloaded from disk". If overruled: revert becomes an undoable step.
+D6 An edit that leaves the document unchanged records no step. Why: an undo that changes nothing reads as broken. If overruled: every edit call is a step.
+D7 Ctrl-Y redoes; Cmd-Y is not bound. Why: the brief lists Ctrl-Y only, and Cmd-Y is a browser shortcut on some Macs. If overruled: bind Cmd-Y too.
+
+## Open questions
+
+Q1 Now that undo exists, should delete stop asking first? Default: it still asks; only the wording changed ("undo brings them back").
+Q2 Switching layout with unsaved edits still parks the switch behind a discard bar, which now says undo cannot bring the edits back. Default: kept, since switching clears the history.
+
+## Gate facts
+
+Nothing pushed, no review cut (GitHub repo, no CRUX; AutoSDE not run, because it sends the diff off-host and the brief says never touch origin). No dependency added; package-lock.json untouched.
+packages/*: none touched.
+Lanes: build.log, typecheck.log, test.log exit 0; lint.log clean on changed files; red-first.log. Adversarial review rounds: 0 (standing rule 14, no code-review.md).
+
+## Evidence (untracked, under .evidence/)
+
+red-first.log (the new tests failing before any implementation), build.log, typecheck.log, test.log, lint.log. Evidence capture refused files from this self-made worktree, so the logs are kept in full in the worktree's .evidence/ and captured as notes (test-log.md, lanes.md).
+
+## Residuals
+
+Not run in a browser: step boundaries are checked in jsdom only. The colour picker's drag, a native colour input's change on close, and Safari's click-without-focus are covered by the rules above but not seen live.

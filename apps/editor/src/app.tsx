@@ -3,8 +3,8 @@
  *
  * Four things, which are the four the human actually asked for — "so we can switch and preview
  * layouts and start customizing them" — and since then dragging, and adding and deleting elements.
- * Everything else `SPEC.md` describes is deliberately absent and listed in DECISIONS.md: no asset
- * management, no undo stack, no multi-layout project.
+ * Since then, undo and redo. Everything else `SPEC.md` describes is deliberately absent and listed in
+ * DECISIONS.md: no asset management, no multi-layout project.
  *
  * ## The pipeline, in the order it runs
  *
@@ -41,19 +41,26 @@
  *
  * An added element goes through `addElement` and a deleted one through `removeElement`, both plain
  * `LayoutUpdate`s into `editDraft`, so each is validated exactly as a keystroke is. An addition is
- * selected at once; a deletion leaves nothing selected. With no undo, a delete asks first — the
- * selection header's inline confirm, which the Delete and Backspace keys open when the canvas has
- * focus. The key is read on the preview pane only, so typing in a field never deletes anything.
+ * selected at once; a deletion leaves nothing selected. A delete still asks first — the selection
+ * header's inline confirm, which the Delete and Backspace keys open when the canvas has focus — and
+ * undo brings it back. The key is read on the preview pane only, so typing in a field never deletes anything.
  *
  * Escape deselects, from the canvas or the sidebar — but never from a field, a popover or a delete
  * confirm, where Escape already means "back out of this" and must mean only that
  * (`controls/escape.ts`). It listens on `window`, so every handler nearer the key — the popovers'
  * document-level one included — has had its turn and marked the event used before this looks.
  *
+ * ## Undo and redo
+ *
+ * Every change to the document is a step in the store's history (`store.ts`, `history.ts`): the
+ * header's undo and redo, and Cmd-Z / Ctrl-Z, Shift with either, or Ctrl-Y from anywhere but a text
+ * field. Where one step ends — a drag, a field's commit, a scrub let go — is `edit-gestures.ts`.
+ * Selection, folds, tabs and the connection are not steps.
+ *
  * ## Switching with unsaved edits asks first
  *
  * Changing the picker while the draft differs from disk does not discard the edits. It parks the
- * request and shows a bar with an explicit discard. There is no undo in this slice, so a silent
+ * request and shows a bar with an explicit discard. Opening a layout clears the history, so a silent
  * discard is unrecoverable work — and the bar costs one piece of state where a confirmation dialog
  * would have cost a browser API that does not exist in jsdom.
  */
@@ -79,6 +86,7 @@ import {
 } from './connection-control.js';
 import { CONTROLS_STYLES, escapeIsTaken } from './controls/index.js';
 import { canSave, isDirty } from './draft.js';
+import { historyShortcut, isTextEntry, useEditGesture } from './edit-gestures.js';
 import { INSPECTOR_STYLES, Inspector } from './inspector.js';
 import type { LayoutLibrary } from './layout-library.js';
 import { addElement, removeElement, setElementRect, type LayoutUpdate } from './layout-edits.js';
@@ -278,6 +286,11 @@ function EditorShell({
   const openLayout = useEditorStore((state) => state.openLayout);
   const editDraft = useEditorStore((state) => state.editDraft);
   const markSaved = useEditorStore((state) => state.markSaved);
+  const undo = useEditorStore((state) => state.undo);
+  const redo = useEditorStore((state) => state.redo);
+  const canUndo = useEditorStore((state) => state.session.history.past.length > 0);
+  const canRedo = useEditorStore((state) => state.session.history.future.length > 0);
+  const gesture = useEditGesture();
   /** Whether the selection header's delete is asking. Any change of selection withdraws the ask. */
   const [deleteAsked, setDeleteAsked] = useState(false);
   /** A switch waiting on the author's decision about unsaved edits. `null` when there is none. */
@@ -306,13 +319,39 @@ function EditorShell({
 
   const onEdit = useCallback(
     (update: LayoutUpdate) => {
-      editDraft(update);
+      editDraft(update, gesture());
       // A stale "saved layouts/x.json" over a document that has since been edited reads as though the
       // edit is on disk. The edit clears it.
       setNotice('');
     },
-    [editDraft],
+    [editDraft, gesture],
   );
+
+  /** Undo or redo. The notice goes as it does for an edit: the document moved. */
+  const onHistory = useCallback(
+    (which: 'undo' | 'redo') => {
+      if (which === 'undo') undo();
+      else redo();
+      setDeleteAsked(false);
+      setNotice('');
+    },
+    [undo, redo],
+  );
+
+  /** The keys, from anywhere on the page but a text field, which keeps the browser's own undo. */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      const which = historyShortcut(event);
+      if (which === null || isTextEntry(event.target)) return;
+      event.preventDefault();
+      onHistory(which);
+    };
+    window.addEventListener('keydown', onKey);
+
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [onHistory]);
 
   /** A dragged or resized element's rect, as one edit. The same `editDraft` path as the field form. */
   const onRect = useCallback(
@@ -484,6 +523,32 @@ function EditorShell({
         <button
           type="button"
           className="perch-editor-button"
+          disabled={!canUndo}
+          aria-keyshortcuts="Meta+Z Control+Z"
+          title="undo (Cmd-Z / Ctrl-Z)"
+          onClick={() => {
+            onHistory('undo');
+          }}
+        >
+          undo
+        </button>
+
+        <button
+          type="button"
+          className="perch-editor-button"
+          disabled={!canRedo}
+          aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z Control+Y"
+          title="redo (Shift-Cmd-Z / Ctrl-Shift-Z / Ctrl-Y)"
+          onClick={() => {
+            onHistory('redo');
+          }}
+        >
+          redo
+        </button>
+
+        <button
+          type="button"
+          className="perch-editor-button"
           disabled={!opened.ok || !dirty}
           onClick={() => {
             open(name, false);
@@ -516,7 +581,7 @@ function EditorShell({
 
       {pendingName === null ? null : (
         <p className="perch-editor-bar perch-editor-bar--warn" data-testid="perch-editor-pending">
-          {`"${name}" has unsaved changes. there is no undo in this slice, so switching to "${pendingName}" discards them.`}
+          {`"${name}" has unsaved changes. switching to "${pendingName}" discards them, and undo cannot bring them back.`}
           <button
             type="button"
             className="perch-editor-button"

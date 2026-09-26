@@ -36,7 +36,7 @@
  * "+ Add" sits in the Selected-entity bar and offers the kinds that need nothing but a sensor or
  * nothing at all (`new-element.ts`); the new element is selected at once. Delete is in the selection
  * header, the red trash can the token panes also use for a removal nothing replaces, and it asks
- * once, inline, because there is no undo. The Delete and Backspace keys ask through the same confirm
+ * once, inline, even though undo brings it back. The Delete and Backspace keys ask through the same confirm
  * when the canvas has focus (`app.tsx`), never while typing in a field. There is no deselect button:
  * a click on empty canvas deselects, and so does Escape (`app.tsx`).
  *
@@ -326,8 +326,8 @@ function SelectionHeader({
       <ResetButton
         action="delete"
         subject={`elements[${index}]`}
-        consequence={`the ${element.kind} and everything set on it go, and there is no undo.`}
-        ask="delete? there is no undo."
+        consequence={`the ${element.kind} and everything set on it go. undo brings them back.`}
+        ask="delete?"
         confirming={deleteAsked}
         onConfirming={onDeleteAsked}
         onReset={onDelete}

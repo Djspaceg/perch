@@ -10,8 +10,8 @@
  *   declare, or a whole element. One symbol for one meaning: every real, unrecoverable delete in the
  *   editor is this button, so the can never means anything gentler. It asks first, inline, naming
  *   what it will delete, with focus on the confirm; Escape or `keep` backs out and hands focus back
- *   to the can. There is no undo in this editor, so the second press is what carries the
- *   deliberateness the word `delete` used to. `consequence` and `ask` say what is lost where it is
+ *   to the can. The second press is what carries the deliberateness the word `delete` used to,
+ *   undo notwithstanding. `consequence` and `ask` say what is lost where it is
  *   not a token; `confirming` lets a caller open the ask from elsewhere — the Delete key on the
  *   canvas asks through the same confirm as the button. The ask unfolds and folds away through
  *   `Collapse`, like every other region that comes and goes.

@@ -33,6 +33,16 @@ selection are in the same store but never persisted, so a reload always opens th
 With the Redux DevTools extension installed, every change shows on its timeline by name
 (`toggle/section`, `set/connectionHost`, `edit/draft`, ...).
 
+## Undo
+
+The header's **undo** and **redo**, or Cmd-Z / Ctrl-Z and Shift-Cmd-Z / Ctrl-Shift-Z / Ctrl-Y from
+anywhere but a text field (a field keeps the browser's own undo of its typing). Every change to the
+layout is a step: a move or resize, any property, an add or delete, a topic, a theme token. Selection,
+folds, tabs and the connection are not. One drag, one scrub, or one field between focus and blur or
+Enter is one step (`src/edit-gestures.ts`). The history is in memory only, 200 steps deep, and cleared
+when a layout is opened, switched or reverted; a save keeps it, and undoing back to the saved document
+reads clean (`src/history.ts`).
+
 ## Scope
 
 This slice does the four things the ask named: **list** the layouts and switch
@@ -43,15 +53,16 @@ text, theme tokens, media `src`/`fit`, widget/chart bindings and ranges), and
 and **adding and deleting** elements. "+ Add" in the Selected-entity bar makes a
 live reading, a chart or a label, with a searchable sensor picker listing what
 the connected source has published (the same picker backs the topic field); the
-selection header's trash can deletes, asking once inline since there is no undo,
-and the Delete or Backspace key asks the same way when the canvas has focus.
+selection header's trash can deletes, asking once inline, and the Delete or
+Backspace key asks the same way when the canvas has focus. **Undo and redo** cover
+every change to the layout (see [Undo](#undo)).
 Escape, or a click on empty canvas, deselects. The sidebar's sections, the
 selected entity's controls, the element rows and the delete confirm slide open
 and shut rather than jumping (instant under `prefers-reduced-motion`).
 
 Deliberately **not** in this slice, and why it is safe to leave out: adding a
 media element (it needs an asset path), asset management, multi-layout
-projects, templates, and an undo stack. See `DECISIONS.md` for the full list —
+projects, and templates. See `DECISIONS.md` for the full list —
 nothing here was missed, it was scoped out.
 
 ## Saving
