@@ -362,9 +362,9 @@ function summarise(section: PropertySection<LayoutElement>, element: LayoutEleme
 }
 
 /**
- * One element's sections: Transform and Content from descriptors, then its style tokens in the
+ * One element's sections: Content and Transform from descriptors, then its style tokens in the
  * sections `ui-kit` groups them into. A media element carries no `style` in the format, so it gets
- * Transform and Content and a sentence saying why there is nothing else.
+ * Content and Transform and a sentence saying why there is nothing else.
  *
  * The token pane is keyed by index so switching selection resets its tab and search rather than
  * carrying one element's into another's. Folded sections are remembered by name, not by index, so

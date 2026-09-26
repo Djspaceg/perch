@@ -99,7 +99,7 @@ function shape(element: LayoutElement): readonly [string, readonly string[]][] {
 
 describe('entitySections', () => {
   it('gives every kind a Transform of two vector rows: position, then size', () => {
-    const [transform] = entitySections(READOUT);
+    const transform = entitySections(READOUT).find((section) => section.id === 'transform');
 
     expect(transform?.title).toBe('Transform');
     expect(
@@ -113,18 +113,18 @@ describe('entitySections', () => {
     ]);
   });
 
-  it('gives each kind the Content its format carries, and nothing else', () => {
+  it('gives each kind the Content its format carries, and nothing else, above Transform', () => {
     expect(shape(READOUT)).toEqual([
-      ['transform', ['position', 'size']],
       ['content', ['widget', 'topic']],
+      ['transform', ['position', 'size']],
     ]);
     expect(shape({ kind: 'text', text: 'hi', rect: READOUT.rect })).toEqual([
-      ['transform', ['position', 'size']],
       ['content', ['text']],
+      ['transform', ['position', 'size']],
     ]);
     expect(shape({ kind: 'media', src: 'a.svg', rect: READOUT.rect })).toEqual([
-      ['transform', ['position', 'size']],
       ['content', ['src', 'fit']],
+      ['transform', ['position', 'size']],
     ]);
     expect(
       shape({
@@ -136,13 +136,13 @@ describe('entitySections', () => {
         range: [0, 100],
       }),
     ).toEqual([
-      ['transform', ['position', 'size']],
       ['content', ['widget', 'topic', 'windowMs', 'gap', 'range']],
+      ['transform', ['position', 'size']],
     ]);
   });
 
   it('reads each value as the text its field shows', () => {
-    const [transform, content] = entitySections(READOUT);
+    const [content, transform] = entitySections(READOUT);
     const position = transform?.properties[0];
 
     expect(position?.kind === 'vector' ? position.fields.map((f) => f.get(READOUT)) : []).toEqual([
@@ -161,7 +161,7 @@ describe('entitySections', () => {
       windowMs: 60000,
       rect: READOUT.rect,
     };
-    const windowMs = entitySections(chart)[1]?.properties.find((p) => p.id === 'windowMs');
+    const windowMs = entitySections(chart)[0]?.properties.find((p) => p.id === 'windowMs');
 
     expect(windowMs?.kind === 'scalar' ? windowMs.spec : undefined).toMatchObject({
       kind: 'number',

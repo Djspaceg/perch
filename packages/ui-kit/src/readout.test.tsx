@@ -86,7 +86,7 @@ function mount(children: ReactNode, options: { now?: () => number } = {}) {
       {/*
        * The widget's own stylesheet, mounted the way the page mounts it, because some of what this
        * file has to prove is not in the markup. jsdom has no layout engine, but it does resolve the
-       * cascade, so a declared field width or an ellipsis can be read off the rendered element
+       * cascade, so an ellipsis or a container type can be read off the rendered element
        * rather than regexed out of the stylesheet string.
        */}
       <style>{READOUT_STYLES}</style>
@@ -125,25 +125,6 @@ function partOf(readout: HTMLElement, part: string): HTMLElement {
   const element = readout.querySelector(`.perch-readout__${part}`);
   if (!(element instanceof HTMLElement)) throw new Error(`no ${part} in the rendered readout`);
   return element;
-}
-
-/**
- * How many characters the rendered value's field holds.
- *
- * "Is this number clipped?" is a question about pixels, and jsdom has no layout engine — every
- * geometry it reports is 0. The field is written on the element in `ch` against `tabular-nums`,
- * where one `ch` is one digit, so the same question can be asked in characters: a field of N
- * characters renders a value of N characters or fewer in full, whatever the font or the type size.
- *
- * Read off the element's own `style`, not through `getComputedStyle`: jsdom normalises a computed
- * `8ch` to `64px` on an assumed 8px advance, which is both wrong and a moving target between
- * versions. Anything that is not a character field — `auto`, a percentage, nothing at all — returns
- * 0, which is the pre-fix state: the value got whatever width was left over in the row, and
- * left-over is what the ellipsis ate.
- */
-function valueFieldChars(readout: HTMLElement): number {
-  const chars = /^([0-9.]+)ch$/.exec(partOf(readout, 'value').style.width)?.[1];
-  return chars === undefined ? 0 : Number(chars);
 }
 
 /** What the value element renders, as the reader sees it. */
@@ -271,11 +252,10 @@ describe('<Readout> — the value is printed in full, never truncated', () => {
 
     const readout = readoutNamed('GPU PCIe Rx');
     expect(valueTextOf(readout)).toBe('6699008');
-    expect(valueFieldChars(readout)).toBeGreaterThanOrEqual('6699008'.length);
   });
 
   /**
-   * The widest reading the field is sized for, and not a hypothetical one: the same machine's
+   * The widest reading the type scale is sized for, and not a hypothetical one: the same machine's
    * GPU PCIe Tx sensor reports it, in `fixtures/lhm-data.sample.json`.
    */
   it('prints an eight-digit throughput reading in full', () => {
@@ -285,7 +265,6 @@ describe('<Readout> — the value is printed in full, never truncated', () => {
 
     const readout = readoutNamed('GPU PCIe Tx');
     expect(valueTextOf(readout)).toBe('37699580');
-    expect(valueFieldChars(readout)).toBeGreaterThanOrEqual('37699580'.length);
   });
 
   it('prints a real zero in full', () => {
@@ -295,7 +274,6 @@ describe('<Readout> — the value is printed in full, never truncated', () => {
 
     const readout = readoutNamed('GPU PCIe Rx');
     expect(valueTextOf(readout)).toBe('0');
-    expect(valueFieldChars(readout)).toBeGreaterThanOrEqual('0'.length);
   });
 
   it('prints a negative reading in full, minus sign included', () => {
@@ -306,7 +284,6 @@ describe('<Readout> — the value is printed in full, never truncated', () => {
     const readout = readoutNamed('CPU Package');
     // The sign is the whole point: `40.0` where `-40.0` belongs is an 80-degree error.
     expect(valueTextOf(readout)).toBe('-40.0');
-    expect(valueFieldChars(readout)).toBeGreaterThanOrEqual('-40.0'.length);
   });
 
   it('prints a long decimal in full', () => {
@@ -316,7 +293,6 @@ describe('<Readout> — the value is printed in full, never truncated', () => {
 
     const readout = readoutNamed('CPU Multiplier');
     expect(valueTextOf(readout)).toBe('48.500');
-    expect(valueFieldChars(readout)).toBeGreaterThanOrEqual('48.500'.length);
   });
 
   it('prints the no-reading placeholder in full', () => {
@@ -326,7 +302,6 @@ describe('<Readout> — the value is printed in full, never truncated', () => {
 
     const readout = readoutNamed('GPU Fan');
     expect(valueTextOf(readout)).toBe(READOUT_NO_READING_TEXT);
-    expect(valueFieldChars(readout)).toBeGreaterThanOrEqual(READOUT_NO_READING_TEXT.length);
   });
 
   it('prints the waiting placeholder in full', () => {
@@ -334,33 +309,6 @@ describe('<Readout> — the value is printed in full, never truncated', () => {
 
     const readout = readoutNamed('GPU PCIe Rx');
     expect(valueTextOf(readout)).toBe(READOUT_WAITING_TEXT);
-    expect(valueFieldChars(readout)).toBeGreaterThanOrEqual(READOUT_WAITING_TEXT.length);
-  });
-
-  /**
-   * The frame-budget half of the fix, asked the only way jsdom can answer it: the field is declared
-   * in characters, so a reading that grows by seven digits cannot change it. Nothing beside the
-   * value — the unit, the label, the tile, the row — moves when a value crosses a digit boundary.
-   */
-  it('keeps one field width across every length of reading', () => {
-    const { source } = mount(<Readout topic={GPU_THROUGHPUT} label="GPU PCIe Rx" />);
-    const readout = readoutNamed('GPU PCIe Rx');
-
-    const waiting = valueFieldChars(readout);
-
-    source.emit(GPU_THROUGHPUT, { value: 0, at: Date.now() });
-    const zero = valueFieldChars(readout);
-
-    source.emit(GPU_THROUGHPUT, { value: 6699008, at: Date.now() + 1 });
-    const seven = valueFieldChars(readout);
-
-    source.emit(GPU_THROUGHPUT, { value: 37699580, at: Date.now() + 2 });
-    const eight = valueFieldChars(readout);
-
-    expect(zero).toBe(waiting);
-    expect(seven).toBe(waiting);
-    expect(eight).toBe(waiting);
-    expect(waiting).toBeGreaterThanOrEqual(8);
   });
 
   /**
@@ -383,6 +331,30 @@ describe('<Readout> — the value is printed in full, never truncated', () => {
     // The label cannot contribute width, and now neither can anything else inside: an inline-size
     // query container's width is independent of its contents by definition.
     expect(getComputedStyle(readout).getPropertyValue('container-type')).toBe('inline-size');
+  });
+});
+
+describe('<Readout> — the unit follows the number', () => {
+  /**
+   * The human's report: the unit sat far from the value. The value was a fixed eight-digit field
+   * with the digits at its start, so `9.4` was followed by five empty digit advances before its
+   * `%`. The value now takes the width of its own text, and the unit comes straight after it.
+   */
+  it('gives the value no width of its own in any state, so the unit sits after the digits', () => {
+    const { source } = mount(<Readout topic={GPU_THROUGHPUT} label="GPU PCIe Rx" />);
+    const readout = readoutNamed('GPU PCIe Rx');
+    const value = partOf(readout, 'value');
+
+    expect(value.style.width).toBe('');
+    for (const [reading, at] of [
+      [0, 1],
+      [9.4, 2],
+      [37699580, 3],
+    ] as const) {
+      source.emit(GPU_THROUGHPUT, { value: reading, at: Date.now() + at });
+      expect(value.style.width).toBe('');
+      expect(value.getAttribute('style')).toBeNull();
+    }
   });
 });
 
@@ -464,6 +436,20 @@ describe('READOUT_STYLES', () => {
 
   it('gives the note row a fixed height, so a state change cannot reflow the widget', () => {
     expect(READOUT_STYLES).toMatch(/\.perch-readout__note\s*{[^}]*\bheight:/);
+  });
+
+  it('separates the unit from the number by one ex, and nothing more', () => {
+    const primary = /\.perch-readout__primary\s*{[^}]*}/.exec(READOUT_STYLES)?.[0];
+    expect(primary).toMatch(/\bgap:\s*1ex;/);
+    const unit = /\.perch-readout__unit\s*{[^}]*}/.exec(READOUT_STYLES)?.[0];
+    expect(unit).not.toMatch(/margin|padding|width/);
+  });
+
+  it('still sizes the number so eight digits and a unit fit the width it is given', () => {
+    // With no fixed field, "never clipped" rests on the type scale alone.
+    const value = /\.perch-readout__value\s*{[^}]*}/.exec(READOUT_STYLES)?.[0];
+    expect(value).toMatch(/font-size:\s*clamp\(.*\b14cqw\b/);
+    expect(value).toMatch(/text-overflow:\s*ellipsis/);
   });
 
   it('stops the label and note from driving the widget width', () => {

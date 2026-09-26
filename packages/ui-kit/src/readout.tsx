@@ -40,17 +40,19 @@
  * 216px tile, at both captured viewports. An unreadable value would be obvious; `669` is a
  * plausible reading four orders of magnitude out, and nothing on the panel says so.
  *
- * The value is now exempt in two co-operating ways, and both are about geometry rather than text:
+ * The value is now exempt by its **type scale**, taken from the widget's own width: `.perch-readout`
+ * is an inline-size query container and the value's `font-size` is `clamp(1.5rem, 14cqw, 3rem)`,
+ * the largest size at which eight digits plus a unit still fit the width the page granted. The size
+ * depends on the *container*, never on the reading, so it is constant across a capture.
  *
- * - **A field sized in characters, not in content.** A width of `READOUT_VALUE_FIELD_CHARS` `ch`
- *   with `tabular-nums` is exactly that many digit advances whatever the reading is, so `0.0` and
- *   `37699580` occupy the same box and the unit beside it never moves. Nothing here reflows when a
- *   value crosses a digit boundary.
- * - **A type scale taken from the widget's own width.** `.perch-readout` is an inline-size query
- *   container and the value's `font-size` is `clamp(1.5rem, 14cqw, 3rem)`, which is the largest
- *   size at which that eight-character field plus a unit still fits the width the page granted.
- *   The size therefore depends on the *container*, never on the reading — the same input that was
- *   already constant across a capture.
+ * ## The unit follows the number
+ *
+ * The value used to be a fixed field eight digit advances wide, so the unit never moved when a
+ * reading gained a digit. With the digits at the field's start, a `9.4` was followed by five empty
+ * advances before its `%` — about 90px on a desk tile — and the human asked for the unit beside the
+ * number. The value now takes the width of its own text and the unit sits one `ex` after it. The
+ * cost is that the unit moves by one digit when a reading crosses a power of ten (`9.9` to `10.0`);
+ * within a decade it holds still, because the decimals are fixed and the digits are `tabular-nums`.
  *
  * Making the widget a query container also hardens the label fix rather than weakening it: an
  * inline-size container's width cannot depend on its contents at all, so the raw-topic fallback
@@ -93,28 +95,6 @@ export interface ReadoutProps {
  */
 type ReadoutTone = 'none' | 'quiet' | 'warn' | 'alert';
 
-/**
- * How many characters the value's field holds.
- *
- * The one number that decides whether a reading is printed or truncated, and the reason it lives
- * here rather than in `READOUT_STYLES`: it is a claim about *data* — how many characters a reading
- * may need — where the type scale beside it is a claim about pixels. A claim about data belongs in
- * code, where the value that motivates it can be cited and a test can read it back off the element.
- *
- * Eight, measured against the hardware this reads rather than chosen: `fixtures/lhm-data.sample.json`
- * reports GPU PCIe Rx as `6699008 B/s` — the seven-digit figure the README names as the tell that
- * the page is on MQTT — and GPU PCIe Tx, on the same card in the same payload, as `37699580 B/s`.
- * Eight characters also covers a signed six-digit reading and `-40.0`, and every placeholder.
- *
- * Applied as a width on the element, in `ch`, which with `tabular-nums` is exactly one digit: the
- * field is eight digit advances wide in whatever font and at whatever size renders it, so no font
- * metric is assumed and no reading changes the geometry.
- */
-export const READOUT_VALUE_FIELD_CHARS = 8;
-
-/** The field, as a CSS length. Derived once so the number above is the only place to change it. */
-const READOUT_VALUE_FIELD_WIDTH = `${String(READOUT_VALUE_FIELD_CHARS)}ch`;
-
 export function Readout(props: ReadoutProps): ReactNode {
   const { topic, label, decimals } = props;
 
@@ -140,14 +120,7 @@ export function Readout(props: ReadoutProps): ReactNode {
       data-topic={parsed.canonical}
     >
       <div className="perch-readout__primary">
-        {/*
-         * The field is a constant, so this is the same `style` attribute in every state and for
-         * every reading — React writes it once and never patches it, and the unit beside it never
-         * moves. See `READOUT_VALUE_FIELD_CHARS` for why the width is here and not in the sheet.
-         */}
-        <span className="perch-readout__value" style={{ width: READOUT_VALUE_FIELD_WIDTH }}>
-          {view.value}
-        </span>
+        <span className="perch-readout__value">{view.value}</span>
         {/*
          * The space lives in the text, not only in the CSS gap, so the widget's textContent reads
          * as `61.3 °C` rather than `61.3°C`. It is a leading space inside a flex item, so it is
@@ -228,17 +201,17 @@ function parseTopic(topic: string): { canonical: string; metric: SensorMetric } 
  * rather than a bare clip, because a clipped numeral silently reads as a smaller number — `55.97`
  * becoming `55.9` is wrong, where `55.9…` is visibly incomplete. This is a containment guarantee,
  * not a layout: a widget given too little room should look starved, and the room is the page's job.
- * For the value it is *only* a backstop — the field below is sized so no plausible reading reaches
- * it — because a clipped value is the one thing this widget must never quietly do.
+ * For the value it is *only* a backstop — the type scale below is sized so no plausible reading
+ * reaches it — because a clipped value is the one thing this widget must never quietly do.
  *
  * The value's size is measured, not chosen, and it is now measured per widget instead of once:
  *
- * - **The field** is `READOUT_VALUE_FIELD_CHARS` digit advances wide, written on the element rather
- *   than here — see that constant for the reading that sized it and why it is code, not CSS. A
- *   ninth character ellipsises, and the answer to that is a display-unit scale, which belongs with
- *   `layout-schema` rather than with a defect fix.
+ * - **Eight digits** is the widest reading the scale is sized for, measured rather than chosen:
+ *   `fixtures/lhm-data.sample.json` reports GPU PCIe Tx as `37699580 B/s`. A ninth character may
+ *   ellipsise in the narrowest tile, and the answer to that is a display-unit scale, which belongs
+ *   with `layout-schema` rather than with a defect fix.
  * - **`clamp(1.5rem, 14cqw, 3rem)`** is the type scale, against the widget's own inline size. At
- *   weight 650 in the system sans a digit advances 0.6475em, so eight of them plus the 0.35em gap
+ *   weight 650 in the system sans a digit advances 0.6475em, so eight of them plus the 1ex gap
  *   and a three-glyph unit fit a container down to ~174px — which is what a 13rem tile grants, the
  *   narrowest this page produces. The old fixed 3rem needs 249px for the same eight characters and
  *   is kept as the cap, so a widget with room to spare still prints at the size it always did.
@@ -255,22 +228,21 @@ function parseTopic(topic: string): { canonical: string; metric: SensorMetric } 
  * renders byte-identically to the hard-coded page this replaced.
  *
  * What is deliberately *not* tokenised is the geometry that the frame budget depends on: the note
- * row's fixed height, the `min-width: 0`/`nowrap`/ellipsis triple on the label and note, the
- * `14cqw` measurement, and the value field's width. Those are not presentation — they are the
+ * row's fixed height, the `min-width: 0`/`nowrap`/ellipsis triple on the label and note, and the
+ * `14cqw` measurement. Those are not presentation — they are the
  * guarantees that an update cannot reflow the widget and that a label cannot set its width. A theme
  * token able to switch one of them off would make a layout file capable of reintroducing the defect
  * this file's history is mostly about.
  *
- * ## Placement moves the content, never the field
+ * ## Placement moves the content, never the rows
  *
  * `--perch-readout-justify` and `--perch-readout-anchor` say where the content sits in the readout's
  * box, which is the element's content box — `height: 100%` so there is a height to place it down.
  * Across, one value is read twice: as `justify-content` on the number-and-unit row and as `text-align`
- * on the readout, which the caption, the note and the number inside its field all inherit. Every row
+ * on the readout, which the caption, the note and the number all inherit. Every row
  * keeps its full width — the stretch that makes the ellipsis work is untouched — so placement is a
- * matter of where the ink sits inside rows whose geometry does not change. The field keeps its eight
- * digit advances too: a centred `61.3` is centred *in its field*, and the unit beside it still never
- * moves when a reading gains a digit. Both default to `start`, which is where a readout sat before.
+ * matter of where the ink sits inside rows whose geometry does not change: a centred readout centres
+ * the number and its unit together. Both default to `start`, which is where a readout sat before.
  *
  * Padding, read by the element box rather than here, narrows the container the `14cqw` scale is
  * measured against. So a padded readout's number scales down with the room padding leaves it, exactly
@@ -296,7 +268,7 @@ export const READOUT_STYLES = `
   justify-content: ${token('--perch-readout-justify')};
   min-width: 0;
   overflow: hidden;
-  gap: 0.35em;
+  gap: 1ex;
 }
 .perch-readout__value {
   min-width: 0;

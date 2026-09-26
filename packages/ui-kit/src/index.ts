@@ -83,7 +83,6 @@ export {
 
 export {
   READOUT_STYLES,
-  READOUT_VALUE_FIELD_CHARS,
   Readout,
   type ReadoutProps,
 } from './readout.js';

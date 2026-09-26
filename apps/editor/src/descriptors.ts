@@ -352,7 +352,12 @@ const RANGE: VectorProperty<LayoutElement> = {
   })),
 };
 
-/** An element's own sections: Transform for every kind, then the Content its kind carries. */
+/**
+ * An element's own sections: the Content its kind carries, then Transform for every kind.
+ *
+ * Content leads because it holds what the element *is* — for a reading or a chart, the sensor it
+ * reads — and choosing that is the first thing an author does with a new element.
+ */
 export function entitySections(element: LayoutElement): readonly PropertySection<LayoutElement>[] {
   const transform: PropertySection<LayoutElement> = {
     id: 'transform',
@@ -384,7 +389,7 @@ export function entitySections(element: LayoutElement): readonly PropertySection
       return assertNever(element, 'layout element');
   }
 
-  return [transform, { id: 'content', title: 'Content', properties: content }];
+  return [{ id: 'content', title: 'Content', properties: content }, transform];
 }
 
 type Target = Layout['target'];

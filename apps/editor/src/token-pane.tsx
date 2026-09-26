@@ -84,7 +84,7 @@ export interface TokenPaneProps {
   readonly kind?: ElementKind | undefined;
   readonly onSet: (name: string, value: string) => void;
   readonly onRemove: (name: string) => void;
-  /** Sections that are not tokens, shown first on the Customize tab: Target, Transform, Content. */
+  /** Sections that are not tokens, shown first on the Customize tab: Target, or Content then Transform. */
   readonly leading?: ReactNode;
   /** Category chips under the tabs, one per `TOKEN_GROUPS` entry. */
   readonly chips?: boolean;

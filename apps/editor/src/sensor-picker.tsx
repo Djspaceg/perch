@@ -7,6 +7,11 @@
  * as a way to type a topic in full, for a sensor that is not publishing right now: a canonical topic
  * is offered as "use …", anything else that starts like a topic says why it is not one.
  *
+ * Each entry shows the sensor's current reading, formatted as a readout formats it, so an author can
+ * tell `CPU Core #1` from `CPU Core #2` by the number they expect. The reading is its own component
+ * subscribed to its own topic (`SensorReading`): a tick re-renders the one span whose topic moved,
+ * never the list, and the list is mounted only while the picker is open.
+ *
  * Built from the redesign's primitives — `usePopover` for the anchored, dismissable box and
  * `FilterBar` for the search and the device chips — so it dismisses, places and searches exactly as
  * the colour picker and the token panes do.
@@ -17,8 +22,19 @@
  */
 
 import type { LayoutElement, LayoutTarget } from '@perch/layout-schema';
-import type { SensorDevice, SensorMeta, SensorTopic } from '@perch/sensor-contract';
-import { useSensorStore, useSensorTopics } from '@perch/ui-kit';
+import {
+  parseSensorTopic,
+  type SensorDevice,
+  type SensorMeta,
+  type SensorTopic,
+} from '@perch/sensor-contract';
+import {
+  READOUT_NO_READING_TEXT,
+  readoutView,
+  useSensor,
+  useSensorStore,
+  useSensorTopics,
+} from '@perch/ui-kit';
 import {
   createContext,
   useContext,
@@ -214,9 +230,37 @@ function SensorEntry({
       }}
     >
       <span className="perch-sensors__name">{entry.label ?? entry.topic}</span>
-      {entry.unit === '' ? null : <span className="perch-sensors__unit">{entry.unit}</span>}
+      <SensorReading topic={entry.topic} />
       <span className="perch-sensors__topic">{entry.topic}</span>
     </button>
+  );
+}
+
+/** What an entry says for a topic with no number to show: nothing heard yet, or a null reading. */
+export const PICKER_NO_READING = 'no reading';
+
+/**
+ * One entry's current reading with its unit, as the readout on the canvas would print it.
+ *
+ * The only part of the list that subscribes to readings, and only to its own topic, so a tick
+ * re-renders this span and nothing around it. A topic that has not published — a mock topic before
+ * its first tick, a typed one nobody sends — and a sensor reporting `null` both say `no reading`.
+ */
+function SensorReading({ topic }: { readonly topic: SensorTopic }): ReactNode {
+  const snapshot = useSensor(topic);
+  const metric = parseSensorTopic(topic)?.metric;
+  const view = metric === undefined ? undefined : readoutView({ snapshot, metric });
+  // A stale null has no number either; it keeps its placeholder out of the list like any null.
+  const shown =
+    view !== undefined &&
+    (view.state === 'value' || (view.state === 'stale' && view.value !== READOUT_NO_READING_TEXT))
+      ? view.text
+      : PICKER_NO_READING;
+
+  return (
+    <span className="perch-sensors__reading" data-state={view?.state ?? 'waiting'}>
+      {shown}
+    </span>
   );
 }
 
@@ -479,7 +523,9 @@ export const SENSOR_PICKER_STYLES = `
 .perch-sensors__entry:focus-visible { box-shadow: inset 0 0 0 1px var(--ed-accent); }
 .perch-sensors__entry[aria-current='true'] { background: var(--ed-accent-fill); }
 .perch-sensors__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--ed-font); }
-.perch-sensors__unit { font-size: var(--ed-font-small); color: var(--ed-quiet); }
+.perch-sensors__reading { font-size: var(--ed-font-small); font-variant-numeric: tabular-nums; color: var(--ed-text-2); white-space: nowrap; }
+.perch-sensors__reading[data-state='waiting'], .perch-sensors__reading[data-state='no-reading'] { color: var(--ed-faint); }
+.perch-sensors__reading[data-state='stale'] { color: var(--ed-quiet); }
 .perch-sensors__topic {
   grid-column: 1 / 3;
   min-width: 0;

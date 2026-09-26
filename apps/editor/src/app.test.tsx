@@ -73,6 +73,7 @@ function renderEditor(library = testLibrary()): {
   readonly library: LayoutLibrary;
   readonly calls: { url: string; body: string }[];
   readonly result: ReturnType<typeof render>;
+  readonly source: ReturnType<typeof createMockSource>;
 } {
   const source = createMockSource({ autoStart: false, seed: 1 });
   const { calls, transport } = recordingTransport();
@@ -80,6 +81,7 @@ function renderEditor(library = testLibrary()): {
   return {
     library,
     calls,
+    source,
     result: render(
       <Editor library={library} source={source} topics={source.topics} transport={transport} />,
     ),
@@ -585,7 +587,7 @@ describe('the selection header and the sections', () => {
     ]) {
       expect(within(entity).getByRole('button', { name })).toHaveAttribute('aria-expanded');
     }
-    // Transform, Content, Appearance and Placement start open; the long lists start closed.
+    // Content, Transform, Appearance and Placement start open; the long lists start closed.
     expect(within(entity).getByRole('button', { name: 'Transform' })).toHaveAttribute(
       'aria-expanded',
       'true',
@@ -597,6 +599,21 @@ describe('the selection header and the sections', () => {
     expect(within(entity).getByRole('button', { name: 'Typography' })).toHaveAttribute(
       'aria-expanded',
       'false',
+    );
+  });
+
+  it('puts Content, where the sensor is chosen, above Transform', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+    const entity = result.getByRole('region', { name: 'Selected entity' });
+    const content = within(entity).getByRole('button', { name: 'Content' });
+    const transform = within(entity).getByRole('button', { name: 'Transform' });
+
+    expect(content.compareDocumentPosition(transform) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(within(entity).getAllByRole('button', { name: /^(Content|Transform)$/ })[0]).toBe(
+      content,
     );
   });
 
@@ -1007,5 +1024,37 @@ describe('one way to choose data', () => {
     fireEvent.change(result.getByLabelText('topic'), { target: { value: 'sensors/nope' } });
 
     expect(result.getByTestId('perch-editor-problems')).toHaveTextContent('elements[1].topic');
+  });
+
+  it('shows each sensor’s current reading in the picker, and says so when there is none', () => {
+    const { result, source } = renderEditor();
+    selectElement(result, 1);
+
+    fireEvent.click(result.getByRole('button', { name: /^choose a sensor for topic/i }));
+    const picker = result.getByRole('dialog', { name: /choose a sensor/i });
+    const reading = (name: RegExp): string | null =>
+      within(picker).getByRole('button', { name }).querySelector('.perch-sensors__reading')
+        ?.textContent ?? null;
+
+    // Nothing published yet: every entry says so rather than showing a blank or a zero.
+    expect(reading(/GPU Core/)).toBe('no reading');
+
+    // One tick later the entry shows the value the preview would, with its unit.
+    const heard: { value: number | null } = { value: null };
+    const stop = source.subscribe('sensors/gpu/0/temperature/0', (_topic, r) => {
+      heard.value = r.value;
+    });
+    act(() => {
+      source.tick();
+    });
+    expect(heard.value).not.toBeNull();
+    expect(reading(/GPU Core/)).toBe(`${(heard.value ?? 0).toFixed(1)} °C`);
+
+    // And it follows the source while the picker stays open.
+    act(() => {
+      source.tick();
+    });
+    expect(reading(/GPU Core/)).toBe(`${(heard.value ?? 0).toFixed(1)} °C`);
+    stop();
   });
 });
