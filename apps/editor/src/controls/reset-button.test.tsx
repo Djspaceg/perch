@@ -68,7 +68,9 @@ describe('ResetButton', () => {
     render(<ResetButton action="delete" subject="--brand-hue" onReset={onReset} />);
     const destroy = screen.getByRole('button', { name: /^delete --brand-hue/ });
 
-    expect(screen.getByText('✕')).toBeInTheDocument();
+    // A trash can, not the revert arrow: one symbol for a delete nothing takes over from.
+    expect(destroy.querySelector('svg[data-perch-glyph="trash"]')).not.toBeNull();
+    expect(destroy).not.toHaveTextContent('↺');
     expect(destroy).toHaveAccessibleName(/nothing takes over/);
     expect(destroy).toHaveAttribute('title', destroy.getAttribute('aria-label'));
 

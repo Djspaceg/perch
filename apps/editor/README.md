@@ -27,8 +27,11 @@ text, theme tokens, media `src`/`fit`, widget/chart bindings and ranges), and
 and **adding and deleting** elements. "+ Add" in the Selected-entity bar makes a
 live reading, a chart or a label, with a searchable sensor picker listing what
 the connected source has published (the same picker backs the topic field); the
-selection header deletes, asking once inline since there is no undo, and the
-Delete or Backspace key asks the same way when the canvas has focus.
+selection header's trash can deletes, asking once inline since there is no undo,
+and the Delete or Backspace key asks the same way when the canvas has focus.
+Escape, or a click on empty canvas, deselects. The sidebar's sections, the
+selected entity's controls, the element rows and the delete confirm slide open
+and shut rather than jumping (instant under `prefers-reduced-motion`).
 
 Deliberately **not** in this slice, and why it is safe to leave out: adding a
 media element (it needs an asset path), asset management, multi-layout

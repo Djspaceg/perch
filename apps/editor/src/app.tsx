@@ -45,6 +45,11 @@
  * selection header's inline confirm, which the Delete and Backspace keys open when the canvas has
  * focus. The key is read on the preview pane only, so typing in a field never deletes anything.
  *
+ * Escape deselects, from the canvas or the sidebar — but never from a field, a popover or a delete
+ * confirm, where Escape already means "back out of this" and must mean only that
+ * (`controls/escape.ts`). It listens on `window`, so every handler nearer the key — the popovers'
+ * document-level one included — has had its turn and marked the event used before this looks.
+ *
  * ## Switching with unsaved edits asks first
  *
  * Changing the picker while the draft differs from disk does not discard the edits. It parks the
@@ -65,9 +70,9 @@ import {
   WIDGET_REGISTRY,
 } from '@perch/ui-kit';
 import type { LayoutElement, Rect } from '@perch/layout-schema';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CANVAS_HANDLES_STYLES } from './canvas-handles.js';
-import { CONTROLS_STYLES } from './controls/index.js';
+import { CONTROLS_STYLES, escapeIsTaken } from './controls/index.js';
 import { canSave, draftSaved, editDraft, isDirty, openDraft, type DraftState } from './draft.js';
 import { INSPECTOR_STYLES, Inspector, NOTHING_SELECTED } from './inspector.js';
 import type { LayoutLibrary } from './layout-library.js';
@@ -329,6 +334,33 @@ function EditorShell({
     setDeleteAsked(true);
   }, [opened, selected]);
 
+  const paneRef = useRef<HTMLElement>(null);
+  const sideRef = useRef<HTMLElement>(null);
+  const hasSelection = opened.ok && opened.state.draft.elements[selected] !== undefined;
+
+  /** Escape on the canvas or in the sidebar, when nothing nearer uses it: deselect. */
+  useEffect(() => {
+    if (!hasSelection) return undefined;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const target = event.target;
+      if (!(target instanceof Element) || escapeIsTaken(target)) return;
+      if (
+        paneRef.current?.contains(target) !== true &&
+        sideRef.current?.contains(target) !== true
+      ) {
+        return;
+      }
+      event.preventDefault();
+      select(NOTHING_SELECTED);
+    };
+    window.addEventListener('keydown', onKey);
+
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [hasSelection, select]);
+
   const onPick = useCallback(
     (name: string) => {
       const dirty = opened.ok && isDirty(opened.state);
@@ -490,7 +522,7 @@ function EditorShell({
       )}
 
       <div className="perch-editor-body">
-        <main className="perch-editor-pane">
+        <main className="perch-editor-pane" ref={paneRef}>
           {opened.ok ? (
             <LayoutPreview
               layout={opened.state.rendered}
@@ -509,7 +541,7 @@ function EditorShell({
           )}
         </main>
 
-        <aside className="perch-editor-side">
+        <aside className="perch-editor-side" ref={sideRef}>
           <LayoutProblems
             issues={opened.ok ? opened.state.issues : opened.issues}
             onSelectElement={select}

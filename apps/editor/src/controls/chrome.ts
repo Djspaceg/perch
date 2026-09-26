@@ -7,6 +7,13 @@
  * the layout's `--perch-*` tokens: nothing here styles a dashboard, and a layout's theme cannot reach
  * the inspector.
  *
+ * ## Motion
+ *
+ * `--ed-motion-duration` and `--ed-motion-ease` are the whole of the sidebar's motion: every region
+ * that grows or shrinks (`collapse.tsx`) reads them, so tuning it is one edit here. Short and
+ * ease-out, height and opacity only. `prefers-reduced-motion: reduce` sets the duration to zero, and
+ * `Collapse` asks the same query, so with it set every change lands at once.
+ *
  * ## The scrollbar
  *
  * Thumb and track are chrome colours like any other. `scrollbar-color` inherits, so declared on the
@@ -58,6 +65,9 @@ export const CHROME_STYLES = `
   --ed-axis-w: #5b8fd0;
   --ed-axis-h: #c8a04e;
 
+  --ed-motion-duration: 180ms;
+  --ed-motion-ease: cubic-bezier(0.2, 0, 0, 1);
+
   --ed-scroll-size: 10px;
   --ed-scroll-thumb: #2e3542;
   --ed-scroll-thumb-hover: #4c586b;
@@ -65,6 +75,9 @@ export const CHROME_STYLES = `
 
   scrollbar-color: var(--ed-scroll-thumb) var(--ed-scroll-track);
   scrollbar-width: thin;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --ed-motion-duration: 0ms; }
 }
 ::-webkit-scrollbar { width: var(--ed-scroll-size); height: var(--ed-scroll-size); }
 ::-webkit-scrollbar-track { background-color: var(--ed-scroll-track); }

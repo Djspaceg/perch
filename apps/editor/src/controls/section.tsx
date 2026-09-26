@@ -2,9 +2,10 @@
  * Section: a full-width header bar with a disclosure triangle, and a body.
  *
  * The header is a `<button aria-expanded>` inside a real heading, and the whole section is a labelled
- * region, so the structure is navigable by heading and by landmark. A folded body stays mounted with
- * `hidden`: nothing inside loses its state by being folded, and the bar's `summary` still says what
- * the body holds — so a column of folded sections is still a map of the whole.
+ * region, so the structure is navigable by heading and by landmark. The body is a `Collapse`, so it
+ * slides open and shut rather than appearing, and a folded body stays mounted with `hidden`: nothing
+ * inside loses its state by being folded, and the bar's `summary` still says what the body holds — so
+ * a column of folded sections is still a map of the whole.
  *
  * `id` is the disclosure key the open state is remembered under for the session (`disclosure.ts`).
  * `forceOpen` shows the body without touching what is remembered; a search uses it, so clearing the
@@ -19,6 +20,7 @@
  */
 
 import { useId, type ReactNode } from 'react';
+import { Collapse } from './collapse.js';
 import { useDisclosure } from './disclosure.js';
 
 export interface SectionProps {
@@ -91,9 +93,9 @@ export function Section({
         </Heading>
         {variant === 'section' ? summaryNode : null}
       </div>
-      <div className="perch-section__body" id={bodyId} hidden={!shown}>
-        {children}
-      </div>
+      <Collapse open={shown} keepMounted id={bodyId}>
+        <div className="perch-section__body">{children}</div>
+      </Collapse>
     </section>
   );
 }
@@ -183,7 +185,6 @@ export const SECTION_STYLES = `
 }
 .perch-section__summary[data-perch-active='true'] { color: var(--ed-own-text); }
 .perch-section__body { display: flex; flex-direction: column; padding: 3px 0 5px; }
-.perch-section__body[hidden] { display: none; }
 .perch-section--advanced .perch-section__bar { background: none; border: 0; min-height: 20px; }
 .perch-section--advanced .perch-section__toggle {
   min-height: 20px;

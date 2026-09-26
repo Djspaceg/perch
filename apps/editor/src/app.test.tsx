@@ -16,8 +16,8 @@
 import { LAYOUT_SCHEMA_VERSION, loadLayoutJson, type Layout } from '@perch/layout-schema';
 import { createMockSource } from '@perch/sensor-sources';
 import { LayoutCanvas, SensorProvider, WIDGET_REGISTRY, tokenLabel } from '@perch/ui-kit';
-import { fireEvent, render, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { act, fireEvent, render, within } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
 import { Editor, openLayoutByName } from './app.js';
 import { createLayoutLibrary, type LayoutLibrary } from './layout-library.js';
 import type { SaveTransport } from './save.js';
@@ -423,7 +423,7 @@ describe('the Global and Selected-entity groups', () => {
     ).toBeInTheDocument();
   });
 
-  it('deselects when the empty canvas is clicked, or from the group itself', () => {
+  it('deselects when the empty canvas is clicked, or on Escape from the sidebar', () => {
     const { result } = renderEditor();
 
     selectElement(result, 1);
@@ -431,7 +431,7 @@ describe('the Global and Selected-entity groups', () => {
     expect(result.queryByLabelText('w')).toBeNull();
 
     selectElement(result, 1);
-    fireEvent.click(result.getByRole('button', { name: /^deselect/i }));
+    fireEvent.keyDown(result.getByRole('button', { name: 'Transform' }), { key: 'Escape' });
     expect(result.queryByLabelText('w')).toBeNull();
   });
 
@@ -555,7 +555,7 @@ describe('the three common edits', () => {
 });
 
 describe('the selection header and the sections', () => {
-  it('names what is selected: kind, widget and topic, with the deselect beside it', () => {
+  it('names what is selected: kind, widget and topic, with the one way out beside it', () => {
     const { result } = renderEditor();
     selectElement(result, 1);
     const header = result.getByTestId('perch-editor-selection');
@@ -563,7 +563,11 @@ describe('the selection header and the sections', () => {
     expect(header).toHaveTextContent('readout');
     expect(header).toHaveTextContent('widget');
     expect(header).toHaveTextContent('sensors/cpu/0/temperature/0');
-    expect(within(header).getByRole('button', { name: /^deselect/i })).toBeInTheDocument();
+    // The way out beside it is the trash-can delete; deselecting is Escape or empty canvas.
+    expect(
+      within(header).getByRole('button', { name: /^delete elements\[1\]/ }),
+    ).toBeInTheDocument();
+    expect(within(header).queryByRole('button', { name: /^deselect/i })).toBeNull();
   });
 
   it('groups an entity by what its fields are about, each section folding on its own', () => {
@@ -837,6 +841,149 @@ describe('deleting an element', () => {
 
     expect(result.queryByRole('group', { name: /^delete/ })).toBeNull();
     expect(elementCount(result)).toBe(2);
+  });
+});
+
+describe('deselecting with Escape', () => {
+  function header(result: ReturnType<typeof render>): HTMLElement | null {
+    return result.queryByTestId('perch-editor-selection');
+  }
+
+  it('deselects on Escape when the canvas has focus', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+    const pane = result.getByTestId('perch-editor-preview');
+    pane.focus();
+
+    fireEvent.keyDown(pane, { key: 'Escape' });
+
+    expect(header(result)).toBeNull();
+    expect(result.getByText(/nothing selected/i)).toBeInTheDocument();
+  });
+
+  it('leaves the selection alone on Escape in a field', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+
+    fireEvent.keyDown(result.getByLabelText('x'), { key: 'Escape' });
+    fireEvent.keyDown(result.getByLabelText('topic'), { key: 'Escape' });
+
+    expect(header(result)).toBeInTheDocument();
+  });
+
+  it('only closes a popover on Escape, and keeps the selection', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+
+    fireEvent.click(result.getByRole('button', { name: /^choose a sensor for topic/i }));
+    expect(result.getByRole('dialog', { name: /choose a sensor/i })).toContainElement(
+      document.activeElement as HTMLElement,
+    );
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(result.queryByRole('dialog')).toBeNull();
+    expect(header(result)).toBeInTheDocument();
+
+    fireEvent.click(result.getByRole('button', { name: /^add an element/i }));
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(result.queryByRole('dialog')).toBeNull();
+    expect(header(result)).toBeInTheDocument();
+  });
+
+  it('only backs out of a delete confirm on Escape, handing focus back to the trash can', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+    fireEvent.click(result.getByRole('button', { name: /^delete elements\[1\]/ }));
+    const confirm = within(result.getByRole('group', { name: /delete elements\[1\]/ })).getByRole(
+      'button',
+      { name: /^confirm/ },
+    );
+    expect(confirm).toHaveFocus();
+
+    fireEvent.keyDown(confirm, { key: 'Escape' });
+
+    expect(result.queryByRole('group', { name: /delete elements\[1\]/ })).toBeNull();
+    expect(header(result)).toBeInTheDocument();
+    expect(result.getByRole('button', { name: /^delete elements\[1\]/ })).toHaveFocus();
+    expect(elementCount(result)).toBe(2);
+  });
+});
+
+describe('the element delete', () => {
+  it('is the red trash can, named and titled with what it deletes, with no deselect beside it', () => {
+    const { result } = renderEditor();
+    selectElement(result, 1);
+    const destroy = within(result.getByTestId('perch-editor-selection')).getByRole('button', {
+      name: /^delete elements\[1\]/,
+    });
+
+    expect(destroy).toHaveAccessibleName(
+      'delete elements[1]. the widget and everything set on it go, and there is no undo.',
+    );
+    expect(destroy).toHaveAttribute('title', destroy.getAttribute('aria-label'));
+    expect(destroy).toHaveClass('perch-reset--delete');
+    expect(destroy.querySelector('svg[data-perch-glyph="trash"]')).not.toBeNull();
+    expect(result.queryByRole('button', { name: /^deselect/i })).toBeNull();
+  });
+});
+
+describe('motion in the sidebar', () => {
+  // jsdom resolves no custom property, so the chrome's duration reads as 0 and everything settles at
+  // once. A plain duration gives these tests the in-between a browser has.
+  let style: HTMLStyleElement | undefined;
+  function withDuration(): void {
+    style = document.createElement('style');
+    style.textContent = '.perch-collapse { transition-duration: 180ms; }';
+    document.head.append(style);
+  }
+  afterEach(() => {
+    style?.remove();
+    style = undefined;
+  });
+
+  function finish(result: ReturnType<typeof render>): void {
+    act(() => {
+      for (const region of result.container.querySelectorAll('.perch-collapse')) {
+        region.dispatchEvent(new Event('transitionend', { bubbles: true }));
+      }
+    });
+  }
+
+  it("keeps a deleted element's controls and row on screen, inert, until they have collapsed", () => {
+    withDuration();
+    const { result } = renderEditor();
+    selectElement(result, 1);
+    fireEvent.click(result.getByRole('button', { name: /^delete elements\[1\]/ }));
+    fireEvent.click(result.getByRole('button', { name: /^confirm: delete elements\[1\]/ }));
+
+    // The canvas is not animated: the element is gone from it at once.
+    expect(canvasOf(result).querySelector('[data-perch-element-index="1"]')).toBeNull();
+    // The sidebar is: the controls and the row are still there, on their way out, and unreachable.
+    const leaving = result.getByTestId('perch-editor-selection');
+    expect(leaving.closest('[inert]')).not.toBeNull();
+    expect(leaving.closest('[aria-hidden="true"]')).not.toBeNull();
+    const rows = result.getByTestId('perch-editor-elements').querySelectorAll('li');
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toHaveAttribute('inert');
+    expect(elementCount(result)).toBe(1);
+    // Focus was on the confirm, now inert: it moves to the group rather than onto the page.
+    expect(result.getByRole('region', { name: 'Selected entity' })).toHaveFocus();
+
+    finish(result);
+    expect(result.queryByTestId('perch-editor-selection')).toBeNull();
+    expect(result.getByTestId('perch-editor-elements').querySelectorAll('li')).toHaveLength(1);
+  });
+
+  it('grows a newly added row in, and never animates the canvas preview', () => {
+    withDuration();
+    const { result } = renderEditor();
+
+    addKind(result, /^label/i);
+
+    const rows = result.getByTestId('perch-editor-elements').querySelectorAll('li');
+    expect(rows).toHaveLength(3);
+    expect(rows[2]).toHaveAttribute('data-perch-phase', 'opening');
+    expect(rows[0]).toHaveAttribute('data-perch-phase', 'open');
+    expect(result.getByTestId('perch-editor-preview').querySelector('.perch-collapse')).toBeNull();
   });
 });
 

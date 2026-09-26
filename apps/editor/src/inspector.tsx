@@ -35,9 +35,17 @@
  *
  * "+ Add" sits in the Selected-entity bar and offers the kinds that need nothing but a sensor or
  * nothing at all (`new-element.ts`); the new element is selected at once. Delete is in the selection
- * header, the red ✕ the token panes already use for a removal nothing replaces, and it asks once,
- * inline, because there is no undo. The Delete and Backspace keys ask through the same confirm when
- * the canvas has focus (`app.tsx`), never while typing in a field.
+ * header, the red trash can the token panes also use for a removal nothing replaces, and it asks
+ * once, inline, because there is no undo. The Delete and Backspace keys ask through the same confirm
+ * when the canvas has focus (`app.tsx`), never while typing in a field. There is no deselect button:
+ * a click on empty canvas deselects, and so does Escape (`app.tsx`).
+ *
+ * ## Nothing appears or vanishes
+ *
+ * The selected entity's controls, the "nothing selected" line, each row of the Elements list and
+ * every section body are `Collapse` regions, so selecting, deselecting, adding and deleting slide the
+ * sidebar rather than jump it. A deleted element's controls and its row stay on screen, inert, for
+ * the length of the collapse; focus inside them moves to the Selected-entity group first.
  *
  * ## Two groups, stacked: the layout, and the one entity being pointed at
  *
@@ -62,7 +70,7 @@
 import type { LayoutElement } from '@perch/layout-schema';
 import { assertNever } from '@perch/ui-kit';
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
-import { ResetButton, Section } from './controls/index.js';
+import { Collapse, ResetButton, Section, usePresence } from './controls/index.js';
 import {
   WIDGET_LIST_ID,
   entitySections,
@@ -181,36 +189,39 @@ export function Inspector({
           groupRef={entityGroup}
           action={<AddMenu target={target} onAdd={onAdd} />}
         >
-          <SelectionHeader
-            element={element}
-            index={selected}
-            onDeselect={() => {
-              onSelect(NOTHING_SELECTED);
-            }}
-            deleteAsked={deleteAsked}
-            onDeleteAsked={onDeleteAsked}
-            onDelete={() => {
-              onDelete(selected);
-            }}
-          />
-          {element === undefined ? (
+          <Collapse open={element !== undefined} focusOnClose={entityGroup}>
+            {element === undefined ? null : (
+              <>
+                <SelectionHeader
+                  element={element}
+                  index={selected}
+                  deleteAsked={deleteAsked}
+                  onDeleteAsked={onDeleteAsked}
+                  onDelete={() => {
+                    onDelete(selected);
+                  }}
+                />
+                <EntityPanes
+                  element={element}
+                  index={selected}
+                  theme={state.draft.theme}
+                  onEdit={onEdit}
+                />
+              </>
+            )}
+          </Collapse>
+          <Collapse open={element === undefined}>
             <p className="perch-editor-empty">
               nothing selected. click an entity on the canvas, or pick one from Elements below.
             </p>
-          ) : (
-            <EntityPanes
-              element={element}
-              index={selected}
-              theme={state.draft.theme}
-              onEdit={onEdit}
-            />
-          )}
+          </Collapse>
           <Section
             id="entity/elements"
             title="Elements"
             summary={`${state.draft.elements.length} · painted top to bottom`}
           >
-            <ElementList state={state} selected={selected} onSelect={onSelect} />
+            {/* A different layout is a different list: it arrives whole, not row by row. */}
+            <ElementList key={state.name} state={state} selected={selected} onSelect={onSelect} />
           </Section>
         </Group>
       </div>
@@ -246,6 +257,8 @@ function Group({
       aria-labelledby={headingId}
       data-testid={`perch-editor-group-${id}`}
       ref={groupRef}
+      // Focusable from script only: where focus goes when what it was on collapses away.
+      tabIndex={groupRef === undefined ? undefined : -1}
     >
       <div className="perch-editor-group__bar">
         <h2 className="perch-editor-group__title" id={headingId}>
@@ -268,25 +281,22 @@ const KIND_GLYPH: Readonly<Record<LayoutElement['kind'], string>> = Object.freez
 });
 
 /**
- * The selection, named: what it is, which element, what it reads — and the two ways out of it:
- * delete it, which asks first, or deselect it.
+ * The selection, named: what it is, which element, what it reads — and the one control on it, delete,
+ * which asks first. Deselecting is a click on empty canvas or Escape, so it needs no button here.
  */
 function SelectionHeader({
   element,
   index,
-  onDeselect,
   onDelete,
   deleteAsked,
   onDeleteAsked,
 }: {
-  readonly element: LayoutElement | undefined;
+  readonly element: LayoutElement;
   readonly index: number;
-  readonly onDeselect: () => void;
   readonly onDelete: () => void;
   readonly deleteAsked: boolean;
   readonly onDeleteAsked: (asked: boolean) => void;
 }): ReactNode {
-  if (element === undefined) return null;
   const { name, detail } = identify(element);
 
   return (
@@ -321,15 +331,6 @@ function SelectionHeader({
         onConfirming={onDeleteAsked}
         onReset={onDelete}
       />
-      <button
-        type="button"
-        className="perch-selection__deselect"
-        aria-label={`deselect elements[${index}]`}
-        title={`deselect elements[${index}]`}
-        onClick={onDeselect}
-      >
-        <span aria-hidden="true">✕</span>
-      </button>
     </div>
   );
 }
@@ -436,16 +437,29 @@ function EntityPanes({
 /**
  * Every element, in paint order. The index is shown because it is what every issue path names —
  * `elements[3].rect.w` — so the list and the problem panel agree on how to refer to an element.
+ *
+ * Rows are keyed by the element rather than its index (`usePresence`), so a delete collapses the row
+ * that went, with the rows under it sliding up, and an add grows the new row in at the bottom.
  */
 function ElementList({
   state,
   selected,
   onSelect,
 }: Pick<InspectorProps, 'state' | 'selected' | 'onSelect'>): ReactNode {
+  const { rows, exited } = usePresence(state.draft.elements);
+
   return (
     <ul className="perch-editor-elements" data-testid="perch-editor-elements">
-      {state.draft.elements.map((element, index) => (
-        <li key={index}>
+      {rows.map(({ key, item: element, index, present, arrived }) => (
+        <Collapse
+          key={key}
+          as="li"
+          open={present}
+          appear={arrived}
+          onExited={() => {
+            exited(key);
+          }}
+        >
           <button
             type="button"
             className="perch-editor-element"
@@ -464,7 +478,7 @@ function ElementList({
               {describeElement(element)}
             </span>
           </button>
-        </li>
+        </Collapse>
       ))}
     </ul>
   );
@@ -507,6 +521,7 @@ export const INSPECTOR_STYLES = `
   color: var(--ed-text);
 }
 .perch-editor-group { display: flex; flex-direction: column; min-width: 0; scroll-margin-top: 0; }
+.perch-editor-group:focus { outline: none; }
 .perch-editor-group + .perch-editor-group { border-top: 1px solid #262c36; }
 .perch-editor-group__bar {
   display: flex;
@@ -565,19 +580,6 @@ export const INSPECTOR_STYLES = `
 }
 .perch-selection__kind { color: var(--ed-accent); }
 .perch-selection__detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.perch-selection__deselect {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  border: 1px solid var(--ed-field-edge);
-  border-radius: var(--ed-radius);
-  background: var(--ed-bar);
-  color: var(--ed-label);
-  font: inherit;
-  cursor: pointer;
-}
-.perch-selection__deselect:hover { color: var(--ed-text); }
-.perch-selection__deselect:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 0; }
 .perch-editor-elements { display: flex; flex-direction: column; margin: 0; padding: 0 4px; list-style: none; }
 .perch-editor-element {
   display: flex;

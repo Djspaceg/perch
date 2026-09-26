@@ -6,18 +6,22 @@
  *   and where it comes from, because "what do I get back" is the whole question before pressing it.
  *   `reset` is the Customize phrasing (a token by its label); `remove` is the Developer phrasing (a
  *   raw name, and "this layout's value" going rather than the token going).
- * - **`delete`** — `✕`, in red — where nothing takes over: a name `ui-kit` does not declare, or a
- *   whole element. It asks first, inline, naming what it will delete, with focus on the confirm;
- *   Escape or `keep` backs out. There is no undo in this editor, so the second press is what carries
- *   the deliberateness the word `delete` used to. `consequence` and `ask` say what is lost where it
- *   is not a token; `confirming` lets a caller open the ask from elsewhere — the Delete key on the
- *   canvas asks through the same confirm as the button.
+ * - **`delete`** — a trash can, in red — where nothing takes over: a name `ui-kit` does not
+ *   declare, or a whole element. One symbol for one meaning: every real, unrecoverable delete in the
+ *   editor is this button, so the can never means anything gentler. It asks first, inline, naming
+ *   what it will delete, with focus on the confirm; Escape or `keep` backs out and hands focus back
+ *   to the can. There is no undo in this editor, so the second press is what carries the
+ *   deliberateness the word `delete` used to. `consequence` and `ask` say what is lost where it is
+ *   not a token; `confirming` lets a caller open the ask from elsewhere — the Delete key on the
+ *   canvas asks through the same confirm as the button. The ask unfolds and folds away through
+ *   `Collapse`, like every other region that comes and goes.
  *
  * A different glyph, colour, accessible name and number of clicks — never colour alone. The glyph is
  * `aria-hidden`; the sentence is what a screen reader reads.
  */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Collapse } from './collapse.js';
 
 /** What takes over when the value goes. */
 export interface ReturnsTo {
@@ -54,6 +58,7 @@ export type ResetButtonProps =
 export function ResetButton(props: ResetButtonProps): ReactNode {
   const [ownConfirming, setOwnConfirming] = useState(false);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const deleteRef = useRef<HTMLButtonElement>(null);
   const asked = props.action === 'delete' ? props.confirming : undefined;
   const controlled = asked !== undefined;
   const confirming = asked ?? ownConfirming;
@@ -90,60 +95,96 @@ export function ResetButton(props: ResetButtonProps): ReactNode {
   const { subject, onReset } = props;
   const ask = `delete ${subject}. ${props.consequence ?? GONE}`;
 
-  if (!confirming) {
-    return (
-      <button
-        type="button"
-        className="perch-reset perch-reset--delete"
-        aria-label={ask}
-        title={ask}
-        onClick={() => {
-          setConfirming(true);
-        }}
-      >
-        <span aria-hidden="true">✕</span>
-      </button>
-    );
-  }
-
   return (
-    <span
-      className="perch-reset__confirm"
-      role="group"
-      aria-label={`delete ${subject}?`}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          setConfirming(false);
-        }
-      }}
+    <>
+      {confirming ? null : (
+        <button
+          ref={deleteRef}
+          type="button"
+          className="perch-reset perch-reset--delete"
+          aria-label={ask}
+          title={ask}
+          onClick={() => {
+            setConfirming(true);
+          }}
+        >
+          <TrashGlyph />
+        </button>
+      )}
+      <Collapse
+        open={confirming}
+        appear
+        as="span"
+        className="perch-reset__unfold"
+        focusOnClose={deleteRef}
+      >
+        <span
+          className="perch-reset__confirm"
+          role="group"
+          aria-label={`delete ${subject}?`}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              setConfirming(false);
+            }
+          }}
+        >
+          <span className="perch-reset__ask">{props.ask ?? 'delete? nothing takes over.'}</span>
+          <button
+            ref={confirmRef}
+            type="button"
+            className="perch-reset__word perch-reset__word--delete"
+            aria-label={`confirm: ${ask}`}
+            title={`confirm: ${ask}`}
+            onClick={() => {
+              setConfirming(false);
+              onReset();
+            }}
+          >
+            delete
+          </button>
+          <button
+            type="button"
+            className="perch-reset__word"
+            aria-label={`keep ${subject}`}
+            title={`keep ${subject}`}
+            onClick={() => {
+              setConfirming(false);
+            }}
+          >
+            keep
+          </button>
+        </span>
+      </Collapse>
+    </>
+  );
+}
+
+/**
+ * The delete glyph: a trash can, stroked in `currentColor` so it is the button's own red, and
+ * redrawn crisp at any zoom where a text glyph would be the font's idea of a bin.
+ */
+function TrashGlyph(): ReactNode {
+  return (
+    <svg
+      className="perch-reset__glyph"
+      data-perch-glyph="trash"
+      width="12"
+      height="12"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
     >
-      <span className="perch-reset__ask">{props.ask ?? 'delete? nothing takes over.'}</span>
-      <button
-        ref={confirmRef}
-        type="button"
-        className="perch-reset__word perch-reset__word--delete"
-        aria-label={`confirm: ${ask}`}
-        title={`confirm: ${ask}`}
-        onClick={() => {
-          setConfirming(false);
-          onReset();
-        }}
-      >
-        delete
-      </button>
-      <button
-        type="button"
-        className="perch-reset__word"
-        aria-label={`keep ${subject}`}
-        title={`keep ${subject}`}
-        onClick={() => {
-          setConfirming(false);
-        }}
-      >
-        keep
-      </button>
-    </span>
+      <path d="M2.5 4.25h11" />
+      <path d="M6 4.25V2.75a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 .75.75v1.5" />
+      <path d="M3.75 4.25l.7 8.85a1 1 0 0 0 1 .9h5.1a1 1 0 0 0 1-.9l.7-8.85" />
+      <path d="M6.75 7v4.25M9.25 7v4.25" />
+    </svg>
   );
 }
 
@@ -169,12 +210,19 @@ export const RESET_BUTTON_STYLES = `
 .perch-reset--revert:hover { background: var(--ed-hover); color: var(--ed-text); }
 .perch-reset--delete { color: var(--ed-danger); }
 .perch-reset--delete:hover { background: var(--ed-danger-fill); color: #ffc2b4; }
-/* The confirm floats over the row's value, right-aligned to the slot, so the row does not reflow. */
-.perch-reset__confirm {
+/*
+ * The confirm floats over the row's value, right-aligned to the slot, so the row does not reflow; it
+ * unfolds from the row's middle, through Collapse, rather than appearing.
+ */
+.perch-reset__unfold {
   position: absolute;
   right: 0;
   top: 50%;
   z-index: 2;
+  transform: translateY(-50%);
+}
+.perch-reset__glyph { display: block; }
+.perch-reset__confirm {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -182,7 +230,6 @@ export const RESET_BUTTON_STYLES = `
   border: 1px solid #5e2323;
   border-radius: var(--ed-radius);
   background: #1a0e0e;
-  transform: translateY(-50%);
   white-space: nowrap;
 }
 .perch-reset__ask { font-size: var(--ed-font-small); color: var(--ed-danger); }

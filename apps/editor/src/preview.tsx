@@ -142,8 +142,7 @@ export function LayoutPreview({
       // A click that lands on no handle — the letterbox, or canvas no element covers — deselects,
       // which is the convention every canvas editor follows. Every element has a handle over its whole
       // rect, so "not in a handle" is exactly "not on an entity". A drag ends in a click on its own
-      // handle, so moving an element never deselects it. The keyboard route is the Selected-entity
-      // group's own deselect button.
+      // handle, so moving an element never deselects it. The keyboard route is Escape (`app.tsx`).
       onClick={(event) => {
         if (
           event.target instanceof Element &&

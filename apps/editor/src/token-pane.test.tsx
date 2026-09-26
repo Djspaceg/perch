@@ -335,8 +335,10 @@ describe('the Developer tab', () => {
 
     // A different glyph, not the same glyph in a different colour: colour alone is the one difference
     // a reader may not be able to see.
-    expect(within(destroy).getByText('✕')).toBeInTheDocument();
-    expect(within(revert).queryByText('✕')).toBeNull();
+    expect(destroy.querySelector('svg[data-perch-glyph="trash"]')).not.toBeNull();
+    expect(revert.querySelector('svg[data-perch-glyph="trash"]')).toBeNull();
+    // The revert keeps its arrow: it means "back to the inherited value", not "destroy".
+    expect(within(revert).getByText('↺')).toBeInTheDocument();
     expect(destroy).toHaveAccessibleName(/nothing|no default|gone/i);
     expect(destroy).toHaveAttribute('title', destroy.getAttribute('aria-label'));
   });
@@ -759,13 +761,17 @@ describe('the element box rows', () => {
     expect(edits.removed).toEqual(['--perch-box-bg']);
   });
 
-  it('keeps the red-cross delete for a custom token on an entity, with nothing to inherit', () => {
+  it('keeps the red trash-can delete for a custom token on an entity, with nothing to inherit', () => {
     renderElementPane({ '--brand-hue': '210' }, 'widget');
     openDeveloper();
+    const destroy = within(row('--brand-hue')).getByRole('button', { name: /^delete --brand-hue/ });
 
-    expect(
-      within(row('--brand-hue')).getByRole('button', { name: /^delete --brand-hue/ }),
-    ).toHaveClass('perch-reset--delete');
+    expect(destroy).toHaveClass('perch-reset--delete');
+    expect(destroy.querySelector('svg[data-perch-glyph="trash"]')).not.toBeNull();
+    expect(destroy).toHaveAccessibleName(
+      'delete --brand-hue. ui-kit declares no default for it, so nothing takes over: the value is gone.',
+    );
+    expect(destroy).toHaveAttribute('title', destroy.getAttribute('aria-label'));
   });
 });
 
