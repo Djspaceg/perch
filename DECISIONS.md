@@ -4760,16 +4760,16 @@ evidence_capture refuses files from this worktree, so the images and logs are on
 Outcome: `--perch-box-padding` and `--perch-box-radius` hold a 1-4 value CSS shorthand. The canvas
 paints it as native `padding` and `border-radius`, and a chart sizes to the real sides. The inspector
 edits each with a box diagram of linked sides or corners. One-number layouts render as before.
-Commits: 884e5bf (format and rendering), 40b5a20 (control), then the nits commit. Research: RESEARCH.md.
+Commits: 884e5bf, 40b5a20, a9f151c, then the spacing commit. Research: RESEARCH.md.
 
 ## Decisions to evaluate
 
 D1 One token holds the whole shorthand; there are no longhand tokens. Why: an element's value replaces the theme's in one piece, as today. If overruled: per-side tokens plus rules for combining them.
 D2 No layout-schema change or version step: `"8 16"` was already a legal token string. If overruled: an identity 2 -> 3 step, so an old build refuses the file instead of drawing no padding.
-D3 The canvas resolves radius and padding (element, theme, default) and writes them inline, because `calc()` cannot turn a list into px. The sheet reads only the background.
+D3 The canvas resolves radius and padding (element, theme, default) and writes them inline, because `calc()` cannot turn a list into px.
 D4 Over-large padding shrinks by one factor so it fits both axes; for even padding this equals the old half-the-smaller-side rule.
 D5 A token part CSS would reject (a negative, a unit, a fifth value) voids the whole token, as in CSS.
-D6 The padding control is the human's design, Webflow's padding ring with links. The centre shows only `px`. Supersedes: a shorthand field with a toggle to four fields, and the stored values in the centre, both at the human's request.
+D6 The padding control is the human's design, Webflow's padding ring with links. The centre shows only `px`, and both rows get `margin-block: 1ex`, since the chrome has no vertical spacing variable. Supersedes: a shorthand field with a toggle to four fields, and the stored values in the centre, both at the human's request.
 D7 Links follow CSS pairing, the human's rule. Bottom follows top. Right and left are a pair: both follow top until either is set, then the other follows that one. Corners use the matching border-radius rule: bottom-right follows top-left, and top-right with bottom-left are the pair. The four-corner layout is the brief's default. Supersedes: left linked to right and right to top.
 D8 Links are not stored. A side reads as linked when it equals what it would follow, and an equal pair reads as right set with left following, as CSS writes it. Which half of an equal pair was set, and a side unlinked at an equal value, are remembered only while the field is mounted. What is drawn always matches CSS; after a reload, only which half of an equal pair shows the number can differ. If overruled: store link flags, which would change the format.
 D9 Top also accepts a typed or pasted shorthand (`4px 8px 12px`). Dragging the row label moves every side together. Invalid input stays in its field with a message and is never written.

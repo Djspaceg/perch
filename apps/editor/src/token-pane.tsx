@@ -452,8 +452,9 @@ function TokenRow({
       labelAs={isGroupSpec(spec) ? 'group' : 'label'}
       scrub={scrubFor(spec, value, onValue)}
       testId={rowTestId(pane, name)}
-      // A box diagram is taller than a row: the label stays level with its top.
-      className={spec.kind === 'box' ? 'perch-row--tall' : undefined}
+      // A box diagram is taller than a row: the label stays level with its top, and the row keeps
+      // some room from its neighbours so the diagram does not butt against them.
+      className={spec.kind === 'box' ? 'perch-row--tall perch-row--box' : undefined}
       attributes={{ 'data-perch-overridden': state.source === 'own' ? 'true' : 'false' }}
       end={
         state.source === 'own' ? (
@@ -787,6 +788,10 @@ export const TOKEN_PANE_STYLES = `
 .perch-token-pane__panel { display: flex; flex-direction: column; background: var(--ed-bg); }
 .perch-token-pane .perch-filter__chips { border-bottom: 1px solid var(--ed-bar-shadow); }
 .perch-row--placement { align-items: start; padding-top: 3px; padding-bottom: 3px; }
+/* A padding or radius diagram: room above and below. On the row, not the diagram, so the label
+   stays level with the diagram's top. The chrome has no vertical spacing variable (--ed-gap is the
+   gap between fields), so it is 1ex of the row's own font. */
+.perch-row--box { margin-block: 1ex; }
 .perch-row--placement .perch-row__label { padding-top: 3px; }
 .perch-axes { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
 .perch-axis {

@@ -35,7 +35,7 @@ import { PERCH_TOKEN_LABELS, tokenLabel } from '@perch/ui-kit';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { PIXELS_PER_STEP } from './controls/scrub.js';
-import { TokenPane } from './token-pane.js';
+import { TOKEN_PANE_STYLES, TokenPane } from './token-pane.js';
 
 /** The labels the pane is expected to print, read from the table rather than typed twice. */
 const FG = PERCH_TOKEN_LABELS['--perch-fg'].label;
@@ -716,6 +716,15 @@ describe('the element box rows', () => {
     expect(within(radius).getByRole('spinbutton', { name: `${RADIUS} top-right` })).toHaveValue(
       '0',
     );
+  });
+
+  it('gives the padding and radius diagrams 1ex of room above and below, and no other row', () => {
+    renderElementPane({}, 'widget');
+
+    expect(row('--perch-box-padding')).toHaveClass('perch-row--box');
+    expect(row('--perch-box-radius')).toHaveClass('perch-row--box');
+    expect(row('--perch-box-bg')).not.toHaveClass('perch-row--box');
+    expect(TOKEN_PANE_STYLES).toMatch(/\.perch-row--box \{ margin-block: 1ex; \}/);
   });
 
   it('lets padding and radius go far past the old caps with the arrows', () => {
