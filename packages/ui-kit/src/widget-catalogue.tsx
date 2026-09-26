@@ -82,8 +82,16 @@ export type WidgetBinding = 'widget' | 'chart';
 export interface ContentBox {
   readonly w: number;
   readonly h: number;
-  /** The padding the canvas applied on every side, after clamping. */
-  readonly padding: number;
+  /** The padding the canvas applied to each side, after clamping. */
+  readonly padding: BoxInsets;
+}
+
+/** One number per side of a box, in layout pixels. */
+export interface BoxInsets {
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+  readonly left: number;
 }
 
 /** What every entry carries, whichever kind it paints. */

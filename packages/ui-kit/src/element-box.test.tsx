@@ -23,6 +23,7 @@ import { SensorProvider } from './sensor-context.js';
 import {
   ELEMENT_BOX_STYLES,
   LAYOUT_CANVAS_STYLES,
+  CANVAS_RESOLVED_TOKENS,
   LayoutCanvas,
   elementContentSize,
 } from './layout-canvas.js';
@@ -96,17 +97,18 @@ describe('the element box sheet', () => {
     expect(rule(ELEMENT_BOX_STYLES, '.perch-element')).toContain('box-sizing: border-box');
   });
 
-  it('paints the background, corners and padding from the box tokens, in layout pixels', () => {
+  it('paints the background from its token, and leaves corners and padding to the canvas', () => {
     const styled = rule(
       ELEMENT_BOX_STYLES,
       ".perch-element:not([data-perch-element-kind='media'])",
     );
 
     expect(styled).toContain(`background: ${token('--perch-box-bg')}`);
-    // Unitless numbers, multiplied into px: one CSS px is one layout px on the scaled canvas, so a radius
-    // scales with the panel exactly as the rects do.
-    expect(styled).toContain(`border-radius: calc(${token('--perch-box-radius')} * 1px)`);
-    expect(styled).toContain(`padding: calc(${token('--perch-box-padding')} * 1px)`);
+    // A one-to-four-value shorthand cannot be multiplied into px by `calc()`, so the canvas resolves
+    // radius and padding and writes them as native declarations on the box instead.
+    expect(styled).not.toContain('border-radius');
+    expect(styled).not.toContain('padding');
+    expect(CANVAS_RESOLVED_TOKENS).toEqual(['--perch-box-radius', '--perch-box-padding']);
   });
 
   it('defaults to a box that paints nothing: transparent, square, unpadded', () => {
@@ -122,16 +124,34 @@ describe('the element box sheet', () => {
 
 describe('elementContentSize', () => {
   const rect = { x: 0, y: 0, w: 400, h: 200 };
+  const even = (n: number): Record<string, number> => ({ top: n, right: n, bottom: n, left: n });
 
   it('is the rect when nothing sets a padding', () => {
-    expect(elementContentSize(rect, undefined, undefined)).toEqual({ w: 400, h: 200, padding: 0 });
+    expect(elementContentSize(rect, undefined, undefined)).toEqual({
+      w: 400,
+      h: 200,
+      padding: even(0),
+    });
   });
 
   it("takes the element's own padding off both sides", () => {
     expect(elementContentSize(rect, { '--perch-box-padding': '16' }, {})).toEqual({
       w: 368,
       h: 168,
-      padding: 16,
+      padding: even(16),
+    });
+  });
+
+  it('takes each side off its own edge, from a CSS shorthand', () => {
+    expect(elementContentSize(rect, { '--perch-box-padding': '8 16' }, {})).toEqual({
+      w: 368,
+      h: 184,
+      padding: { top: 8, right: 16, bottom: 8, left: 16 },
+    });
+    expect(elementContentSize(rect, { '--perch-box-padding': '1 2 3 4' }, {})).toEqual({
+      w: 394,
+      h: 196,
+      padding: { top: 1, right: 2, bottom: 3, left: 4 },
     });
   });
 
@@ -139,27 +159,42 @@ describe('elementContentSize', () => {
     expect(elementContentSize(rect, {}, { '--perch-box-padding': '10' })).toEqual({
       w: 380,
       h: 180,
-      padding: 10,
+      padding: even(10),
     });
+    // The element's shorthand replaces the theme's whole, as one custom property replaces another.
     expect(
-      elementContentSize(rect, { '--perch-box-padding': '4' }, { '--perch-box-padding': '10' }),
-    ).toMatchObject({ padding: 4 });
+      elementContentSize(rect, { '--perch-box-padding': '4' }, { '--perch-box-padding': '10 20' }),
+    ).toMatchObject({ padding: even(4) });
+    expect(elementContentSize(rect, {}, { '--perch-box-padding': '0 20' })).toMatchObject({
+      w: 360,
+      h: 200,
+    });
   });
 
   it('treats a value CSS would reject as no padding, as CSS does', () => {
     // `calc(12px * 1px)` and `calc(abc * 1px)` are invalid at computed-value time, so the box gets no
     // padding; the chart must be sized for that same box.
-    for (const value of ['12px', 'abc', '0x10', 'Infinity']) {
-      expect(elementContentSize(rect, { '--perch-box-padding': value }, {}).padding, value).toBe(0);
+    for (const value of ['12px', 'abc', '0x10', 'Infinity', '-8', '8 -8', '1 2 3 4 5']) {
+      expect(elementContentSize(rect, { '--perch-box-padding': value }, {}).padding, value).toEqual(
+        even(0),
+      );
     }
-    expect(elementContentSize(rect, { '--perch-box-padding': '-8' }, {}).padding).toBe(0);
   });
 
   it('never lets padding exceed half the smaller side, which would grow a border-box past its rect', () => {
     expect(elementContentSize(rect, { '--perch-box-padding': '500' }, {})).toEqual({
       w: 200,
       h: 0,
-      padding: 100,
+      padding: even(100),
+    });
+  });
+
+  it('shrinks uneven padding by one factor, so it keeps its shape and fits both axes', () => {
+    // Left and right ask for 600 of a 400 wide box: everything is scaled by 400/600.
+    expect(elementContentSize(rect, { '--perch-box-padding': '30 300 0' }, {})).toEqual({
+      w: 0,
+      h: 180,
+      padding: { top: 20, right: 200, bottom: 0, left: 200 },
     });
   });
 });
@@ -171,10 +206,18 @@ describe('<LayoutCanvas> and the box tokens', () => {
     expect(box?.getAttribute('style')).toBe('left: 10px; top: 10px; width: 214px; height: 176px;');
   });
 
-  it('writes the resolved, clamped padding onto the box, so the sheet reads what the chart was sized to', () => {
+  it('writes the resolved, clamped padding onto the box as native padding, the value the chart was sized to', () => {
     const [box] = mount(doc([{ ...CHART, style: { '--perch-box-padding': '500' } }]));
 
-    expect(box?.style.getPropertyValue('--perch-box-padding')).toBe('100');
+    expect(box?.style.padding).toBe('100px');
+  });
+
+  it('writes a per-side padding as the shortest native shorthand', () => {
+    const [box] = mount(doc([{ ...CHART, style: { '--perch-box-padding': '8 16 8 16' } }]));
+
+    expect(box?.style.padding).toBe('8px 16px');
+    expect(box?.style.paddingLeft).toBe('16px');
+    expect(box?.style.paddingTop).toBe('8px');
   });
 
   it('writes a theme padding onto each box it reaches, and leaves media alone', () => {
@@ -184,8 +227,8 @@ describe('<LayoutCanvas> and the box tokens', () => {
       }),
     );
 
-    expect(boxes[0]?.style.getPropertyValue('--perch-box-padding')).toBe('');
-    expect(boxes[1]?.style.getPropertyValue('--perch-box-padding')).toBe('10');
+    expect(boxes[0]?.style.padding).toBe('');
+    expect(boxes[1]?.style.padding).toBe('10px');
   });
 
   it('keeps the background and radius the author wrote, alpha included', () => {
@@ -195,6 +238,41 @@ describe('<LayoutCanvas> and the box tokens', () => {
 
     expect(box?.style.getPropertyValue('--perch-box-bg')).toBe('#1a2b3c80');
     expect(box?.style.getPropertyValue('--perch-box-radius')).toBe('12');
+    expect(box?.style.borderRadius).toBe('12px');
+  });
+
+  it('writes a per-corner radius in CSS corner order: top-left, top-right, bottom-right, bottom-left', () => {
+    const [box] = mount(doc([{ ...READOUT, style: { '--perch-box-radius': '12 0 4 8' } }]));
+
+    // The shorthand only: jsdom does not expand `border-radius` into its four longhands.
+    expect(box?.style.borderRadius).toBe('12px 0px 4px 8px');
+  });
+
+  it('carries a theme radius to every styled box, and an element radius replaces it whole', () => {
+    const boxes = mount(
+      doc(
+        [
+          { kind: 'media', src: 'a.svg', rect: { x: 0, y: 0, w: 800, h: 400 } },
+          READOUT,
+          { ...READOUT, style: { '--perch-box-radius': '4' } },
+        ],
+        { '--perch-box-radius': '6 12' },
+      ),
+    );
+
+    expect(boxes[0]?.style.borderRadius).toBe('');
+    expect(boxes[1]?.style.borderRadius).toBe('6px 12px');
+    expect(boxes[2]?.style.borderRadius).toBe('4px');
+  });
+
+  it('sizes a chart with per-side padding to the real left, right, top and bottom', () => {
+    mount(doc([{ ...CHART, style: { '--perch-box-padding': '10 20 30 40' } }]));
+
+    const plot = screen.getByRole('group').querySelector('.perch-chart__plot');
+    expect(plot?.getAttribute('width')).toBe(String(400 - 20 - 40));
+    expect(plot?.getAttribute('height')).toBe(
+      String(200 - 10 - 30 - CHART_HEADER_PX - CHART_FOOTER_PX),
+    );
   });
 
   it('sizes a padded chart to its content box, so it plots inside the frame budget', () => {

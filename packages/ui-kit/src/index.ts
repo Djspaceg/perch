@@ -138,6 +138,7 @@ export {
   WIDGET_NAMES,
   WIDGET_REGISTRY,
   widgetFor,
+  type BoxInsets,
   type ContentBox,
   type WidgetBinding,
   type WidgetCatalogueEntry,
@@ -145,6 +146,7 @@ export {
 } from './widget-catalogue.js';
 
 export {
+  CANVAS_RESOLVED_TOKENS,
   CANVAS_TOKEN_DEFAULTS,
   ELEMENT_BOX_STYLES,
   LAYOUT_CANVAS_STYLES,
@@ -162,6 +164,21 @@ export {
  * worth asserting on, and a capture harness that wants to check "same snapshot, same pixels" should
  * not have to mount React to do it.
  */
+/**
+ * The box shorthand a padding or radius token holds: one to four numbers in CSS order. Exported for
+ * the editor, which reads and writes the same spelling the canvas renders.
+ */
+export {
+  BOX_CORNERS,
+  BOX_SIDES,
+  boxQuadCss,
+  expandBoxShorthand,
+  formatBoxToken,
+  parseBoxToken,
+  shortestBoxShorthand,
+  type BoxQuad,
+} from './box-shorthand.js';
+
 export {
   CHART_COLUMN_PX,
   CHART_EMPTY_TEXT,

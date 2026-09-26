@@ -104,12 +104,13 @@ export const PERCH_TOKEN_DEFAULTS = {
    *
    * The background is a hex literal with an alpha pair, and its default is the fully transparent one
    * — `#00000000` rather than `transparent`, so the default is a value the colour control can hold.
-   * Radius and padding are **unitless counts of layout pixels**, multiplied into `px` by the sheet.
-   * Unitless on purpose: the canvas has to compute a chart's content box in JavaScript from the same
-   * value CSS applies, and a number is the one spelling both can read identically — `12px` or `1rem`
-   * would be a value CSS understood and the chart's arithmetic did not. One CSS pixel on the canvas is
-   * one layout pixel, because the canvas is scaled as a whole, so these scale with the panel exactly
-   * as the rects do.
+   * Radius and padding are **unitless counts of layout pixels**, one to four of them in CSS shorthand
+   * order (`8`, `8 16`, `8 16 4`, `8 16 4 2`; corners top-left first), which the canvas turns into a
+   * native `padding` or `border-radius` — see `box-shorthand.ts`. Unitless on purpose: the canvas has
+   * to compute a chart's content box in JavaScript from the same value CSS applies, and a number is the
+   * one spelling both can read identically — `12px` or `1rem` would be a value CSS understood and the
+   * chart's arithmetic did not. One CSS pixel on the canvas is one layout pixel, because the canvas is
+   * scaled as a whole, so these scale with the panel exactly as the rects do.
    */
   '--perch-box-bg': '#00000000',
   '--perch-box-radius': '0',

@@ -4754,3 +4754,42 @@ after-runtime-*, after-padding-{0,24}, after-inspector-*, after-editor-8digit-*,
 ## Residuals
 
 evidence_capture refuses files from this worktree, so the images and logs are only on disk.
+
+# Per-side padding and per-corner radius - decisions
+
+Outcome: `--perch-box-padding` and `--perch-box-radius` now hold a 1-4 value CSS shorthand (`8`,
+`8 16`, `8 16 4`, `8 16 4 2`; corners start top-left). The canvas writes native `padding` and
+`border-radius` values, and a chart's content box uses the real sides. A one-number layout renders
+exactly as before. Research: RESEARCH.md.
+
+## Decisions to evaluate
+
+D1 Both tokens hold the whole shorthand; there are no longhand tokens. Why: the element's value replaces the theme's in one piece, which is how the cascade works now. With four longhand tokens, an element's "all 4" would lose to a theme's "top 12". If overruled: add per-side tokens and define how they combine with the shorthand token.
+D2 No layout-schema change and no version step. Why: `"8 16"` is already a legal token string. The token vocabulary belongs to ui-kit, and adding the box tokens themselves took no version step. The cost is that an older build reads `8 16` as no padding. If overruled: take an identity 2 -> 3 step, so an old reader refuses the file.
+D3 The canvas resolves radius and padding (element, then theme, then default) and writes them inline as native declarations. The sheet reads only the background, and `CANVAS_RESOLVED_TOKENS` exempts the two from the "every token is read by a sheet" test. Why: `calc()` cannot multiply a list into px. If overruled: keep the calc lines for one-number values and write inline only for lists.
+D4 Over-large padding is scaled down by one factor, so left + right fits the width and top + bottom fits the height, and the shape is kept. For even padding this is exactly the old rule, half the smaller side. If overruled: clamp each side on its own.
+D5 A part CSS would reject (a negative, a unit, a fifth value) makes the whole token no padding or radius, as CSS drops the whole declaration. The editor accepts `px` when you type it and stores the value unitless.
+
+## Open questions
+
+none.
+
+## Gate facts
+
+Nothing pushed and no review cut (GitHub repo, no CRUX, AutoSDE not run). No dependency or lockfile change.
+packages/ui-kit call sites for what changed (`ContentBox.padding` went from a number to `BoxInsets`; `elementContentSize`, `ELEMENT_BOX_STYLES` and the `LayoutCanvas` box declarations changed; new exports are `box-shorthand.ts` and `CANVAS_RESOLVED_TOKENS`):
+- packages/ui-kit/src/widget-catalogue.tsx render signatures (line-chart reads only content.w/h)
+- packages/ui-kit/src/layout-canvas.tsx boxOf, elementStyle, renderWidget, renderChart; LAYOUT_CANVAS_STYLES interpolates ELEMENT_BOX_STYLES
+- apps/runtime/src/app.tsx:174 LAYOUT_CANVAS_STYLES, :255 LayoutCanvas
+- apps/editor/src/app.tsx:223 LAYOUT_CANVAS_STYLES; apps/editor/src/preview.tsx:155 LayoutCanvas; apps/editor/src/app.test.tsx:327
+- packages/ui-kit/src/index.ts exports; tests element-box, widget-catalogue (:115, :122), tokens, layout-canvas
+- layouts/*.json: none set a box token
+Lanes: build.log, typecheck.log, test.log all exit 0; lint is clean on the changed files; red-first.log shows the new tests failing first. Adversarial review rounds: 0 (rule 14).
+
+## Evidence (untracked, under .evidence/)
+
+red-first.log, build.log, typecheck.log, test.log, lint.log; RESEARCH.md (committed).
+
+## Residuals
+
+none yet.

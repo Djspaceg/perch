@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ELEMENT_BOX_STYLES } from './layout-canvas.js';
+import { CANVAS_RESOLVED_TOKENS, ELEMENT_BOX_STYLES } from './layout-canvas.js';
 import { LINE_CHART_STYLES } from './line-chart.js';
 import { MEDIA_FRAME_STYLES } from './media-frame.js';
 import { READOUT_GLYPH_PROPERTIES, READOUT_STYLES } from './readout.js';
@@ -100,8 +100,13 @@ describe.each(Object.entries(SHEETS))('%s', (_name, sheet) => {
 });
 
 describe('the vocabulary as a whole', () => {
-  it('is read in full: every declared token is referenced by some sheet', () => {
-    const referenced = new Set(references(ALL_SHEETS).map((reference) => reference.name));
+  it('is read in full: every declared token is referenced by some sheet, or resolved by the canvas', () => {
+    // Radius and padding take a one-to-four-value shorthand, which no `calc()` can turn into px, so
+    // the canvas reads them and writes native declarations; see `CANVAS_RESOLVED_TOKENS`.
+    const referenced = new Set<string>([
+      ...references(ALL_SHEETS).map((reference) => reference.name),
+      ...CANVAS_RESOLVED_TOKENS,
+    ]);
 
     for (const name of PERCH_TOKENS) {
       expect(referenced, `declared but unread: ${name}`).toContain(name);

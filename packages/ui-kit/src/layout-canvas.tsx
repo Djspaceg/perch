@@ -47,18 +47,20 @@
  *
  * ## The element box, and why the rect is its footprint
  *
- * Every styled entity's box reads three tokens of its own — `--perch-box-bg`, `--perch-box-radius`,
- * `--perch-box-padding` — in `ELEMENT_BOX_STYLES`. The box is `border-box`, which was the human's
- * decision and is the reason the rect stays the truth: background and corners paint exactly the rect
- * the author dragged and `validateLayout` checked, the editor's handles sit on the painted edges, and
- * padding comes out of the content rather than growing the box past the rect into its neighbours.
+ * Every styled entity's box has three tokens of its own — `--perch-box-bg`, `--perch-box-radius`,
+ * `--perch-box-padding`. The box is `border-box`, which was the human's decision and is the reason
+ * the rect stays the truth: background and corners paint exactly the rect the author dragged and
+ * `validateLayout` checked, the editor's handles sit on the painted edges, and padding comes out of
+ * the content rather than growing the box past the rect into its neighbours.
  *
- * Padding is also the one box token JavaScript has to know. A chart is sized by arithmetic from its
- * box, never by measurement, so the canvas resolves the padding a box will get — element style, then
- * theme, then the default, exactly the order custom-property inheritance gives — in
- * `elementContentSize`, hands the chart the content box that leaves, and writes the value it resolved
- * back onto the box. The sheet therefore reads the number the chart was sized to, not a second opinion
- * about it. Nothing is written to a box nobody padded, so a layout that sets none of these tokens
+ * The background is read by `ELEMENT_BOX_STYLES`. Radius and padding are read here instead
+ * (`CANVAS_RESOLVED_TOKENS`), because each holds a one-to-four-value CSS shorthand (`box-shorthand.ts`)
+ * and no `calc()` can turn a list into pixels. The canvas resolves each the way custom-property
+ * inheritance would — element style, then theme, then the default — and writes it on the box as a
+ * native `padding` or `border-radius`. Padding is also the value JavaScript has to know: a chart is
+ * sized by arithmetic from its box, never by measurement, so `elementContentSize` hands the chart the
+ * content box the resolved sides leave, and the box is written with those same sides. Nothing is
+ * written to a box whose element and theme set neither token, so a layout that sets none of these
  * renders the same markup it always did.
  */
 
@@ -74,10 +76,11 @@ import {
   type TextElement,
   type WidgetElement,
 } from '@perch/layout-schema';
+import { boxQuadCss, parseBoxToken, type BoxQuad } from './box-shorthand.js';
 import { assertNever } from './exhaustive.js';
 import { MediaFrame, type MediaFrameFit } from './media-frame.js';
 import { TextBlock } from './text-block.js';
-import { PERCH_TOKEN_DEFAULTS, token } from './tokens.js';
+import { PERCH_TOKEN_DEFAULTS, token, type PerchToken } from './tokens.js';
 import { widgetFor, type ContentBox } from './widget-catalogue.js';
 
 /**
@@ -311,11 +314,11 @@ function canvasStyle(layout: Layout, scale: number): CSSProperties {
 }
 
 /**
- * An element's box: its own tokens, the padding the canvas resolved for it, then its authored rect.
- * Same shape, same reason.
+ * An element's box: its own tokens, the radius and padding the canvas resolved for it, then its
+ * authored rect. Same shape, same reason.
  *
- * The padding is written only when something set one — the element or the theme — and never on
- * media, which reads no box token. An element nobody padded carries exactly the declarations it
+ * Radius and padding are written only when something set one — the element or the theme — and never
+ * on media, which reads no box token. An element nobody styled carries exactly the declarations it
  * carried before the box tokens existed.
  */
 function elementStyle(
@@ -325,10 +328,15 @@ function elementStyle(
   theme: Style | undefined,
 ): CSSProperties {
   const { rect } = element;
-  const writesPadding = element.kind !== 'media' && padded(style, theme);
+  const boxed = element.kind !== 'media';
+  const radius = boxed ? resolvedRadius(style, theme) : undefined;
+  const { top, right, bottom, left } = content.padding;
   const declarations: Record<string, string> = {
     ...style,
-    ...(writesPadding ? { [BOX_PADDING]: String(content.padding) } : {}),
+    ...(radius === undefined ? {} : { 'border-radius': boxQuadCss(radius) }),
+    ...(boxed && sets(BOX_PADDING, style, theme)
+      ? { padding: boxQuadCss([top, right, bottom, left]) }
+      : {}),
     left: `${rect.x}px`,
     top: `${rect.y}px`,
     width: `${rect.w}px`,
@@ -339,10 +347,40 @@ function elementStyle(
 }
 
 const BOX_PADDING = '--perch-box-padding';
+const BOX_RADIUS = '--perch-box-radius';
 
-/** Whether the element or the theme sets a padding at all. */
-function padded(style: Style | undefined, theme: Style | undefined): boolean {
-  return style?.[BOX_PADDING] !== undefined || theme?.[BOX_PADDING] !== undefined;
+/**
+ * The box tokens the canvas reads and writes as native declarations, rather than a sheet reading them
+ * with `var()`. Each holds a shorthand of one to four numbers; see `box-shorthand.ts`.
+ */
+export const CANVAS_RESOLVED_TOKENS: readonly PerchToken[] = Object.freeze([
+  BOX_RADIUS,
+  BOX_PADDING,
+]);
+
+/** Whether the element or the theme sets `name` at all. */
+function sets(name: PerchToken, style: Style | undefined, theme: Style | undefined): boolean {
+  return style?.[name] !== undefined || theme?.[name] !== undefined;
+}
+
+/**
+ * A box token as its four values, in the order the cascade gives — the element's own `style`, then the
+ * layout `theme` it inherits from, then the declared default — with a value CSS would reject read as
+ * zero on every side, as CSS reads it.
+ */
+function resolveBoxToken(
+  name: PerchToken,
+  style: Style | undefined,
+  theme: Style | undefined,
+): BoxQuad {
+  const raw = style?.[name] ?? theme?.[name] ?? PERCH_TOKEN_DEFAULTS[name];
+
+  return parseBoxToken(raw) ?? [0, 0, 0, 0];
+}
+
+/** The corners a box is written with, or `undefined` where nothing set a radius. */
+function resolvedRadius(style: Style | undefined, theme: Style | undefined): BoxQuad | undefined {
+  return sets(BOX_RADIUS, style, theme) ? resolveBoxToken(BOX_RADIUS, style, theme) : undefined;
 }
 
 /** The content box an element's renderer gets. Media reads no box token, so it keeps its rect. */
@@ -352,40 +390,45 @@ function boxOf(
   theme: Style | undefined,
 ): ContentBox {
   return element.kind === 'media'
-    ? { w: element.rect.w, h: element.rect.h, padding: 0 }
+    ? { w: element.rect.w, h: element.rect.h, padding: { top: 0, right: 0, bottom: 0, left: 0 } }
     : elementContentSize(element.rect, style, theme);
 }
 
 /**
- * A CSS `<number>`: what `calc(var(--perch-box-padding) * 1px)` accepts.
- *
- * Deliberately not `Number()`, which also accepts `0x10`, `Infinity` and the empty string — values CSS
- * rejects, so a box would get no padding while a chart sized with `Number()` would be sized for some.
- */
-const CSS_NUMBER = /^\s*[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?\s*$/;
-
-/**
  * The box an element's content is laid out in, after padding, in layout pixels.
  *
- * Resolves `--perch-box-padding` in the order the cascade does — the element's own `style`, then the
- * layout `theme` it inherits from, then the declared default — and treats a value CSS would reject as
- * no padding, as CSS does. A negative padding is clamped to zero, as CSS clamps it.
+ * Resolves `--perch-box-padding` in the order the cascade does, and treats a value CSS would reject as
+ * no padding, as CSS does. Each side comes off its own edge.
  *
- * Clamped above as well, to half the smaller side. That one is not CSS's behaviour but a correction of
- * it: a `border-box` whose padding exceeds its width grows past its specified width, which would put
- * the painted box outside the rect. The canvas writes the clamped value onto the box, so the sheet and
- * the chart both use it.
+ * Clamped as well, so left plus right fits the width and top plus bottom fits the height. That is not
+ * CSS's behaviour but a correction of it: a `border-box` whose padding exceeds its width grows past its
+ * specified width, which would put the painted box outside the rect. All four sides are shrunk by one
+ * factor, so padding keeps the shape the author gave it; for an even padding that is exactly the old
+ * rule, half the smaller side. The canvas writes the clamped sides onto the box, so the box and the
+ * chart both use them.
  */
 export function elementContentSize(
   rect: Rect,
   style: Style | undefined,
   theme: Style | undefined,
 ): ContentBox {
-  const raw = style?.[BOX_PADDING] ?? theme?.[BOX_PADDING] ?? PERCH_TOKEN_DEFAULTS[BOX_PADDING];
-  const parsed = CSS_NUMBER.test(raw) ? Number(raw) : 0;
-  const padding = Math.min(Math.max(0, parsed), Math.min(rect.w, rect.h) / 2);
+  const [top, right, bottom, left] = resolveBoxToken(BOX_PADDING, style, theme);
+  // The binding axis, as a fraction `num / den` rather than a float factor: an even padding then
+  // clamps to exactly `w / 2` or `h / 2`, as it did before sides existed.
+  let num = 1;
+  let den = 1;
+  if (left + right > rect.w) [num, den] = [rect.w, left + right];
+  if (top + bottom > rect.h && rect.h * den < num * (top + bottom)) {
+    [num, den] = [rect.h, top + bottom];
+  }
+  const fit = (side: number): number => (side * num) / den;
+  const padding = { top: fit(top), right: fit(right), bottom: fit(bottom), left: fit(left) };
 
-  return { w: rect.w - 2 * padding, h: rect.h - 2 * padding, padding };
+  return {
+    w: rect.w - padding.left - padding.right,
+    h: rect.h - padding.top - padding.bottom,
+    padding,
+  };
 }
 
 /**
@@ -397,10 +440,10 @@ export function elementContentSize(
  * default, no literal colour.
  *
  * `box-sizing: border-box` applies to every element, media included, and is inert until something
- * pads or borders a box; nothing did before these tokens, so no shipped layout moves. The three token
- * reads skip media: a media element carries no `style` in the format, so the only way a box token
- * could reach one is a theme meant for the entities over it, and a background image inset by the
- * padding meant for its readouts is not what any author wanted.
+ * pads or borders a box; nothing did before these tokens, so no shipped layout moves. The background
+ * skips media: a media element carries no `style` in the format, so the only way a box token could
+ * reach one is a theme meant for the entities over it. Radius and padding are not here; the canvas
+ * writes them (`CANVAS_RESOLVED_TOKENS`), and it skips media for the same reason.
  */
 export const ELEMENT_BOX_STYLES = `
 .perch-element {
@@ -410,8 +453,6 @@ export const ELEMENT_BOX_STYLES = `
 }
 .perch-element:not([data-perch-element-kind='media']) {
   background: ${token('--perch-box-bg')};
-  border-radius: calc(${token('--perch-box-radius')} * 1px);
-  padding: calc(${token('--perch-box-padding')} * 1px);
 }
 `;
 
