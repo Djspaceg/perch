@@ -21,7 +21,8 @@
     "react": "^19.3.0",
     "react-colorful": "^5.8.1",
     "react-dom": "^19.3.0",
-    "react-rnd": "^10.5.3"
+    "react-rnd": "^10.5.3",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
