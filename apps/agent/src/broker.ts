@@ -30,7 +30,12 @@
  * interface is configurable precisely so a narrower posture is a flag away.
  */
 
-import { createServer as createTcpServer, type Server as TcpServer, type Socket } from 'node:net';
+import {
+  createConnection,
+  createServer as createTcpServer,
+  type Server as TcpServer,
+  type Socket,
+} from 'node:net';
 import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
 import { Aedes, type PublishPacket } from 'aedes';
 import { WebSocketServer, createWebSocketStream, type WebSocket } from 'ws';
@@ -287,6 +292,10 @@ async function listen(
   setting: BrokerListenerSetting,
   freePortWhenHeld = false,
 ): Promise<number> {
+  if (freePortWhenHeld && port !== 0 && (await answersAlready(host, port))) {
+    return listenOnce(server, host, 0, setting);
+  }
+
   try {
     return await listenOnce(server, host, port, setting);
   } catch (error) {
@@ -296,6 +305,38 @@ async function listen(
 
     return listenOnce(server, host, 0, setting);
   }
+}
+
+/**
+ * Whether something already answers on `host:port`, when this relay is about to bind one interface.
+ *
+ * Asked because the bind itself does not say. macOS (like the BSDs) lets `127.0.0.1:9001` bind
+ * beside a Mosquitto listening on `*:9001`, and the more specific socket then receives every local
+ * connection to that port: a relay that took it would quietly steal that broker's clients, and the
+ * held-port fallback would never fire. A connect, not a trial bind on the wildcard: binding every
+ * interface, even for a moment, is what makes macOS ask whether the app may accept incoming
+ * connections, which a loopback-only relay exists to avoid.
+ */
+async function answersAlready(host: string, port: number): Promise<boolean> {
+  if (host === '0.0.0.0' || host === '::') return false;
+
+  return new Promise<boolean>((resolve) => {
+    const socket = createConnection({ host, port });
+    const settle = (answer: boolean): void => {
+      socket.destroy();
+      resolve(answer);
+    };
+    socket.setTimeout(500);
+    socket.once('connect', () => {
+      settle(true);
+    });
+    socket.once('timeout', () => {
+      settle(false);
+    });
+    socket.once('error', () => {
+      settle(false);
+    });
+  });
 }
 
 async function listenOnce(

@@ -57,12 +57,12 @@ async function start(
   return service;
 }
 
-/** Hold a port on 127.0.0.1, the way a Mosquitto would. Resolves the port. */
-async function holdPort(): Promise<number> {
+/** Hold a port, the way a Mosquitto would. Resolves the port. */
+async function holdPort(host = '127.0.0.1'): Promise<number> {
   const holder = createServer();
   holders.push(holder);
   await new Promise<void>((resolve) =>
-    holder.listen(0, '127.0.0.1', () => {
+    holder.listen(0, host, () => {
       resolve();
     }),
   );
@@ -136,6 +136,21 @@ describe('startRelayService', () => {
     expect(service.wsPort).not.toBe(heldWs);
     expect(await canConnect(service.wsPort)).toBe(true);
     expect(logger.lines.join('\n')).toContain(`port ${heldWs} was in use`);
+  });
+
+  it('treats a port held on every interface as held, even though loopback alone would bind', async () => {
+    // macOS lets 127.0.0.1:9001 bind beside a Mosquitto on *:9001, and the more specific socket then
+    // takes every local connection: a relay that did that would silently steal that broker's clients.
+    const heldMqtt = await holdPort('0.0.0.0');
+    const heldWs = await holdPort('0.0.0.0');
+
+    const service = await start({
+      config: configWith({ mqttPort: heldMqtt, wsPort: heldWs }),
+      freePortWhenHeld: true,
+    });
+
+    expect(service.mqttPort).not.toBe(heldMqtt);
+    expect(service.wsPort).not.toBe(heldWs);
   });
 
   it('keeps the free port it was given when the configured one is free', async () => {
