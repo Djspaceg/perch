@@ -5,6 +5,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DOCUMENT_ASSET_ORIGIN } from './app-protocol.js';
 import { readLayoutDocument, watchDocument } from './document.js';
 
+/** Room for FSEvents' own delivery latency on a loaded machine, past Vitest's one second. */
+const WATCH_POLL = { timeout: 3000 };
+
 let folder: string;
 const stops: (() => void)[] = [];
 
@@ -59,7 +62,7 @@ describe('watchDocument', () => {
 
     await writeFile(path(), 'v2');
 
-    await expect.poll(() => seen).toEqual(['v2']);
+    await expect.poll(() => seen, WATCH_POLL).toEqual(['v2']);
   });
 
   it('keeps following the file across an atomic save, which replaces it', async () => {
@@ -67,22 +70,22 @@ describe('watchDocument', () => {
 
     await writeFile(join(folder, 'desk.json.tmp'), 'v2');
     await rename(join(folder, 'desk.json.tmp'), path());
-    await expect.poll(() => seen).toEqual(['v2']);
+    await expect.poll(() => seen, WATCH_POLL).toEqual(['v2']);
 
     await writeFile(join(folder, 'desk.json.tmp'), 'v3');
     await rename(join(folder, 'desk.json.tmp'), path());
-    await expect.poll(() => seen).toEqual(['v2', 'v3']);
+    await expect.poll(() => seen, WATCH_POLL).toEqual(['v2', 'v3']);
   });
 
   it('keeps watching through a malformed save and a deletion', async () => {
     const seen = await watching();
 
     await writeFile(path(), '{ malformed');
-    await expect.poll(() => seen).toEqual(['{ malformed']);
+    await expect.poll(() => seen, WATCH_POLL).toEqual(['{ malformed']);
     await unlink(path());
-    await expect.poll(() => seen).toEqual(['{ malformed', '(gone)']);
+    await expect.poll(() => seen, WATCH_POLL).toEqual(['{ malformed', '(gone)']);
     await writeFile(path(), 'back');
-    await expect.poll(() => seen).toEqual(['{ malformed', '(gone)', 'back']);
+    await expect.poll(() => seen, WATCH_POLL).toEqual(['{ malformed', '(gone)', 'back']);
   });
 
   it('ignores other files in the folder', async () => {
@@ -91,7 +94,7 @@ describe('watchDocument', () => {
     await writeFile(join(folder, 'tower.json'), 'other');
     await writeFile(path(), 'v2');
 
-    await expect.poll(() => seen).toEqual(['v2']);
+    await expect.poll(() => seen, WATCH_POLL).toEqual(['v2']);
   });
 
   it('reports nothing once stopped', async () => {

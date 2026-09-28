@@ -14,6 +14,13 @@
  * file, and a watch on the old file then follows an inode nobody will write again — on macOS it goes
  * silent after the first save. Watching the directory and filtering by name survives any number of
  * replacements, a deletion, and the file coming back.
+ *
+ * ## One look after the watch starts
+ *
+ * On macOS a watch is an FSEvents stream, and the stream starts asynchronously: a write in the first
+ * moments after `watch` returns is never reported, not reported late (the tests waited five seconds
+ * for one and it did not come). So the file is read once more shortly after the watch starts, which
+ * catches that write; a read that finds the same text reports nothing.
  */
 
 import { readFileSync, watch } from 'node:fs';
@@ -37,6 +44,9 @@ export interface DocumentPayload {
 /** The media extensions the runtime's bundled catalogue picks up; see `layout-catalogue.ts`. */
 const MEDIA_EXTENSIONS = ['.svg', '.png'];
 
+/** When to read the file again after a watch starts, past the window FSEvents does not cover. */
+const STREAM_SETTLE_MS = 250;
+
 /** How deep below the document's folder media is looked for, and how much of it. */
 const MEDIA_DEPTH = 3;
 const MEDIA_LIMIT = 2000;
@@ -52,7 +62,7 @@ export async function readLayoutDocument(document: LayoutDocument): Promise<Docu
 
   const assets: Record<string, string> = {};
   if (text !== null) {
-    for (const src of await mediaUnder(dirname(document.path), '', MEDIA_DEPTH)) {
+    for (const src of await mediaBeside(dirname(document.path))) {
       assets[src] = `${DOCUMENT_ASSET_ORIGIN}/${src.split('/').map(encodeURIComponent).join('/')}`;
     }
   }
@@ -99,12 +109,22 @@ export function watchDocument(
     timer = setTimeout(check, debounceMs);
   });
   watcher.on('error', onError);
+  const settle = setTimeout(check, Math.max(STREAM_SETTLE_MS, debounceMs));
 
   return () => {
     stopped = true;
+    clearTimeout(settle);
     if (timer !== undefined) clearTimeout(timer);
     watcher.close();
   };
+}
+
+/**
+ * The media `src`s a document in `folder` can use: its media files, as `/`-separated paths relative
+ * to the folder, to the depth and count the runner's page is handed. The editor's documents too.
+ */
+export function mediaBeside(folder: string): Promise<string[]> {
+  return mediaUnder(folder, '', MEDIA_DEPTH);
 }
 
 /** Media files below `directory`, as `/`-separated paths relative to the document's folder. */
