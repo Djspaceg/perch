@@ -5,8 +5,9 @@
  * ## Two halves
  *
  * - **`settings`** is how the author has arranged the editor: the sensor host, which sections are
- *   open, which tab and chip each token pane shows, the layout last picked, and (reserved, empty
- *   until the sidebar can move) where the panels sit. It is persisted to `localStorage` under
+ *   open, which tab and chip each token pane shows, the layout last picked, the author's keybinding
+ *   overrides (`keybindings/`, KEYBINDINGS.md), and (reserved, empty until the sidebar can move)
+ *   where the panels sit. It is persisted to `localStorage` under
  *   `EDITOR_STORE_KEY` (`persist`, with `partialize` choosing it and nothing else), so it survives a
  *   reload and a new tab alike. How a sidebar is folded is not a fact about a dashboard, so none of
  *   it is ever written into a layout.
@@ -35,7 +36,8 @@
  * no store key but finds that one reads it as version 0 and migrates it, so a saved host carries
  * over; the store's own key is written at once, and from then on the old key is neither read nor
  * written. It is left in place rather than deleted, so a checkout from before this store, served on
- * the same origin, still finds its host.
+ * the same origin, still finds its host. Version 2 added `keybindings`; a version 1 value has none,
+ * and `merge` gives it the empty default.
  *
  * ## One store per editor
  *
@@ -57,6 +59,7 @@ import {
   type ConnectionChoice,
 } from './connection.js';
 import { draftSaved, editDraft as applyEdit } from './draft.js';
+import type { CommandId, KeybindingOverrides } from './keybindings/index.js';
 import {
   EMPTY_HISTORY,
   followSelection,
@@ -76,7 +79,7 @@ export const NOTHING_SELECTED = -1;
 export const EDITOR_STORE_KEY = 'perch-editor';
 
 /** The shape `settings` is stored in. Bump it, and teach `migrate` the step, when the shape changes. */
-export const EDITOR_STORE_VERSION = 1;
+export const EDITOR_STORE_VERSION = 2;
 
 /** A token pane's two tabs. */
 export type TokenTab = 'customize' | 'developer';
@@ -107,6 +110,11 @@ export interface EditorSettings {
   readonly chips: Readonly<Record<string, string>>;
   /** The layout last picked in the header, or `null` before one has been. `?layout=` beats it. */
   readonly layout: string | null;
+  /**
+   * Bindings replacing a command's defaults, by command id (KEYBINDINGS.md section 7). An id this
+   * build has no command for is kept, and ignored by `resolveKeymap`.
+   */
+  readonly keybindings: KeybindingOverrides;
   readonly panels: PanelSettings;
 }
 
@@ -132,6 +140,8 @@ export interface EditorActions {
   readonly setSectionOpen: (id: string, open: boolean) => void;
   readonly setTab: (pane: string, tab: TokenTab) => void;
   readonly setChip: (pane: string, chip: string) => void;
+  /** Replace command `id`'s keys with `bindings` (`[]` unbinds it), or with `undefined` restore them. */
+  readonly setKeybinding: (id: CommandId, bindings: readonly string[] | undefined) => void;
   /** Open the first layout — `?layout=`, else the one last picked, else the library's first — once. */
   readonly openFirst: (library: LayoutLibrary, initialLayout: string | undefined) => void;
   /** Open a layout, dropping the selection. `remember` records it as the layout last picked. */
@@ -171,11 +181,12 @@ const DEFAULT_SETTINGS: EditorSettings = Object.freeze({
   tabs: Object.freeze({}),
   chips: Object.freeze({}),
   layout: null,
+  keybindings: Object.freeze({}),
   panels: Object.freeze({}),
 });
 
 /**
- * What storage holds under `EDITOR_STORE_KEY`: `settings` from version 1. Version 0 is the old
+ * What storage holds under `EDITOR_STORE_KEY`: `settings` from version 1, `keybindings` in it from 2. Version 0 is the old
  * connection key, read as `{ legacyConnection }` by `settingsStorage`; nothing ever writes it.
  */
 interface Stored {
@@ -280,6 +291,13 @@ export function createEditorStore(
                 { type: 'set/chip', pane, chip },
               );
             },
+            setKeybinding: (id, bindings) => {
+              const { [id]: _replaced, ...others } = get().settings.keybindings;
+              settle(
+                { keybindings: bindings === undefined ? others : { ...others, [id]: bindings } },
+                { type: 'set/keybinding', id, bindings },
+              );
+            },
 
             openFirst: (library, initialLayout) => {
               if (get().session.opened !== null) return;
@@ -365,7 +383,8 @@ export function createEditorStore(
           storage: settingsStorage(options.storage),
           partialize: (state): Stored => ({ settings: state.settings }),
           migrate: (persisted, version): Stored => {
-            // Version 0 is the connection control's own key, from before this store.
+            // Version 0 is the connection control's own key, from before this store. Version 1 is
+            // version 2 without `keybindings`, which `merge` defaults.
             if (version === 0 && isRecord(persisted)) {
               const saved = readSavedConnection(persisted['legacyConnection']);
 
@@ -448,6 +467,7 @@ function readSettings(raw: unknown): EditorSettings {
     tabs: readRecord(body['tabs'], isTokenTab),
     chips: readRecord(body['chips'], (value) => typeof value === 'string'),
     layout: typeof body['layout'] === 'string' ? body['layout'] : null,
+    keybindings: readRecord(body['keybindings'], isStringList),
     panels: DEFAULT_SETTINGS.panels,
   };
 }
@@ -467,6 +487,10 @@ function readRecord<T>(raw: unknown, keep: (value: unknown) => value is T): Reco
   for (const [key, value] of Object.entries(raw)) if (keep(value)) kept[key] = value;
 
   return kept;
+}
+
+function isStringList(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
 function isTokenTab(value: unknown): value is TokenTab {

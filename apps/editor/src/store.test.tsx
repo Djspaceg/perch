@@ -136,6 +136,7 @@ describe('persisted settings', () => {
       expect(settings.sections, junk).toEqual({});
       expect(settings.tabs, junk).toEqual({});
       expect(settings.layout, junk).toBeNull();
+      expect(settings.keybindings, junk).toEqual({});
     }
   });
 
@@ -157,6 +158,62 @@ describe('persisted settings', () => {
       store.getState().setSectionOpen('entity/transform', false);
     }).not.toThrow();
     expect(store.getState().settings.sections['entity/transform']).toBe(false);
+  });
+});
+
+describe('keybinding overrides', () => {
+  it('start empty, persist per command, and clear back to the defaults', () => {
+    const storage = memoryStorage();
+    const store = createEditorStore({ storage });
+    expect(store.getState().settings.keybindings).toEqual({});
+
+    store.getState().setKeybinding('history.undo', ['Mod+U']);
+    store.getState().setKeybinding('selection.clear', []);
+    expect(createEditorStore({ storage }).getState().settings.keybindings).toEqual({
+      'history.undo': ['Mod+U'],
+      'selection.clear': [],
+    });
+
+    store.getState().setKeybinding('history.undo', undefined);
+    expect(createEditorStore({ storage }).getState().settings.keybindings).toEqual({
+      'selection.clear': [],
+    });
+  });
+
+  it('keep an id this build does not know, and drop what is not a list of strings', () => {
+    const settings = createEditorStore({
+      storage: memoryStorage({
+        [EDITOR_STORE_KEY]: JSON.stringify({
+          state: {
+            settings: {
+              keybindings: {
+                'layout.future': ['Mod+F'],
+                'history.undo': 'Mod+U',
+                'history.redo': ['Mod+R', 3],
+              },
+            },
+          },
+          version: EDITOR_STORE_VERSION,
+        }),
+      }),
+    }).getState().settings;
+
+    expect(settings.keybindings).toEqual({ 'layout.future': ['Mod+F'] });
+  });
+
+  it('arrive empty in settings stored at version 1, which kept everything else', () => {
+    const storage = memoryStorage({
+      [EDITOR_STORE_KEY]: JSON.stringify({
+        state: { settings: { sections: { 'entity/transform': false }, layout: 'tower-test' } },
+        version: 1,
+      }),
+    });
+    const { settings } = createEditorStore({ storage }).getState();
+
+    expect(EDITOR_STORE_VERSION).toBe(2);
+    expect(settings.keybindings).toEqual({});
+    expect(settings.sections).toEqual({ 'entity/transform': false });
+    expect(settings.layout).toBe('tower-test');
   });
 });
 
@@ -234,10 +291,10 @@ describe('Redux DevTools', () => {
     const connect = vi.fn(() => ({ init: vi.fn(), send, subscribe: vi.fn() }));
     vi.stubGlobal('__REDUX_DEVTOOLS_EXTENSION__', { connect });
 
-    const { setSectionOpen, setConnectionHost, openLayout, editDraft } = createEditorStore({
-      storage: memoryStorage(),
-    }).getState();
+    const { setSectionOpen, setConnectionHost, openLayout, editDraft, setKeybinding } =
+      createEditorStore({ storage: memoryStorage() }).getState();
     setSectionOpen('entity/transform', false);
+    setKeybinding('history.undo', ['Mod+U']);
     setConnectionHost('desk.local');
     openLayout(openLayoutByName(testLibrary(), 'desk-test'), { remember: true });
     editDraft(setElementRect(0, { x: 1, y: 1, w: 20, h: 20 }));
@@ -245,7 +302,13 @@ describe('Redux DevTools', () => {
     expect(connect).toHaveBeenCalledWith(expect.objectContaining({ name: 'perch-editor' }));
     const types = send.mock.calls.map(([action]) => (action as { type: string }).type);
     expect(types).toEqual(
-      expect.arrayContaining(['toggle/section', 'set/connectionHost', 'open/layout', 'edit/draft']),
+      expect.arrayContaining([
+        'toggle/section',
+        'set/keybinding',
+        'set/connectionHost',
+        'open/layout',
+        'edit/draft',
+      ]),
     );
   });
 });
