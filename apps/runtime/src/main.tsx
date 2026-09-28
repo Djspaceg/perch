@@ -1,6 +1,10 @@
 /**
  * Browser entry point. Builds the source, reads the URL, mounts the page, and nothing else.
  *
+ * In the desktop runner the source and the layout come from the runner instead; see
+ * `desktop-host.ts` and `startInDesktop` below. Everything that follows describes the browser path,
+ * which is unchanged by it.
+ *
  * This is the **only** file in the repo that constructs a sensor source. Everything downstream —
  * the page, the provider, the store, the widgets — receives one, and `app.test.tsx` injects its
  * own seeded source and its own catalogue without this file being involved at all.
@@ -54,8 +58,19 @@ import {
 } from '@perch/sensor-sources';
 import type { SensorSource } from '@perch/sensor-contract';
 import { Dashboard, type LiveSourceIdentity } from './app.js';
-import { LAYOUT_CATALOGUE } from './layout-catalogue.js';
-import { parsePageRequest } from './viewport.js';
+import {
+  desktopCatalogue,
+  desktopPageRequest,
+  findDesktopBridge,
+  type DesktopBridge,
+  type DesktopDocument,
+} from './desktop-host.js';
+import {
+  LAYOUT_CATALOGUE,
+  createLayoutCatalogue,
+  type LayoutCatalogue,
+} from './layout-catalogue.js';
+import { parsePageRequest, type PageRequest } from './viewport.js';
 
 /**
  * The live source. **This is the mock/MQTT seam.**
@@ -80,26 +95,65 @@ function buildLiveSource(): { source: SensorSource; identity: LiveSourceIdentity
   };
 }
 
-const { source, identity } = buildLiveSource();
-
 const host = document.getElementById('perch-root');
 if (host === null) {
   throw new Error('index.html is missing #perch-root');
 }
+const root = createRoot(host);
 
-createRoot(host).render(
-  <StrictMode>
-    <Dashboard
-      source={source}
-      liveSource={identity}
-      // The catalogue is read at build time from `layouts/`, so a static bundle carries every layout
-      // it can render and needs no server to fetch one. Injected rather than imported by the page for
-      // the same reason the source is: a test supplies its own two-entry catalogue.
-      catalogue={LAYOUT_CATALOGUE}
-      // Read once at startup, not watched. Changing `?layout=` is a navigation, and a full reload is
-      // the honest way to switch: it rebuilds the store, so no reading from the previous layout's
-      // topics can survive into the next one's tiles.
-      request={parsePageRequest(window.location.search)}
-    />
-  </StrictMode>,
-);
+function renderPage(
+  source: SensorSource,
+  identity: LiveSourceIdentity,
+  catalogue: LayoutCatalogue,
+  request: PageRequest,
+): void {
+  root.render(
+    <StrictMode>
+      <Dashboard source={source} liveSource={identity} catalogue={catalogue} request={request} />
+    </StrictMode>,
+  );
+}
+
+/**
+ * In the desktop runner: the relay the runner started, and the one document it opened, re-rendered
+ * in place on every save. See `desktop-host.ts`. The source is built once and kept across documents,
+ * so a save does not drop the connection or the readings already in the store.
+ */
+async function startInDesktop(bridge: DesktopBridge): Promise<void> {
+  const { brokerUrl, document: opened } = await bridge.load();
+  const source = createMqttSource({ url: brokerUrl, origin: 'config' });
+  const identity: LiveSourceIdentity = { kind: 'mqtt', url: brokerUrl };
+
+  const show = (shown: DesktopDocument | null): void => {
+    renderPage(
+      source,
+      identity,
+      shown === null ? createLayoutCatalogue({ layouts: {} }) : desktopCatalogue(shown),
+      shown === null
+        ? parsePageRequest(window.location.search)
+        : desktopPageRequest(window.location.search, shown),
+    );
+  };
+
+  show(opened);
+  bridge.onDocument(show);
+}
+
+const bridge = findDesktopBridge(window);
+
+if (bridge === null) {
+  const { source, identity } = buildLiveSource();
+  // The catalogue is read at build time from `layouts/`, so a static bundle carries every layout it
+  // can render and needs no server to fetch one. Injected rather than imported by the page for the
+  // same reason the source is: a test supplies its own two-entry catalogue.
+  //
+  // The request is read once at startup, not watched. Changing `?layout=` is a navigation, and a
+  // full reload is the honest way to switch: it rebuilds the store, so no reading from the previous
+  // layout's topics can survive into the next one's tiles.
+  renderPage(source, identity, LAYOUT_CATALOGUE, parsePageRequest(window.location.search));
+} else {
+  startInDesktop(bridge).catch((error: unknown) => {
+    // The runner forwards the page's console to its own log, which is where this is read.
+    console.error('perch: the desktop runner could not start the page', error);
+  });
+}
