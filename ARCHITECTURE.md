@@ -94,6 +94,7 @@ perch/
     editor/SPEC.md                authors a layout
     agent/SPEC.md                 reads sensors, publishes MQTT
     caster/SPEC.md                puts a bundle on a capturable surface
+    desktop/README.md             the desktop app: relay + runtime page in one Electron process
   layouts/README.md               your actual dashboards (content, not code)
 ```
 
@@ -119,6 +120,7 @@ leaves" rule structural instead of a convention someone has to remember.
 | `editor` | core | drag-and-drop authoring; writes a layout definition | `ui-kit`, `sensor-sources`, both contracts |
 | `agent` | input adapter | reads a sensor source, publishes to MQTT | `sensor-contract` |
 | `caster` | output adapter | runs a bundle at target resolution on a capturable surface | — (consumes runtime's built artifact) |
+| `desktop` | host | the Electron app: the runner (relay in-process, runtime page rendering a layout document from disk, tray); the editor window is next | `agent` (as a library), runtime's built page (artifact) |
 
 Dependency rules:
 
@@ -137,7 +139,11 @@ Dependency rules:
   — a third package holding just the canvas — buys nothing at this size and adds
   a hop between the canvas and the widgets it draws. See DECISIONS.md.
 - `agent`, `runtime`, `editor`, and `caster` are products. Nothing depends on
-  them, and they never import each other.
+  them, and they never import each other. The one exception is `desktop`, a host
+  rather than a product of its own: it imports `agent` through its library
+  export (`startRelayService`) to run the relay in its main process, and loads
+  `runtime`'s **built page**, an artifact boundary like `caster`'s. Nothing
+  imports `desktop`.
 - `caster` depends on runtime's **built output**, not its source. Artifact
   boundary, not a code boundary — which is what keeps a browser engine out of a
   browser bundle.
@@ -217,6 +223,8 @@ business importing layout code.
 
 `ASSUMPTION:` The editor ships first as a plain web app. A native desktop
 wrapper is additive and leaks into neither the layout format nor `ui-kit`.
+(Held by `apps/desktop`'s runner: neither was touched. The page learns it is
+hosted only through a preload bridge that `runtime/src/desktop-host.ts` reads.)
 
 `ASSUMPTION:` Layouts *reference* background media by path; the bundle build
 copies assets in. Media is never embedded in the layout file.

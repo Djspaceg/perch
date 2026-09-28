@@ -1,10 +1,19 @@
 {
   "name": "@perch/desktop",
+  "productName": "perch",
   "version": "0.0.0",
   "private": true,
   "description": "The desktop app: an Electron main process hosting the relay and the runtime page.",
   "license": "GPL-3.0-only",
   "type": "module",
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "start": "electron .",
+    "test": "vitest run",
+    "typecheck": "tsc -b"
+  },
   "dependencies": {
     "@perch/agent": "0.0.0"
   },

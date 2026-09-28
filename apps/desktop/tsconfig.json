@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // The Electron main process is Node, with no DOM. The preload runs in a renderer, but in a
+    // sandboxed one that gets `require('electron')` and nothing else, so it needs no DOM either.
+    "types": ["node"]
+  },
+  // `.cts` for the preload: a sandboxed preload is run as a CommonJS script, never as an ES module,
+  // so it is the one file here that compiles to `.cjs`. See `runtime-preload.cts`.
+  "include": ["src/**/*.ts", "src/**/*.cts"],
+  "exclude": ["src/**/*.test.ts"],
+  "references": [{ "path": "../agent" }]
+}

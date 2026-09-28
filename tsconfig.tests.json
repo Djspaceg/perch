@@ -17,7 +17,9 @@
       "@perch/sensor-contract": ["./packages/sensor-contract/src/index.ts"],
       "@perch/layout-schema": ["./packages/layout-schema/src/index.ts"],
       "@perch/ui-kit": ["./packages/ui-kit/src/index.ts"],
-      "@perch/sensor-sources": ["./packages/sensor-sources/src/index.ts"]
+      "@perch/sensor-sources": ["./packages/sensor-sources/src/index.ts"],
+      // An app, not a package: only `apps/desktop` may import it. See ARCHITECTURE.md.
+      "@perch/agent": ["./apps/agent/src/index.ts"]
     }
   },
   // The `vitest.setup.ts` entries are here because they are test infrastructure and belong to

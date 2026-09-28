@@ -56,6 +56,8 @@ export default tseslint.config(
     files: [
       'packages/*/src/**/*.{ts,tsx}',
       'apps/*/src/**/*.{ts,tsx}',
+      // The desktop preload, which compiles to CommonJS because a sandboxed preload must be.
+      'apps/desktop/src/**/*.cts',
       // `vitest.setup.ts` lives at a package root rather than in `src/`, but it is in
       // `tsconfig.tests.json`, so it belongs in the type-aware tier with the tests it serves.
       'packages/*/vitest.setup.ts',

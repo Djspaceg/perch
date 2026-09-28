@@ -10,6 +10,7 @@
     { "path": "apps/runtime" },
     { "path": "apps/editor" },
     { "path": "apps/agent" },
-    { "path": "apps/caster" }
+    { "path": "apps/caster" },
+    { "path": "apps/desktop" }
   ]
 }

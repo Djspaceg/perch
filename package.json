@@ -18,6 +18,7 @@
     "dev:runtime": "npm run dev -w @perch/runtime",
     "dev:editor": "npm run dev -w @perch/editor",
     "relay": "npm run build -w @perch/agent && npm start -w @perch/agent",
+    "runner": "npm run build -w @perch/runtime && npm run build -w @perch/desktop && npm start -w @perch/desktop",
     "build": "npm run build --workspaces --if-present",
     "test": "npm test --workspaces --if-present && npm run test:tools",
     "test:tools": "vitest run --root tools",
