@@ -10,6 +10,7 @@ import { fireEvent, render, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { Editor } from './app.js';
 import { createLayoutLibrary, type LayoutLibrary } from './layout-library.js';
+import type { Platform } from './platform.js';
 
 function layoutText(width: number, text: string): string {
   const layout: Layout = {
@@ -38,11 +39,12 @@ function testLibrary(): LayoutLibrary {
 
 type Result = ReturnType<typeof render>;
 
-function renderEditor(): Result {
+function renderEditor(platform: Platform = 'other'): Result {
   const source = createMockSource({ autoStart: false, seed: 1 });
 
   return render(
     <Editor
+      platform={platform}
       library={testLibrary()}
       source={source}
       topics={source.topics}
@@ -236,41 +238,101 @@ describe('where one step ends', () => {
   });
 });
 
-describe('the keys', () => {
-  it('undo with Cmd-Z or Ctrl-Z and redo with Shift-Cmd-Z, Ctrl-Shift-Z or Ctrl-Y', () => {
-    const result = renderEditor();
+describe('the keys on a Mac', () => {
+  it('undo with Cmd-Z and redo with Shift-Cmd-Z', () => {
+    const result = renderEditor('mac');
+    selectElement(result, 0);
+    typeInto(wField(result), ['150']);
+
+    fireEvent.keyDown(document.body, { key: 'z', metaKey: true });
+    expect(wField(result)).toHaveValue('200');
+    fireEvent.keyDown(document.body, { key: 'Z', metaKey: true, shiftKey: true });
+    expect(wField(result)).toHaveValue('150');
+  });
+
+  it('leave Ctrl-Z, Ctrl-Shift-Z and Ctrl-Y to the browser', () => {
+    const result = renderEditor('mac');
+    selectElement(result, 0);
+    typeInto(wField(result), ['150']);
+
+    for (const press of [
+      { key: 'z', ctrlKey: true },
+      { key: 'Z', ctrlKey: true, shiftKey: true },
+      { key: 'y', ctrlKey: true },
+    ]) {
+      expect(fireEvent.keyDown(document.body, press), JSON.stringify(press)).toBe(true);
+    }
+    expect(wField(result)).toHaveValue('150');
+    expect(redoButton(result)).toBeDisabled();
+  });
+
+  it('are shown as glyphs on the buttons', () => {
+    const result = renderEditor('mac');
+
+    expect(undoButton(result)).toHaveAttribute('title', 'Undo (⌘Z)');
+    expect(redoButton(result)).toHaveAttribute('title', 'Redo (⇧⌘Z)');
+    expect(undoButton(result)).toHaveAttribute('aria-keyshortcuts', 'Meta+Z');
+    expect(redoButton(result)).toHaveAttribute('aria-keyshortcuts', 'Meta+Shift+Z');
+  });
+});
+
+describe('the keys on Windows and Linux', () => {
+  it('undo with Ctrl-Z and redo with Ctrl-Shift-Z or Ctrl-Y', () => {
+    const result = renderEditor('other');
     selectElement(result, 0);
     typeInto(wField(result), ['150']);
     typeInto(wField(result), ['160']);
 
-    fireEvent.keyDown(document.body, { key: 'z', metaKey: true });
-    expect(wField(result)).toHaveValue('150');
+    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true });
     fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true });
     expect(wField(result)).toHaveValue('200');
-
-    fireEvent.keyDown(document.body, { key: 'Z', metaKey: true, shiftKey: true });
-    expect(wField(result)).toHaveValue('150');
     fireEvent.keyDown(document.body, { key: 'Z', ctrlKey: true, shiftKey: true });
-    expect(wField(result)).toHaveValue('160');
-
-    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true });
+    expect(wField(result)).toHaveValue('150');
     fireEvent.keyDown(document.body, { key: 'y', ctrlKey: true });
     expect(wField(result)).toHaveValue('160');
   });
 
-  it('leave a text field its own undo', () => {
-    const result = renderEditor();
+  it('ignore Meta combinations', () => {
+    const result = renderEditor('other');
     selectElement(result, 0);
     typeInto(wField(result), ['150']);
-    const field = wField(result);
-    field.focus();
 
-    const notTaken = fireEvent.keyDown(field, { key: 'z', metaKey: true });
-    fireEvent.keyDown(field, { key: 'z', ctrlKey: true });
+    for (const press of [
+      { key: 'z', metaKey: true },
+      { key: 'Z', metaKey: true, shiftKey: true },
+    ]) {
+      expect(fireEvent.keyDown(document.body, press), JSON.stringify(press)).toBe(true);
+    }
+    expect(wField(result)).toHaveValue('150');
+  });
 
-    expect(notTaken).toBe(true);
-    expect(field).toHaveValue('150');
-    expect(undoButton(result)).toBeEnabled();
+  it('are shown in words on the buttons, with Ctrl+Y as the alternative', () => {
+    const result = renderEditor('other');
+
+    expect(undoButton(result)).toHaveAttribute('title', 'Undo (Ctrl+Z)');
+    expect(redoButton(result)).toHaveAttribute('title', 'Redo (Ctrl+Shift+Z or Ctrl+Y)');
+    expect(undoButton(result)).toHaveAttribute('aria-keyshortcuts', 'Control+Z');
+    expect(redoButton(result)).toHaveAttribute('aria-keyshortcuts', 'Control+Shift+Z Control+Y');
+  });
+});
+
+describe('the keys in a text field', () => {
+  it('leave the field its own undo, on either platform', () => {
+    for (const [platform, press] of [
+      ['mac', { key: 'z', metaKey: true }],
+      ['other', { key: 'z', ctrlKey: true }],
+    ] as const) {
+      const result = renderEditor(platform);
+      selectElement(result, 0);
+      typeInto(wField(result), ['150']);
+      const field = wField(result);
+      field.focus();
+
+      expect(fireEvent.keyDown(field, press), platform).toBe(true);
+      expect(field, platform).toHaveValue('150');
+      expect(undoButton(result), platform).toBeEnabled();
+      result.unmount();
+    }
   });
 });
 

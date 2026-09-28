@@ -35,8 +35,10 @@ With the Redux DevTools extension installed, every change shows on its timeline 
 
 ## Undo
 
-The header's **undo** and **redo**, or Cmd-Z / Ctrl-Z and Shift-Cmd-Z / Ctrl-Shift-Z / Ctrl-Y from
-anywhere but a text field (a field keeps the browser's own undo of its typing). Every change to the
+The header's **undo** and **redo**, or the platform's keys from anywhere but a text field (a field
+keeps the browser's own undo of its typing): Cmd-Z and Shift-Cmd-Z on a Mac, iPhone or iPad; Ctrl-Z,
+and Ctrl-Shift-Z or Ctrl-Y, elsewhere. Each platform accepts and shows only its own keys
+(`src/platform.ts`). Every change to the
 layout is a step: a move or resize, any property, an add or delete, a topic, a theme token. Selection,
 folds, tabs and the connection are not. One drag, one scrub, or one field between focus and blur or
 Enter is one step (`src/edit-gestures.ts`). The history is in memory only, 200 steps deep, and cleared

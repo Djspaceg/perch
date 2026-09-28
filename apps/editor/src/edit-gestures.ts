@@ -25,11 +25,15 @@
  *
  * ## The keys
  *
- * Cmd-Z or Ctrl-Z undoes; Shift with either, or Ctrl-Y, redoes. Never from inside a text field, where
- * the browser's own undo of the typing is the one the author means.
+ * Each platform's own (`platform.ts`): on a Mac Cmd-Z undoes and Shift-Cmd-Z redoes; elsewhere
+ * Ctrl-Z undoes and Ctrl-Shift-Z or Ctrl-Y redoes. The other platform's combinations do nothing, and
+ * neither does any with a modifier more. Never from inside a text field, where the browser's own undo
+ * of the typing is the one the author means. `HISTORY_SHORTCUTS` is also what the header's buttons
+ * show, so what is accepted and what is shown cannot drift apart.
  */
 
 import { useCallback, useEffect, useRef } from 'react';
+import { matchesKeys, type KeyCombo, type Platform } from './platform.js';
 
 /** Input types that are pressed rather than typed into. */
 const PRESSED_INPUTS = new Set(['button', 'checkbox', 'radio', 'reset', 'submit', 'image', 'file']);
@@ -45,18 +49,34 @@ export function isTextEntry(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && target.isContentEditable;
 }
 
-/** What a key press asks of the history, if anything. */
-export function historyShortcut(event: {
-  readonly key: string;
-  readonly metaKey: boolean;
-  readonly ctrlKey: boolean;
-  readonly shiftKey: boolean;
-  readonly altKey: boolean;
-}): 'undo' | 'redo' | null {
-  if (event.altKey || !(event.metaKey || event.ctrlKey)) return null;
-  const key = event.key.toLowerCase();
-  if (key === 'z') return event.shiftKey ? 'redo' : 'undo';
-  if (key === 'y' && event.ctrlKey && !event.metaKey && !event.shiftKey) return 'redo';
+/** The undo and redo keys on each platform, the first of each list being the one shown first. */
+export const HISTORY_SHORTCUTS: Readonly<
+  Record<Platform, { readonly undo: readonly KeyCombo[]; readonly redo: readonly KeyCombo[] }>
+> = {
+  mac: { undo: [{ key: 'z', meta: true }], redo: [{ key: 'z', meta: true, shift: true }] },
+  other: {
+    undo: [{ key: 'z', ctrl: true }],
+    redo: [
+      { key: 'z', ctrl: true, shift: true },
+      { key: 'y', ctrl: true },
+    ],
+  },
+};
+
+/** What a key press asks of the history on `platform`, if anything. */
+export function historyShortcut(
+  event: {
+    readonly key: string;
+    readonly metaKey: boolean;
+    readonly ctrlKey: boolean;
+    readonly shiftKey: boolean;
+    readonly altKey: boolean;
+  },
+  platform: Platform,
+): 'undo' | 'redo' | null {
+  const { undo, redo } = HISTORY_SHORTCUTS[platform];
+  if (undo.some((combo) => matchesKeys(event, combo))) return 'undo';
+  if (redo.some((combo) => matchesKeys(event, combo))) return 'redo';
 
   return null;
 }

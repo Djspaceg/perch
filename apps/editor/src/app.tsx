@@ -53,8 +53,8 @@
  * ## Undo and redo
  *
  * Every change to the document is a step in the store's history (`store.ts`, `history.ts`): the
- * header's undo and redo, and Cmd-Z / Ctrl-Z, Shift with either, or Ctrl-Y from anywhere but a text
- * field. Where one step ends — a drag, a field's commit, a scrub let go — is `edit-gestures.ts`.
+ * header's undo and redo, and the platform's keys (`edit-gestures.ts`, `platform.ts`) from anywhere
+ * but a text field. Where one step ends — a drag, a field's commit, a scrub let go — is `edit-gestures.ts`.
  * Selection, folds, tabs and the connection are not steps.
  *
  * ## Switching with unsaved edits asks first
@@ -86,7 +86,13 @@ import {
 } from './connection-control.js';
 import { CONTROLS_STYLES, escapeIsTaken } from './controls/index.js';
 import { canSave, isDirty } from './draft.js';
-import { historyShortcut, isTextEntry, useEditGesture } from './edit-gestures.js';
+import {
+  HISTORY_SHORTCUTS,
+  historyShortcut,
+  isTextEntry,
+  useEditGesture,
+} from './edit-gestures.js';
+import { ariaKeys, currentPlatform, shortcutHint, type Platform } from './platform.js';
 import { INSPECTOR_STYLES, Inspector } from './inspector.js';
 import type { LayoutLibrary } from './layout-library.js';
 import { addElement, removeElement, setElementRect, type LayoutUpdate } from './layout-edits.js';
@@ -144,6 +150,8 @@ export interface EditorProps {
    * opens, else the library's first offered name.
    */
   readonly initialLayout?: string | undefined;
+  /** Which platform's shortcuts to accept and show. Detected from the browser when absent. */
+  readonly platform?: Platform | undefined;
 }
 
 export function Editor({
@@ -177,6 +185,7 @@ function ConnectedEditor({
   topics,
   transport,
   relay,
+  platform = currentPlatform(),
 }: Omit<EditorProps, 'store' | 'storage' | 'initialLayout'>): ReactNode {
   const connection = useConnection(relay);
   const live = relay !== undefined && connection.state.phase === 'connected';
@@ -244,6 +253,7 @@ function ConnectedEditor({
         transport={transport}
         connection={connection}
         live={live}
+        platform={platform}
       />
     </SensorProvider>
   );
@@ -263,9 +273,11 @@ function EditorShell({
   transport,
   connection,
   live,
-}: Omit<EditorProps, 'source' | 'relay' | 'storage' | 'store' | 'initialLayout'> & {
+  platform,
+}: Omit<EditorProps, 'source' | 'relay' | 'storage' | 'store' | 'initialLayout' | 'platform'> & {
   readonly connection: Connection;
   readonly live: boolean;
+  readonly platform: Platform;
 }): ReactNode {
   const viewport = usePreviewViewport();
 
@@ -341,7 +353,7 @@ function EditorShell({
   /** The keys, from anywhere on the page but a text field, which keeps the browser's own undo. */
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      const which = historyShortcut(event);
+      const which = historyShortcut(event, platform);
       if (which === null || isTextEntry(event.target)) return;
       event.preventDefault();
       onHistory(which);
@@ -351,7 +363,7 @@ function EditorShell({
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [onHistory]);
+  }, [onHistory, platform]);
 
   /** A dragged or resized element's rect, as one edit. The same `editDraft` path as the field form. */
   const onRect = useCallback(
@@ -524,8 +536,8 @@ function EditorShell({
           type="button"
           className="perch-editor-button"
           disabled={!canUndo}
-          aria-keyshortcuts="Meta+Z Control+Z"
-          title="undo (Cmd-Z / Ctrl-Z)"
+          aria-keyshortcuts={ariaKeys(HISTORY_SHORTCUTS[platform].undo)}
+          title={shortcutHint('Undo', HISTORY_SHORTCUTS[platform].undo, platform)}
           onClick={() => {
             onHistory('undo');
           }}
@@ -537,8 +549,8 @@ function EditorShell({
           type="button"
           className="perch-editor-button"
           disabled={!canRedo}
-          aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z Control+Y"
-          title="redo (Shift-Cmd-Z / Ctrl-Shift-Z / Ctrl-Y)"
+          aria-keyshortcuts={ariaKeys(HISTORY_SHORTCUTS[platform].redo)}
+          title={shortcutHint('Redo', HISTORY_SHORTCUTS[platform].redo, platform)}
           onClick={() => {
             onHistory('redo');
           }}
