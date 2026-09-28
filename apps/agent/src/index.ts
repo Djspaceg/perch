@@ -2,9 +2,9 @@
  * `@perch/agent` — the relay. Polls LibreHardwareMonitor, publishes readings, and *is* the
  * MQTT broker.
  *
- * Nothing in this repo imports this app (ARCHITECTURE.md: apps are leaves), so this barrel
- * exists for the tests and for a future embedding of the relay in a single-file executable.
- * `main.ts` is the entry point a human runs. See `README.md` for the dev-run port override
+ * One app imports this one: `apps/desktop`, which runs the relay inside its Electron main process
+ * through `startRelayService` (ARCHITECTURE.md records the exception to "apps are leaves"). The
+ * barrel is also what the tests import. `main.ts` is the entry point a human runs. See `README.md` for the dev-run port override
  * that this machine requires.
  */
 
@@ -42,8 +42,11 @@ export {
   startEmbeddedBroker,
   type BrokerPublisher,
   type EmbeddedBroker,
+  type EmbeddedBrokerOptions,
   type PublishOptions,
 } from './broker.js';
+
+export { startRelayService, type RelayService, type RelayServiceOptions } from './service.js';
 
 export {
   FIRST_SUMMARY_MS,

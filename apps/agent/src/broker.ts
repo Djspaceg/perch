@@ -76,6 +76,18 @@ export interface EmbeddedBroker extends BrokerPublisher {
   close(): Promise<void>;
 }
 
+export interface EmbeddedBrokerOptions {
+  /**
+   * Bind a free port, chosen by the OS, for a listener whose configured port is already in use.
+   *
+   * Off by default, and off for the CLI: a relay run from a shell is dialled at a port a human
+   * typed, so moving silently would be the "reading someone else's empty broker" failure in a new
+   * shape. A host that hands the bound port to its own page, as the desktop app does, has no such
+   * reader, and for it a held 9001 is just a port to step around. Only `EADDRINUSE` falls back.
+   */
+  readonly freePortWhenHeld?: boolean | undefined;
+}
+
 /**
  * Start the broker and bind both listeners.
  *
@@ -84,7 +96,11 @@ export interface EmbeddedBroker extends BrokerPublisher {
  * perfectly while the dashboard, the actual product, could not connect, and the relay would
  * look healthy in every log.
  */
-export async function startEmbeddedBroker(address: BrokerAddress): Promise<EmbeddedBroker> {
+export async function startEmbeddedBroker(
+  address: BrokerAddress,
+  options: EmbeddedBrokerOptions = {},
+): Promise<EmbeddedBroker> {
+  const { freePortWhenHeld = false } = options;
   const aedes = await Aedes.createBroker();
 
   // A broker on a LAN gets malformed packets and half-open sockets. Both events are
@@ -144,8 +160,20 @@ export async function startEmbeddedBroker(address: BrokerAddress): Promise<Embed
   const parts: BrokerParts = { aedes, wsServer, httpServer, tcpServer, tcpSockets };
 
   try {
-    const mqttPort = await listen(tcpServer, address.bindHost, address.mqttPort, 'mqttPort');
-    const wsPort = await listen(httpServer, address.bindHost, address.wsPort, 'wsPort');
+    const mqttPort = await listen(
+      tcpServer,
+      address.bindHost,
+      address.mqttPort,
+      'mqttPort',
+      freePortWhenHeld,
+    );
+    const wsPort = await listen(
+      httpServer,
+      address.bindHost,
+      address.wsPort,
+      'wsPort',
+      freePortWhenHeld,
+    );
 
     return {
       mqttPort,
@@ -245,8 +273,32 @@ export function portInUseGuidance(setting: BrokerListenerSetting, port: number):
   );
 }
 
-/** Bind one server and resolve the port it actually got. */
+/**
+ * Bind one server and resolve the port it actually got.
+ *
+ * With `freePortWhenHeld`, a port in use is retried once as port 0 on the same server, which Node
+ * allows after a failed `listen`. The caller learns of the move by comparing the port it asked for
+ * with the one returned.
+ */
 async function listen(
+  server: TcpServer | HttpServer,
+  host: string,
+  port: number,
+  setting: BrokerListenerSetting,
+  freePortWhenHeld = false,
+): Promise<number> {
+  try {
+    return await listenOnce(server, host, port, setting);
+  } catch (error) {
+    const held =
+      error instanceof Error && error.cause instanceof Error && isAddressInUse(error.cause);
+    if (!freePortWhenHeld || !held || port === 0) throw error;
+
+    return listenOnce(server, host, 0, setting);
+  }
+}
+
+async function listenOnce(
   server: TcpServer | HttpServer,
   host: string,
   port: number,

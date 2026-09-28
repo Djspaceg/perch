@@ -14,10 +14,8 @@ import {
   type RelayConfig,
   type RelayConfigOrigins,
 } from './config.js';
-import { startEmbeddedBroker, type EmbeddedBroker } from './broker.js';
-import { createLhmDataFetcher } from './lhm-client.js';
-import { startLhmControl, type LhmControl } from './lhm-control.js';
-import { startRelay, type RelayHandle, type RelayLogger } from './relay.js';
+import { startRelayService, type RelayService } from './service.js';
+import type { RelayLogger } from './relay.js';
 
 /** Where the CLI writes. Two sinks rather than one, because a startup report and an error are not the same stream. */
 export interface CliStreams {
@@ -31,15 +29,8 @@ export interface RelayCliOptions {
   readonly streams: CliStreams;
 }
 
-/** A started relay, so the caller can shut it down on a signal. */
-export interface RunningRelay {
-  readonly config: RelayConfig;
-  readonly broker: EmbeddedBroker;
-  readonly relay: RelayHandle;
-  /** Which LHM host is polled, as a client last asked; see `lhm-control.ts`. */
-  readonly control: LhmControl;
-  stop(): Promise<void>;
-}
+/** A started relay, so the caller can shut it down on a signal. See `service.ts`. */
+export type RunningRelay = RelayService;
 
 /**
  * The outcome of a CLI invocation.
@@ -71,9 +62,10 @@ export async function runRelayCli(options: RelayCliOptions): Promise<RelayCliRes
   const { config, origins } = resolved;
   reportConfig(options.streams, config, origins);
 
-  let broker: EmbeddedBroker;
+  const logger = createStreamLogger(options.streams);
+  let running: RunningRelay;
   try {
-    broker = await startEmbeddedBroker(config.broker);
+    running = await startRelayService({ config, logger });
   } catch (error) {
     // Almost always EADDRINUSE, and on this machine almost always port 9001, which a Homebrew
     // Mosquitto holds on every interface. Naming the port is the difference between a
@@ -84,54 +76,10 @@ export async function runRelayCli(options: RelayCliOptions): Promise<RelayCliRes
   }
 
   options.streams.out(
-    `broker listening: mqtt://${config.broker.bindHost}:${broker.mqttPort}, ws://${config.broker.bindHost}:${broker.wsPort}`,
+    `broker listening: mqtt://${config.broker.bindHost}:${running.mqttPort}, ws://${config.broker.bindHost}:${running.wsPort}`,
   );
 
-  const logger = createStreamLogger(options.streams);
-  const fetcherFor = (endpoint: RelayConfig['lhm']) =>
-    createLhmDataFetcher(endpoint, config.requestTimeoutMs);
-
-  // The control first, so the status topic is retained before the first poll reports into it. The
-  // loop is handed to it through a closure because each needs the other: the control retargets
-  // the loop, and the loop reports every poll to the control.
-  const loopRef: { current?: RelayHandle } = {};
-  const control = await startLhmControl({
-    broker,
-    initial: config.lhm,
-    defaultPort: config.lhm.port,
-    fetcherFor,
-    retarget: (fetchLhmData) => {
-      loopRef.current?.retarget(fetchLhmData);
-    },
-    logger,
-  });
-  const loop = startRelay(config.pollIntervalMs, {
-    fetchLhmData: fetcherFor(config.lhm),
-    broker,
-    logger,
-    now: () => Date.now(),
-    onPoll: (report) => {
-      control.onPoll(report);
-    },
-  });
-  loopRef.current = loop;
-
-  return {
-    kind: 'running',
-    running: {
-      config,
-      broker,
-      relay: loop,
-      control,
-      stop: async (): Promise<void> => {
-        // Loop first, then broker: stopping the broker under a tick in flight would reject a
-        // publish that the loop would then report as a defect in itself.
-        await loop.stop();
-        await control.stop();
-        await broker.close();
-      },
-    },
-  };
+  return { kind: 'running', running };
 }
 
 /**

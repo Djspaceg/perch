@@ -51,6 +51,11 @@ export interface LhmControlDeps {
   readonly fetcherFor: (endpoint: LhmEndpoint) => LhmDataFetcher;
   /** Hand the poll loop a new fetcher; `RelayHandle.retarget`. */
   readonly retarget: (fetchLhmData: LhmDataFetcher) => void;
+  /**
+   * Told the host a client asked for, once the loop has been retargeted at it. For a host that
+   * remembers the choice across launches; the relay itself keeps nothing.
+   */
+  readonly onRetarget?: ((endpoint: LhmEndpoint) => void) | undefined;
   readonly logger: RelayLogger;
 }
 
@@ -122,6 +127,7 @@ export async function startLhmControl(deps: LhmControlDeps): Promise<LhmControl>
 
     endpoint = requested;
     deps.retarget(deps.fetcherFor(requested));
+    deps.onRetarget?.(requested);
     deps.logger.info(
       `a client asked for http://${requested.host}:${requested.port}/data.json; polling it`,
     );
