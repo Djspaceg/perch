@@ -26,9 +26,17 @@
  * remembers (`store.ts`) and opens when there is no query. The picker is the way to change layouts
  * once the page is up; the query parameter exists so a link can open a particular file, including
  * one under `layouts/invalid/` that the picker deliberately does not offer.
+ *
+ * ## In the desktop app's editor window
+ *
+ * The window's preload puts a bridge on `window.perchEditorHost` (`desktop-host.ts`). With it, the
+ * library is the layouts folder's documents, kept current as the folder changes; a save is written
+ * by the main process; the relay is the app's own, and the connection control starts on the host it
+ * is already polling, so opening the editor never moves the runner. Without it, everything above
+ * holds exactly as it did.
  */
 
-import { StrictMode } from 'react';
+import { StrictMode, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   createMockSource,
@@ -38,25 +46,76 @@ import {
 } from '@perch/sensor-sources';
 import { Editor } from './app.js';
 import type { RelayLink } from './connection-control.js';
+import {
+  desktopLibrary,
+  desktopSaveTransport,
+  editorHostFrom,
+  findEditorBridge,
+  type DesktopEditorStart,
+  type EditorBridge,
+} from './desktop-host.js';
+import { choiceForRelay } from './editor-host.js';
 import { LAYOUT_LIBRARY } from './layout-library.js';
 import { browserSaveTransport } from './save.js';
-import { createEditorStore, type SettingsStorage } from './store.js';
+import { createEditorStore, type EditorStore, type SettingsStorage } from './store.js';
 
 const source = createMockSource();
 
 /** The relay the stack started, or `undefined`. A malformed URL is a thrown error, not the mock. */
-function buildRelay(url: string | undefined): RelayLink | undefined {
+function buildRelay(
+  url: string | undefined,
+  origin: 'env' | 'config' = 'env',
+): RelayLink | undefined {
   const trimmed = url?.trim() ?? '';
   if (trimmed === '') return undefined;
   if (!isRelayBrokerUrl(trimmed)) {
-    throw new TypeError(`PERCH_RELAY_URL is not a ws:// or wss:// URL: ${JSON.stringify(trimmed)}`);
+    throw new TypeError(
+      `${origin === 'env' ? 'PERCH_RELAY_URL' : 'the desktop relay URL'} is not a ws:// or wss:// URL: ${JSON.stringify(trimmed)}`,
+    );
   }
 
   return {
     url: trimmed,
-    source: createMqttSource({ url: trimmed, origin: 'env' }),
+    source: createMqttSource({ url: trimmed, origin }),
     control: createRelayControl({ url: trimmed }),
   };
+}
+
+/** The editor in the desktop app's window: the folder as its library, kept current. */
+function DesktopEditor({
+  bridge,
+  start,
+  relay,
+  editorStore,
+}: {
+  readonly bridge: EditorBridge;
+  readonly start: DesktopEditorStart;
+  readonly relay: RelayLink | undefined;
+  readonly editorStore: EditorStore;
+}): ReactNode {
+  const [library, setLibrary] = useState(() => desktopLibrary(start.documents));
+  useEffect(
+    () =>
+      bridge.onDocuments((documents) => {
+        setLibrary(desktopLibrary(documents));
+      }),
+    [bridge],
+  );
+  const transport = useMemo(() => desktopSaveTransport(bridge), [bridge]);
+  const host = useMemo(() => editorHostFrom(bridge), [bridge]);
+
+  return (
+    <Editor
+      library={library}
+      source={source}
+      topics={source.topics}
+      relay={relay}
+      store={editorStore}
+      transport={transport}
+      host={host}
+      initialLayout={start.initial ?? undefined}
+    />
+  );
 }
 
 /** `localStorage`, or `undefined` where reading the property itself throws (some privacy modes). */
@@ -86,18 +145,44 @@ if (host === null) {
   throw new Error('index.html is missing #perch-editor-root');
 }
 
-createRoot(host).render(
-  <StrictMode>
-    <Editor
-      library={LAYOUT_LIBRARY}
-      source={source}
-      // The mock's own canonical topics, as the inspector's suggestions while not connected. Once
-      // connected, the picker lists what the relay publishes instead.
-      topics={source.topics}
-      relay={buildRelay(import.meta.env.PERCH_RELAY_URL)}
-      store={store}
-      transport={browserSaveTransport}
-      initialLayout={requestedLayout(window.location.search)}
-    />
-  </StrictMode>,
-);
+const root = createRoot(host);
+const bridge = findEditorBridge(window);
+
+if (bridge === null) {
+  root.render(
+    <StrictMode>
+      <Editor
+        library={LAYOUT_LIBRARY}
+        source={source}
+        // The mock's own canonical topics, as the inspector's suggestions while not connected. Once
+        // connected, the picker lists what the relay publishes instead.
+        topics={source.topics}
+        relay={buildRelay(import.meta.env.PERCH_RELAY_URL)}
+        store={store}
+        transport={browserSaveTransport}
+        initialLayout={requestedLayout(window.location.search)}
+      />
+    </StrictMode>,
+  );
+} else {
+  bridge.load().then(
+    (start) => {
+      // Before the first render, so the connection control's first request is the host the relay
+      // already polls, and the relay is not moved by the editor opening.
+      store.getState().adoptConnection(choiceForRelay(start.relay));
+      root.render(
+        <StrictMode>
+          <DesktopEditor
+            bridge={bridge}
+            start={start}
+            relay={buildRelay(start.brokerUrl, 'config')}
+            editorStore={store}
+          />
+        </StrictMode>,
+      );
+    },
+    (error: unknown) => {
+      host.textContent = `perch could not start the editor: ${error instanceof Error ? error.message : String(error)}`;
+    },
+  );
+}

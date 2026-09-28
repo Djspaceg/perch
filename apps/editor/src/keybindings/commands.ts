@@ -17,11 +17,18 @@ export interface CommandSpec {
   readonly label: string;
   readonly scope: Scope | readonly Scope[];
   readonly keys: DefaultKeys;
-  /** Runs even on a key a field, popover or confirm owns (section 5). None does yet. */
+  /** Runs even on a key a field, popover or confirm owns (section 5): the document commands. */
   readonly inFields?: boolean;
 }
 
 export const COMMANDS = {
+  // A document command means the same thing typed in a field as anywhere: Mod+S never types an S.
+  // New, Open and Save As have a handler only where a host can show a file dialog (the desktop
+  // app); in a browser their keys stay the browser's.
+  'document.new': { label: 'New', scope: 'global', keys: ['Mod+N'], inFields: true },
+  'document.open': { label: 'Open', scope: 'global', keys: ['Mod+O'], inFields: true },
+  'document.save': { label: 'Save', scope: 'global', keys: ['Mod+S'], inFields: true },
+  'document.saveAs': { label: 'Save As', scope: 'global', keys: ['Mod+Shift+S'], inFields: true },
   'history.undo': { label: 'Undo', scope: 'global', keys: ['Mod+Z'] },
   // Ctrl+Y is Windows' own redo. On a Mac, Cmd-Y is the browser's history in some browsers.
   'history.redo': {

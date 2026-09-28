@@ -137,6 +137,11 @@ export interface EditorActions {
   readonly setConnectionHost: (text: string) => void;
   /** Connect: the typed host becomes the one in effect. */
   readonly connectTo: (host: string, port: number) => void;
+  /**
+   * The desktop app: the relay is already polling `choice`, so it becomes the connection in effect,
+   * radio and field included, before the control first asks the relay for anything.
+   */
+  readonly adoptConnection: (choice: ConnectionChoice) => void;
   readonly setSectionOpen: (id: string, open: boolean) => void;
   readonly setTab: (pane: string, tab: TokenTab) => void;
   readonly setChip: (pane: string, chip: string) => void;
@@ -157,6 +162,11 @@ export interface EditorActions {
   readonly redo: () => void;
   /** The layout named `name` was written as `written`. Ignored if another layout is open by now. */
   readonly markSaved: (name: string, written: Layout) => void;
+  /**
+   * Save As: the layout named `from` was written as `written` to the document now named `to`, which
+   * it becomes. The history stays, as for any save. Ignored if another layout is open by now.
+   */
+  readonly markSavedAs: (from: string, to: string, written: Layout) => void;
   readonly select: (index: number) => void;
 }
 
@@ -273,6 +283,16 @@ export function createEditorStore(
                 port,
               });
             },
+            adoptConnection: (choice) => {
+              settle(
+                connection(
+                  choice.kind === 'localhost'
+                    ? { mode: 'localhost', choice }
+                    : { mode: 'remote', choice, draft: `${choice.host}:${String(choice.port)}` },
+                ),
+                { type: 'set/connectionAdopted', choice },
+              );
+            },
             setSectionOpen: (id, open) => {
               settle(
                 { sections: { ...get().settings.sections, [id]: open } },
@@ -367,6 +387,26 @@ export function createEditorStore(
                 },
                 undefined,
                 { type: 'save/written', name },
+              );
+            },
+            markSavedAs: (from, to, written) => {
+              set(
+                (state) => {
+                  const { opened } = state.session;
+                  if (opened?.ok !== true || opened.state.name !== from) return {};
+
+                  return {
+                    session: {
+                      ...state.session,
+                      opened: {
+                        ok: true,
+                        state: { ...draftSaved(opened.state, written), name: to },
+                      },
+                    },
+                  };
+                },
+                undefined,
+                { type: 'save/writtenAs', from, to },
               );
             },
             select: (index) => {

@@ -12,6 +12,8 @@
  *   one id: the one registered last runs.
  * - `useKeybinding(id)` is what a button shows: the label, the keys in effect on this platform, a
  *   tooltip and `aria-keyshortcuts`.
+ * - `useCommandRunner()` runs a command by id, as a key would but with no key event: how a host's
+ *   menu (the desktop app's) reaches the same handler the key does, and nothing else.
  */
 
 import {
@@ -29,11 +31,13 @@ import { COMMANDS, type CommandId } from './commands.js';
 import { commandFor } from './dispatch.js';
 import { boundCommand, resolveKeymap, type KeybindingOverrides, type Keymap } from './keymap.js';
 
-type Handler = (event: KeyboardEvent) => void;
+/** A command's handler. `event` is the key press, or `undefined` when a host's menu ran it. */
+type Handler = (event: KeyboardEvent | undefined) => void;
 
 interface Keybindings {
   readonly keymap: Keymap;
   readonly register: (id: CommandId, handler: { readonly current: Handler }) => () => void;
+  readonly run: (id: CommandId) => boolean;
 }
 
 const KeybindingsContext = createContext<Keybindings | null>(null);
@@ -88,7 +92,14 @@ export function KeybindingsProvider({
     };
   }, [keymap]);
 
-  const value = useMemo(() => ({ keymap, register }), [keymap, register]);
+  const run = useCallback((id: CommandId): boolean => {
+    const handler = handlers.current.get(id)?.at(-1);
+    if (handler === undefined) return false;
+    handler.current(undefined);
+    return true;
+  }, []);
+
+  const value = useMemo(() => ({ keymap, register, run }), [keymap, register, run]);
 
   return <KeybindingsContext.Provider value={value}>{children}</KeybindingsContext.Provider>;
 }
@@ -134,4 +145,17 @@ export function useKeybinding(id: CommandId): ShownKeybinding {
       ariaKeyShortcuts: command.chords.length === 0 ? undefined : ariaChords(command.chords),
     };
   }, [keymap, id]);
+}
+
+/**
+ * The keymap in effect, and a way to run a command by id: its most recently registered enabled
+ * handler, exactly the one its key would reach. `run` answers whether anything ran.
+ */
+export function useCommandRunner(): {
+  readonly keymap: Keymap;
+  readonly run: (id: CommandId) => boolean;
+} {
+  const { keymap, run } = useKeybindings('useCommandRunner');
+
+  return useMemo(() => ({ keymap, run }), [keymap, run]);
 }

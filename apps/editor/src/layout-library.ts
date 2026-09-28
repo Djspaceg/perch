@@ -93,6 +93,11 @@ export interface LayoutLibraryEntry {
   readonly text: string;
   /** Whether the picker may list it, and the editor default to it. `false` under `invalid/`. */
   readonly offered: boolean;
+  /**
+   * Where the file is, for the notice a save shows, when that is not `layouts/<name>.json` in this
+   * checkout: the desktop app's documents live anywhere. Absent for the bundled library.
+   */
+  readonly path?: string | undefined;
 }
 
 /** What the editor needs to know about the layouts on disk. Injected, so a test can supply its own. */
@@ -109,8 +114,11 @@ export interface LayoutLibrary {
    * runtime's. A `undefined` here paints `LayoutCanvas`'s missing-asset box, which is the behaviour
    * an editor wants: an author who has just typed a path that is not there should see that, in the
    * rect where the image would have gone.
+   *
+   * `name` is the document the `src` is written in. The bundled library ignores it, since every
+   * layout shares `layouts/`; the desktop app's documents each have a folder of their own.
    */
-  readonly resolveAsset: (src: string) => string | undefined;
+  readonly resolveAsset: (src: string, name?: string) => string | undefined;
 }
 
 /**

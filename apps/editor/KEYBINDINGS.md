@@ -5,8 +5,8 @@ its tests, in the same commit. "MUST" and "MUST NOT" mean what they say.
 
 ## 1. Shortcuts and local keys
 
-A **shortcut** runs an editor command wherever its scope is active: undo, redo, delete the
-selection, deselect. Every shortcut MUST be a command in the registry (`commands.ts`) and MUST reach
+A **shortcut** runs an editor command wherever its scope is active: new, open, save, save as, undo,
+redo, delete the selection, deselect. Every shortcut MUST be a command in the registry (`commands.ts`) and MUST reach
 its handler through the one dispatcher (section 5). No component adds its own `keydown` listener
 for a shortcut.
 
@@ -69,8 +69,18 @@ A key is **owned** by its target when:
 - the key is Escape and the target is in any `<input>`, `<select>`, `<textarea>`, contenteditable,
   `[role="dialog"]` (a popover) or the inline delete confirm.
 
-A command does not run on an owned key unless it sets `inFields: true`. None does today: undo in a
-field is the browser's undo of the typing.
+A command does not run on an owned key unless it sets `inFields: true`. The four `document.*`
+commands do, since Mod+S in a field means save and never types an S. Undo does not: undo in a field
+is the browser's undo of the typing.
+
+## 5a. A host's menu
+
+A host with a menu bar (the desktop app, `src/editor-host.ts`) shows the document and history
+commands in it, with the accelerator of each command's first binding in effect, overrides included:
+the editor sends the host its keymap whenever it changes. A menu item runs its command through the
+same registry as the key (`useCommandRunner`), with one exception: the menu's Undo and Redo while a
+text entry has focus are the platform's text undo and redo, as the keys are there. New, Open and
+Save As have a handler only where a host is; in a browser their keys are left to the browser.
 
 ## 6. Display
 
@@ -108,10 +118,15 @@ replaces that command's defaults on every platform. `[]` unbinds it; absence mea
 
 | id                 | label                   | scope           | macOS         | Windows, Linux          |
 | ------------------ | ----------------------- | --------------- | ------------- | ----------------------- |
+| `document.new`     | New                     | global          | ⌘N            | Ctrl+N                  |
+| `document.open`    | Open                    | global          | ⌘O            | Ctrl+O                  |
+| `document.save`    | Save                    | global          | ⌘S            | Ctrl+S                  |
+| `document.saveAs`  | Save As                 | global          | ⇧⌘S           | Ctrl+Shift+S            |
 | `history.undo`     | Undo                    | global          | ⌘Z            | Ctrl+Z                  |
 | `history.redo`     | Redo                    | global          | ⇧⌘Z           | Ctrl+Shift+Z, Ctrl+Y    |
 | `selection.delete` | Delete selected element | canvas          | ⌦, ⌫          | Delete, Backspace       |
 | `selection.clear`  | Deselect                | canvas, sidebar | ⎋             | Escape                  |
 
 `selection.delete` asks first, through the selection header's confirm. `selection.clear` acts only
-while something is selected.
+while something is selected. `document.new`, `document.open` and `document.saveAs` act only with a
+host (section 5a); `document.save` acts everywhere, and for New's untitled document is a Save As.

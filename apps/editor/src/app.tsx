@@ -65,7 +65,15 @@
  * Changing the picker while the draft differs from disk does not discard the edits. It parks the
  * request and shows a bar with an explicit discard. Opening a layout clears the history, so a silent
  * discard is unrecoverable work — and the bar costs one piece of state where a confirmation dialog
- * would have cost a browser API that does not exist in jsdom.
+ * would have cost a browser API that does not exist in jsdom. New and Open park the same way.
+ *
+ * ## Documents, when a host is there
+ *
+ * Save is a command in the browser and in the desktop app alike (Mod+S). Given an `EditorHost`
+ * (`editor-host.ts`, the desktop app's), New, Open and Save As are commands too, the host's menu runs
+ * commands through the registry, and the host is told the document's name and whether it is dirty so
+ * it can mark the window and ask before closing. New is an untitled document in memory; its first
+ * Save is a Save As. Every write still goes through `saveDraft` and the injected transport.
  */
 
 import type { SensorSource } from '@perch/sensor-contract';
@@ -78,7 +86,7 @@ import {
   WIDGET_NAMES,
 } from '@perch/ui-kit';
 import type { LayoutElement, Rect } from '@perch/layout-schema';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CANVAS_HANDLES_STYLES } from './canvas-handles.js';
 import {
   CONNECTION_STYLES,
@@ -88,12 +96,20 @@ import {
   type RelayLink,
 } from './connection-control.js';
 import { CONTROLS_STYLES } from './controls/index.js';
-import { canSave, isDirty } from './draft.js';
+import { canSave, isDirty, type DraftState } from './draft.js';
+import {
+  blankLayoutLike,
+  menuBindings,
+  menuCommandRoute,
+  untitledName,
+  type EditorHost,
+} from './editor-host.js';
 import { useEditGesture } from './edit-gestures.js';
 import {
   KeybindingsProvider,
   keyScope,
   useCommand,
+  useCommandRunner,
   useKeybinding,
   type CommandId,
 } from './keybindings/index.js';
@@ -113,7 +129,7 @@ import {
   usePreviewViewport,
 } from './preview-viewport.js';
 import { saveDraft, type SaveTransport } from './save.js';
-import { openLayoutByName, type Opened } from './open-layout.js';
+import { openLayoutByName, openLayoutEntry, openNewLayout, type Opened } from './open-layout.js';
 import {
   EditorStoreProvider,
   NOTHING_SELECTED,
@@ -157,6 +173,8 @@ export interface EditorProps {
   readonly initialLayout?: string | undefined;
   /** Which platform's shortcuts to accept and show. Detected from the browser when absent. */
   readonly platform?: Platform | undefined;
+  /** The desktop app's file dialogs, menu and close prompt. Absent in a browser. */
+  readonly host?: EditorHost | undefined;
 }
 
 export function Editor({
@@ -165,6 +183,7 @@ export function Editor({
   library,
   initialLayout,
   platform = currentPlatform(),
+  host,
   ...rest
 }: EditorProps): ReactNode {
   // Made once per mounted editor, and the first layout opened in it before anything renders, so the
@@ -180,7 +199,8 @@ export function Editor({
   return (
     <EditorStoreProvider store={editorStore}>
       <EditorKeybindings platform={platform}>
-        <ConnectedEditor library={library} {...rest} />
+        {host === undefined ? null : <HostCommands host={host} />}
+        <ConnectedEditor library={library} host={host} {...rest} />
       </EditorKeybindings>
     </EditorStoreProvider>
   );
@@ -203,6 +223,32 @@ function EditorKeybindings({
   );
 }
 
+/**
+ * The host's menu, wired to the registry: the bindings it should show, kept current, and each command
+ * it runs taken exactly where its key would go — except the menu's Undo and Redo in a text field,
+ * which are the field's own (`menuCommandRoute`).
+ */
+function HostCommands({ host }: { readonly host: EditorHost }): null {
+  const { keymap, run } = useCommandRunner();
+
+  useEffect(() => {
+    host.setMenuBindings(menuBindings(keymap));
+  }, [host, keymap]);
+
+  useEffect(
+    () =>
+      host.onCommand((id) => {
+        const route = menuCommandRoute(id, document.activeElement);
+        if (route === null) return;
+        if (route.kind === 'native') host.nativeEdit(route.edit);
+        else run(route.id);
+      }),
+    [host, run],
+  );
+
+  return null;
+}
+
 /** The editor inside its store: the connection, which source the preview reads, and the sheets. */
 function ConnectedEditor({
   library,
@@ -210,6 +256,7 @@ function ConnectedEditor({
   topics,
   transport,
   relay,
+  host,
 }: Omit<EditorProps, 'store' | 'storage' | 'initialLayout' | 'platform'>): ReactNode {
   const connection = useConnection(relay);
   const live = relay !== undefined && connection.state.phase === 'connected';
@@ -277,6 +324,7 @@ function ConnectedEditor({
         transport={transport}
         connection={connection}
         live={live}
+        host={host}
       />
     </SensorProvider>
   );
@@ -296,6 +344,7 @@ function EditorShell({
   transport,
   connection,
   live,
+  host,
 }: Omit<EditorProps, 'source' | 'relay' | 'storage' | 'store' | 'initialLayout' | 'platform'> & {
   readonly connection: Connection;
   readonly live: boolean;
@@ -319,6 +368,7 @@ function EditorShell({
   const openLayout = useEditorStore((state) => state.openLayout);
   const editDraft = useEditorStore((state) => state.editDraft);
   const markSaved = useEditorStore((state) => state.markSaved);
+  const markSavedAs = useEditorStore((state) => state.markSavedAs);
   const undo = useEditorStore((state) => state.undo);
   const redo = useEditorStore((state) => state.redo);
   const canUndo = useEditorStore((state) => state.session.history.past.length > 0);
@@ -326,10 +376,26 @@ function EditorShell({
   const gesture = useEditGesture();
   /** Whether the selection header's delete is asking. Any change of selection withdraws the ask. */
   const [deleteAsked, setDeleteAsked] = useState(false);
-  /** A switch waiting on the author's decision about unsaved edits. `null` when there is none. */
-  const [pendingName, setPendingName] = useState<string | null>(null);
+  /**
+   * An open — a switch in the picker, New or Open — waiting on the author's decision about unsaved
+   * edits: what it opens, and how. `null` when there is none.
+   */
+  const [pending, setPending] = useState<{
+    readonly label: string;
+    readonly run: () => void;
+  } | null>(null);
   const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
+  /** The name of the open document when it is New's, in memory only: its Save is a Save As. */
+  const [untitled, setUntitled] = useState<string | null>(null);
+
+  const name = opened.ok ? opened.state.name : opened.name;
+  const dirty = opened.ok && isDirty(opened.state);
+  /** Read by work that finishes later, a dialog's answer, so it sees the draft as it is then. */
+  const dirtyNow = useRef(dirty);
+  useEffect(() => {
+    dirtyNow.current = dirty;
+  });
 
   const select = useCallback(
     (index: number) => {
@@ -339,16 +405,31 @@ function EditorShell({
     [selectInStore],
   );
 
-  /** Open `name`. `remember`: it was picked in the header, so it is the layout to reopen next time. */
-  const open = useCallback(
-    (name: string, remember: boolean) => {
-      openLayout(openLayoutByName(library, name), { remember });
+  /** Show `document`. `remember`: it was picked, so it is the layout to reopen next time. */
+  const show = useCallback(
+    (document: Opened, remember: boolean, isUntitled = false) => {
+      openLayout(document, { remember });
+      setUntitled(isUntitled ? (document.ok ? document.state.name : document.name) : null);
       setDeleteAsked(false);
-      setPendingName(null);
+      setPending(null);
       setNotice('');
     },
-    [library, openLayout],
+    [openLayout],
   );
+
+  /** Open `name` from the library. */
+  const open = useCallback(
+    (layoutName: string, remember: boolean) => {
+      show(openLayoutByName(library, layoutName), remember);
+    },
+    [library, show],
+  );
+
+  /** Run an open now, or park it behind the bar while the draft has unsaved edits. */
+  const guard = useCallback((label: string, run: () => void) => {
+    if (dirtyNow.current) setPending({ label, run });
+    else run();
+  }, []);
 
   const onEdit = useCallback(
     (update: LayoutUpdate) => {
@@ -423,47 +504,152 @@ function EditorShell({
   );
 
   const onPick = useCallback(
-    (name: string) => {
-      const dirty = opened.ok && isDirty(opened.state);
-      if (dirty) {
-        setPendingName(name);
-        return;
-      }
-      open(name, true);
+    (picked: string) => {
+      guard(picked, () => {
+        open(picked, true);
+      });
     },
-    [opened, open],
+    [guard, open],
   );
 
-  const onSave = useCallback(() => {
-    if (!opened.ok || saving) return;
+  /**
+   * Write `state` through the transport. `where` is what the notices call the file; `mark` records
+   * the written document in the store. Resolves whether it was written.
+   */
+  const write = useCallback(
+    (
+      state: DraftState,
+      where: string | undefined,
+      mark: (written: DraftState['saved']) => void,
+    ) => {
+      setSaving(true);
+      setNotice(`writing ${where ?? `layouts/${state.name}.json`}…`);
 
+      return saveDraft(state, transport)
+        .then((outcome) => {
+          setSaving(false);
+          if (!outcome.ok) {
+            setNotice(outcome.reason);
+            return false;
+          }
+          setNotice(`saved ${where ?? outcome.path}`);
+          // Recorded against the store's current state rather than the captured one: the author may
+          // have typed during the write, and marking *that* document as on-disk would report a clean
+          // tree over unsaved edits. Only the document actually written is recorded as saved.
+          mark(outcome.written);
+          return true;
+        })
+        .catch((error: unknown) => {
+          setSaving(false);
+          setNotice(
+            `the save request failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return false;
+        });
+    },
+    [transport],
+  );
+
+  /** Save As: refuse an invalid draft before any dialog, then ask the host where, then write. */
+  const onSaveAs = useCallback((): Promise<boolean> => {
+    if (!opened.ok || saving || host === undefined) return Promise.resolve(false);
     const state = opened.state;
-    setSaving(true);
-    setNotice(`writing layouts/${state.name}.json…`);
-
-    saveDraft(state, transport)
-      .then((outcome) => {
-        setSaving(false);
-        if (!outcome.ok) {
-          setNotice(outcome.reason);
-          return;
-        }
-        setNotice(`saved ${outcome.path}`);
-        // Recorded against the store's current state rather than the captured one: the author may have
-        // typed during the write, and marking *that* document as on-disk would report a clean tree
-        // over unsaved edits. Only the document actually written is recorded as saved.
-        markSaved(state.name, outcome.written);
-      })
-      .catch((error: unknown) => {
-        setSaving(false);
-        setNotice(
-          `the save request failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
+    if (state.issues.length > 0) {
+      // `saveDraft`'s own refusal, so the words are the same as a Save's; it makes no request.
+      return saveDraft(state, transport).then((outcome) => {
+        if (!outcome.ok) setNotice(outcome.reason);
+        return false;
       });
-  }, [opened, saving, transport, markSaved]);
+    }
 
-  const name = opened.ok ? opened.state.name : opened.name;
-  const dirty = opened.ok && isDirty(opened.state);
+    return host.saveAs(state.name).then(
+      (target) => {
+        if (target === null) return false;
+        return write({ ...state, name: target.name }, target.path, (written) => {
+          markSavedAs(state.name, target.name, written);
+          setUntitled((current) => (current === state.name ? null : current));
+        });
+      },
+      (error: unknown) => {
+        setNotice(`save as failed: ${error instanceof Error ? error.message : String(error)}`);
+        return false;
+      },
+    );
+  }, [opened, saving, host, transport, write, markSavedAs]);
+
+  /** Save: a Save As for New's document; nothing to do for a clean one; else write it back. */
+  const onSave = useCallback((): Promise<boolean> => {
+    if (!opened.ok || saving) return Promise.resolve(false);
+    const state = opened.state;
+    if (untitled === state.name) return onSaveAs();
+    if (state.issues.length === 0 && !isDirty(state)) return Promise.resolve(true);
+
+    return write(state, library.entry(state.name)?.path, (written) => {
+      markSaved(state.name, written);
+    });
+  }, [opened, saving, untitled, onSaveAs, write, library, markSaved]);
+
+  /** New: an empty canvas the size of this one, untitled, in memory until its first save. */
+  const onNew = useCallback(() => {
+    const fresh = untitledName([...library.names, name]);
+    const blank = blankLayoutLike(opened.ok ? opened.state.rendered : undefined);
+    guard(fresh, () => {
+      show(openNewLayout(fresh, blank), false, true);
+    });
+  }, [library.names, name, opened, guard, show]);
+
+  /** Open: the host's dialog, then that document. */
+  const onOpen = useCallback(() => {
+    host?.open().then(
+      (entry) => {
+        if (entry === null) return;
+        guard(entry.name, () => {
+          show(openLayoutEntry(entry), true);
+        });
+      },
+      (error: unknown) => {
+        setNotice(`open failed: ${error instanceof Error ? error.message : String(error)}`);
+      },
+    );
+  }, [host, guard, show]);
+
+  const hosted = host !== undefined;
+  useCommand('document.save', () => {
+    void onSave();
+  });
+  useCommand('document.saveAs', () => void onSaveAs(), { enabled: hosted });
+  useCommand('document.new', onNew, { enabled: hosted });
+  useCommand('document.open', onOpen, { enabled: hosted });
+
+  // The host marks its window and asks before closing from this.
+  useEffect(() => {
+    host?.setDocumentState({ name, dirty });
+  }, [host, name, dirty]);
+
+  // A close with unsaved changes, answered Save: this document is saved, and the host told whether.
+  const saveNow = useRef(onSave);
+  useEffect(() => {
+    saveNow.current = onSave;
+  });
+  useEffect(
+    () =>
+      host?.onSaveRequest((id) => {
+        saveNow.current().then(
+          (saved) => {
+            host.saveDone(id, saved);
+          },
+          () => {
+            host.saveDone(id, false);
+          },
+        );
+      }),
+    [host],
+  );
+
+  const resolveAsset = useCallback(
+    (src: string) => library.resolveAsset(src, name),
+    [library, name],
+  );
 
   /** The picker's options: every offered layout, plus the open one if it is not offered. */
   const choices = useMemo(
@@ -551,7 +737,7 @@ function EditorShell({
         <button
           type="button"
           className="perch-editor-button"
-          disabled={!opened.ok || !dirty}
+          disabled={!opened.ok || !dirty || untitled === name}
           onClick={() => {
             open(name, false);
           }}
@@ -564,7 +750,9 @@ function EditorShell({
           className="perch-editor-button perch-editor-button--save"
           data-testid="perch-editor-save"
           disabled={!opened.ok || saving || !canSave(opened.state)}
-          onClick={onSave}
+          onClick={() => {
+            void onSave();
+          }}
         >
           save
         </button>
@@ -581,23 +769,17 @@ function EditorShell({
         </p>
       ) : null}
 
-      {pendingName === null ? null : (
+      {pending === null ? null : (
         <p className="perch-editor-bar perch-editor-bar--warn" data-testid="perch-editor-pending">
-          {`"${name}" has unsaved changes. switching to "${pendingName}" discards them, and undo cannot bring them back.`}
-          <button
-            type="button"
-            className="perch-editor-button"
-            onClick={() => {
-              open(pendingName, true);
-            }}
-          >
-            {`discard and open ${pendingName}`}
+          {`"${name}" has unsaved changes. switching to "${pending.label}" discards them, and undo cannot bring them back.`}
+          <button type="button" className="perch-editor-button" onClick={pending.run}>
+            {`discard and open ${pending.label}`}
           </button>
           <button
             type="button"
             className="perch-editor-button"
             onClick={() => {
-              setPendingName(null);
+              setPending(null);
             }}
           >
             keep editing
@@ -616,7 +798,7 @@ function EditorShell({
           {opened.ok ? (
             <LayoutPreview
               layout={opened.state.rendered}
-              resolveAsset={library.resolveAsset}
+              resolveAsset={resolveAsset}
               viewport={viewport}
               stale={opened.state.issues.length > 0}
               selected={selected}

@@ -312,3 +312,61 @@ describe('Redux DevTools', () => {
     );
   });
 });
+
+describe('the desktop runner', () => {
+  it("adopts the relay's host as the connection in effect, and remembers it", () => {
+    const storage = memoryStorage();
+    const store = createEditorStore({ storage, devtools: false });
+
+    store.getState().adoptConnection({ kind: 'remote', host: '192.168.1.3', port: 8086 });
+
+    expect(store.getState().settings.connection).toEqual({
+      mode: 'remote',
+      choice: { kind: 'remote', host: '192.168.1.3', port: 8086 },
+      draft: '192.168.1.3:8086',
+    });
+    expect(
+      createEditorStore({ storage, devtools: false }).getState().settings.connection.mode,
+    ).toBe('remote');
+
+    store.getState().adoptConnection({ kind: 'localhost' });
+    // Localhost keeps what was typed, as picking the radio does.
+    expect(store.getState().settings.connection).toEqual({
+      mode: 'localhost',
+      choice: { kind: 'localhost' },
+      draft: '192.168.1.3:8086',
+    });
+  });
+
+  it('records a Save As under the new name, clean, keeping the history', () => {
+    const store = createEditorStore({ devtools: false });
+    store.getState().openFirst(testLibrary(), 'desk-test');
+    store.getState().editDraft(setElementRect(0, { x: 1, y: 1, w: 20, h: 20 }));
+    const opened = store.getState().session.opened;
+    if (opened?.ok !== true) throw new Error('not open');
+
+    store.getState().markSavedAs('desk-test', 'desk-copy', opened.state.rendered);
+
+    const after = store.getState().session;
+    if (after.opened?.ok !== true) throw new Error('not open');
+    expect(after.opened.state.name).toBe('desk-copy');
+    expect(after.opened.state.saved).toEqual(opened.state.rendered);
+    expect(after.history.past).toHaveLength(1);
+    // An undo keeps the new name: a step holds the draft, never which file it is.
+    store.getState().undo();
+    const undone = store.getState().session.opened;
+    expect(undone?.ok === true ? undone.state.name : undefined).toBe('desk-copy');
+  });
+
+  it('ignores a Save As for a document no longer open', () => {
+    const store = createEditorStore({ devtools: false });
+    store.getState().openFirst(testLibrary(), 'desk-test');
+    const opened = store.getState().session.opened;
+    if (opened?.ok !== true) throw new Error('not open');
+
+    store.getState().markSavedAs('tower-test', 'tower-copy', opened.state.rendered);
+
+    const after = store.getState().session.opened;
+    expect(after?.ok === true ? after.state.name : undefined).toBe('desk-test');
+  });
+});

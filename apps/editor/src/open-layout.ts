@@ -4,11 +4,16 @@
  * without importing each other.
  */
 
-import { loadLayoutJson, type LayoutIssue, type LoadLayoutOptions } from '@perch/layout-schema';
+import {
+  loadLayoutJson,
+  type Layout,
+  type LayoutIssue,
+  type LoadLayoutOptions,
+} from '@perch/layout-schema';
 import { normalizeSensorTopic } from '@perch/sensor-contract';
 import { WIDGET_REGISTRY } from '@perch/ui-kit';
 import { openDraft, type DraftState } from './draft.js';
-import type { LayoutLibrary } from './layout-library.js';
+import type { LayoutLibrary, LayoutLibraryEntry } from './layout-library.js';
 
 /**
  * What every layout opened here is validated against.
@@ -63,16 +68,30 @@ export function openLayoutByName(library: LayoutLibrary, name: string): Opened {
     };
   }
 
+  return openLayoutEntry(entry);
+}
+
+/**
+ * Open one document's text: the loader and options of `openLayoutByName`, for a document that came
+ * from somewhere other than the library's own listing (the desktop app's Open dialog).
+ */
+export function openLayoutEntry(entry: Pick<LayoutLibraryEntry, 'name' | 'text' | 'path'>): Opened {
+  const { name } = entry;
   const loaded = loadLayoutJson(entry.text, LOAD_OPTIONS);
 
   if (!loaded.ok) {
     return {
       ok: false,
       name,
-      reason: `layouts/${name}.json is not a valid layout, so there is nothing to edit yet`,
+      reason: `${entry.path ?? `layouts/${name}.json`} is not a valid layout, so there is nothing to edit yet`,
       issues: loaded.issues,
     };
   }
 
   return { ok: true, state: openDraft(name, loaded.layout, LOAD_OPTIONS, loaded.migrations) };
+}
+
+/** A document that exists only here so far, New's: validated under the same options as any other. */
+export function openNewLayout(name: string, layout: Layout): Opened {
+  return { ok: true, state: openDraft(name, layout, LOAD_OPTIONS) };
 }

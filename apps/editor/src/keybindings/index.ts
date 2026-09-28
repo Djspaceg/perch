@@ -43,6 +43,7 @@ export { isTextEntry, ownsKey } from './local-keys.js';
 export {
   KeybindingsProvider,
   useCommand,
+  useCommandRunner,
   useKeybinding,
   type ShownKeybinding,
 } from './provider.js';
