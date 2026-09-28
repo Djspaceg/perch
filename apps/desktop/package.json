@@ -1,0 +1,14 @@
+{
+  "name": "@perch/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The desktop app: an Electron main process hosting the relay and the runtime page.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "dependencies": {
+    "@perch/agent": "0.0.0"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5"
+  }
+}
