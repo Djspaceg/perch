@@ -1,10 +1,9 @@
 /**
- * Which platform the editor is on, and how a shortcut is written for it: glyphs on a Mac, words
- * elsewhere, and the `aria-keyshortcuts` spelling, which is the same everywhere.
+ * Which platform the editor is on. How a shortcut is written for it is `keybindings/binding.test.ts`.
  */
 
 import { describe, expect, it } from 'vitest';
-import { ariaKeys, detectPlatform, formatKeys, shortcutHint, type KeyCombo } from './platform.js';
+import { detectPlatform } from './platform.js';
 
 describe('detectPlatform', () => {
   it('reads userAgentData first', () => {
@@ -36,55 +35,5 @@ describe('detectPlatform', () => {
     ).toBe('other');
     expect(detectPlatform({})).toBe('other');
     expect(detectPlatform(undefined)).toBe('other');
-  });
-});
-
-describe('formatKeys', () => {
-  const undo: KeyCombo = { key: 'z', meta: true };
-  const redo: KeyCombo = { key: 'z', meta: true, shift: true };
-
-  it('writes a Mac shortcut in glyphs, in the order the menus use', () => {
-    expect(formatKeys(undo, 'mac')).toBe('⌘Z');
-    expect(formatKeys(redo, 'mac')).toBe('⇧⌘Z');
-    expect(formatKeys({ key: 'z', ctrl: true, alt: true, shift: true, meta: true }, 'mac')).toBe(
-      '⌃⌥⇧⌘Z',
-    );
-    expect(formatKeys({ key: 'Backspace' }, 'mac')).toBe('⌫');
-  });
-
-  it('writes any other shortcut in words joined by plus', () => {
-    expect(formatKeys({ key: 'z', ctrl: true }, 'other')).toBe('Ctrl+Z');
-    expect(formatKeys({ key: 'z', ctrl: true, shift: true }, 'other')).toBe('Ctrl+Shift+Z');
-    expect(formatKeys({ key: 'y', ctrl: true, alt: true }, 'other')).toBe('Ctrl+Alt+Y');
-    expect(formatKeys({ key: 'Backspace' }, 'other')).toBe('Backspace');
-  });
-});
-
-describe('ariaKeys', () => {
-  it('spells each combination the way aria-keyshortcuts does, space-separated', () => {
-    expect(ariaKeys([{ key: 'z', meta: true }])).toBe('Meta+Z');
-    expect(ariaKeys([{ key: 'z', meta: true, shift: true }])).toBe('Meta+Shift+Z');
-    expect(
-      ariaKeys([
-        { key: 'z', ctrl: true, shift: true },
-        { key: 'y', ctrl: true },
-      ]),
-    ).toBe('Control+Shift+Z Control+Y');
-  });
-});
-
-describe('shortcutHint', () => {
-  it('names the action with its first combination, and any others as alternatives', () => {
-    expect(shortcutHint('Undo', [{ key: 'z', meta: true }], 'mac')).toBe('Undo (⌘Z)');
-    expect(
-      shortcutHint(
-        'Redo',
-        [
-          { key: 'z', ctrl: true, shift: true },
-          { key: 'y', ctrl: true },
-        ],
-        'other',
-      ),
-    ).toBe('Redo (Ctrl+Shift+Z or Ctrl+Y)');
   });
 });

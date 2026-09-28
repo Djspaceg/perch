@@ -4882,3 +4882,33 @@ red-first.log (new tests failing first), build.log, typecheck.log, test.log, lin
 ## Residuals
 
 Not run in a browser: step boundaries and platform detection are checked in jsdom only.
+
+# Keybinding spec, registry and dispatcher - decisions
+
+Outcome: every editor shortcut is a typed command in `apps/editor/src/keybindings/`, dispatched by one window listener and shown from the same entry; the rules are `apps/editor/KEYBINDINGS.md`. Undo, redo, delete and deselect moved onto it with unchanged behaviour on both platforms. Overrides persist in `settings.keybindings`; no rebinding UI.
+
+## Decisions to evaluate
+
+D1 Binding strings `Mod+Shift+Z`; `Mod` = Meta on Mac, Control elsewhere; `Ctrl`/`Meta` literal; `Mod` never combined with either. Why: VS Code/tinykeys shape, one list serves both platforms. If overruled: per-platform strings only.
+D2 Match on `event.key`; `event.code` only for letters/digits when no ASCII character was typed (Cyrillic, Mac Option, dead keys). Why: AZERTY Ctrl-W must never read as Ctrl-Z. If overruled: always accept `code` (tinykeys), or never.
+D3 Precedence: innermost `keyScope` region first, then `global`; registry order within a scope; a command with no enabled handler passes the key on. Why: a scoped command must beat a global one inside its region. If overruled: registry order only.
+D4 Key ownership is per key: text entries own every key; Escape is also owned by any input, select, dialog or the delete confirm (escape.ts's rule, moved). A `defaultPrevented` key is never a shortcut. Commands opt in with `inFields`. Why: keeps undo working from a select or popover, exactly as before. If overruled: dialogs and selects own every key.
+D5 Overrides are one list per command for both platforms, `[]` unbinds, unknown ids kept in storage. `resolveKeymap` reports invalid, reserved (arrows, Home/End, PageUp/Down, Enter, Space, Tab with at most Shift), unknown and conflict (shared scope, `global` sharing every scope, with the winner). Why: a future rebinding UI needs problems as data. If overruled: per-platform overrides.
+D6 Delete stays always registered on the canvas (prevents default even with nothing selected); deselect is enabled only while something is selected. Why: identical to the listeners it replaced. If overruled: disable delete with no selection.
+D7 A test fails if the spec's command table and the registry differ. Why: the spec is normative. If overruled: drop the test.
+
+## Open questions
+
+none
+
+## Gate facts
+
+Nothing pushed, no review cut (GitHub repo, no CRUX; AutoSDE not run: it sends the diff off-host). No dependency; lockfile untouched. packages/*: none touched. Lanes: build.log, typecheck.log, test.log exit 0 from a clean checkout of the branch head; lint.log clean on apps/editor; red-first.log. Adversarial review rounds: 0 (standing rule 14, no code-review.md).
+
+## Evidence (under the worktree's .evidence/)
+
+red-first.log (new tests failing first), build.log, typecheck.log, test.log, lint.log.
+
+## Residuals
+
+Commit 707ea34 does not build alone (it deletes controls/escape.ts early); its follow-up does. Not run in a browser: dispatch is checked in jsdom only.

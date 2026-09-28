@@ -42,7 +42,6 @@ export { VectorField, type VectorComponent } from './vector-field.js';
 export { matchesQuery, queryWords } from './filter.js';
 export { usePopover, type Popover } from './popover.js';
 export { usePresence, type PresentRow } from './presence.js';
-export { escapeIsTaken } from './escape.js';
 export { stepFor } from './scrub.js';
 
 /** Every primitive's stylesheet, chrome variables first. One `<style>` in `app.tsx` mounts it. */

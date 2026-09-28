@@ -1,5 +1,5 @@
 /**
- * Where one undo step ends, and the keys that undo and redo.
+ * Where one undo step ends. The keys that undo and redo are commands in `keybindings/`.
  *
  * ## The gesture an edit belongs to
  *
@@ -22,64 +22,13 @@
  *   (`eventPhase` back to `NONE`), so no control has to pass it down. A canvas drag writes once, on
  *   release, after the press has ended, so it is one step this way too.
  * - **Outside any event** (a timer, a resolved promise) there is none, and the edit is its own step.
- *
- * ## The keys
- *
- * Each platform's own (`platform.ts`): on a Mac Cmd-Z undoes and Shift-Cmd-Z redoes; elsewhere
- * Ctrl-Z undoes and Ctrl-Shift-Z or Ctrl-Y redoes. The other platform's combinations do nothing, and
- * neither does any with a modifier more. Never from inside a text field, where the browser's own undo
- * of the typing is the one the author means. `HISTORY_SHORTCUTS` is also what the header's buttons
- * show, so what is accepted and what is shown cannot drift apart.
  */
 
 import { useCallback, useEffect, useRef } from 'react';
-import { matchesKeys, type KeyCombo, type Platform } from './platform.js';
-
-/** Input types that are pressed rather than typed into. */
-const PRESSED_INPUTS = new Set(['button', 'checkbox', 'radio', 'reset', 'submit', 'image', 'file']);
+import { isTextEntry } from './keybindings/local-keys.js';
 
 /** The events a discrete edit arrives in, one step each, however many edits one of them makes. */
 const DISCRETE_EVENTS = ['click', 'input', 'change', 'keydown', 'keyup', 'mousedown', 'mouseup'];
-
-/** Whether `target` is a field the author types into, with an undo of its own. */
-export function isTextEntry(target: EventTarget | null): boolean {
-  if (target instanceof HTMLTextAreaElement) return true;
-  if (target instanceof HTMLInputElement) return !PRESSED_INPUTS.has(target.type);
-
-  return target instanceof HTMLElement && target.isContentEditable;
-}
-
-/** The undo and redo keys on each platform, the first of each list being the one shown first. */
-export const HISTORY_SHORTCUTS: Readonly<
-  Record<Platform, { readonly undo: readonly KeyCombo[]; readonly redo: readonly KeyCombo[] }>
-> = {
-  mac: { undo: [{ key: 'z', meta: true }], redo: [{ key: 'z', meta: true, shift: true }] },
-  other: {
-    undo: [{ key: 'z', ctrl: true }],
-    redo: [
-      { key: 'z', ctrl: true, shift: true },
-      { key: 'y', ctrl: true },
-    ],
-  },
-};
-
-/** What a key press asks of the history on `platform`, if anything. */
-export function historyShortcut(
-  event: {
-    readonly key: string;
-    readonly metaKey: boolean;
-    readonly ctrlKey: boolean;
-    readonly shiftKey: boolean;
-    readonly altKey: boolean;
-  },
-  platform: Platform,
-): 'undo' | 'redo' | null {
-  const { undo, redo } = HISTORY_SHORTCUTS[platform];
-  if (undo.some((combo) => matchesKeys(event, combo))) return 'undo';
-  if (redo.some((combo) => matchesKeys(event, combo))) return 'redo';
-
-  return null;
-}
 
 /** Read the gesture key for an edit being made now. Listens for as long as the component is mounted. */
 export function useEditGesture(): () => string | undefined {

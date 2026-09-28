@@ -95,8 +95,6 @@ export interface LayoutPreviewProps {
   readonly onSelect: (index: number) => void;
   /** Commit a dragged or resized element's rect. Threaded to `editDraft`, so it is validated. */
   readonly onRect: (index: number, rect: Rect) => void;
-  /** Delete or Backspace pressed while the canvas itself has focus. */
-  readonly onDeleteKey: () => void;
 }
 
 /**
@@ -115,7 +113,6 @@ export function LayoutPreview({
   selected,
   onSelect,
   onRect,
-  onDeleteKey,
 }: LayoutPreviewProps): ReactNode {
   const fit = previewFit(layout.target, viewport);
 
@@ -128,17 +125,12 @@ export function LayoutPreview({
       data-perch-preview-stale={stale ? 'true' : 'false'}
       // Inline, from the same numbers the scale was derived from. See `preview-viewport.ts`.
       style={{ width: `${viewport.width}px`, height: `${viewport.height}px` }}
-      // Focusable, so a press on the canvas gives it focus and the Delete key has somewhere to land
-      // that is not a field. Only a key on the pane itself counts: nothing inside it is focusable.
+      // Focusable, so a press on the canvas gives it focus and the Delete key (`selection.delete`,
+      // scoped to the pane around this) has somewhere to land that is not a field. Nothing inside it
+      // is focusable, so a key on the canvas is a key on this.
       tabIndex={0}
       role="group"
       aria-label="canvas"
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return;
-        if (event.key !== 'Delete' && event.key !== 'Backspace') return;
-        event.preventDefault();
-        onDeleteKey();
-      }}
       // A click that lands on no handle — the letterbox, or canvas no element covers — deselects,
       // which is the convention every canvas editor follows. Every element has a handle over its whole
       // rect, so "not in a handle" is exactly "not on an entity". A drag ends in a click on its own

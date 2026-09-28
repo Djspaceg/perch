@@ -38,12 +38,20 @@ With the Redux DevTools extension installed, every change shows on its timeline 
 The header's **undo** and **redo**, or the platform's keys from anywhere but a text field (a field
 keeps the browser's own undo of its typing): Cmd-Z and Shift-Cmd-Z on a Mac, iPhone or iPad; Ctrl-Z,
 and Ctrl-Shift-Z or Ctrl-Y, elsewhere. Each platform accepts and shows only its own keys
-(`src/platform.ts`). Every change to the
+(see [Keys](#keys)). Every change to the
 layout is a step: a move or resize, any property, an add or delete, a topic, a theme token. Selection,
 folds, tabs and the connection are not. One drag, one scrub, or one field between focus and blur or
 Enter is one step (`src/edit-gestures.ts`). The history is in memory only, 200 steps deep, and cleared
 when a layout is opened, switched or reverted; a save keeps it, and undoing back to the saved document
 reads clean (`src/history.ts`).
+
+## Keys
+
+Every shortcut is a command in one registry (`src/keybindings/`), dispatched by one listener and
+shown on its button from the same entry, so what is accepted and what is shown cannot drift. The
+rules, the binding grammar (`Mod+Shift+Z`, where `Mod` is Command on a Mac and Control elsewhere)
+and the table of every command are [KEYBINDINGS.md](KEYBINDINGS.md). Overrides live in the settings
+under `keybindings`; there is no rebinding UI yet.
 
 ## Scope
 

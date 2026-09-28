@@ -43,18 +43,21 @@
  * `LayoutUpdate`s into `editDraft`, so each is validated exactly as a keystroke is. An addition is
  * selected at once; a deletion leaves nothing selected. A delete still asks first — the selection
  * header's inline confirm, which the Delete and Backspace keys open when the canvas has focus — and
- * undo brings it back. The key is read on the preview pane only, so typing in a field never deletes anything.
+ * undo brings it back.
  *
- * Escape deselects, from the canvas or the sidebar — but never from a field, a popover or a delete
- * confirm, where Escape already means "back out of this" and must mean only that
- * (`controls/escape.ts`). It listens on `window`, so every handler nearer the key — the popovers'
- * document-level one included — has had its turn and marked the event used before this looks.
+ * ## Keys
+ *
+ * Every shortcut is a command in `keybindings/` and reaches this shell through `useCommand`; the
+ * rules are KEYBINDINGS.md. The pane is the `canvas` scope and the sidebar the `sidebar` one: Delete
+ * and Backspace ask to delete only on the canvas, so typing in a field never deletes anything, and
+ * Escape deselects from either, but never from a field, a popover or a delete confirm, where Escape
+ * already means "back out of this" and must mean only that.
  *
  * ## Undo and redo
  *
  * Every change to the document is a step in the store's history (`store.ts`, `history.ts`): the
- * header's undo and redo, and the platform's keys (`edit-gestures.ts`, `platform.ts`) from anywhere
- * but a text field. Where one step ends — a drag, a field's commit, a scrub let go — is `edit-gestures.ts`.
+ * header's undo and redo, and the platform's keys from anywhere but a text field. Where one step
+ * ends — a drag, a field's commit, a scrub let go — is `edit-gestures.ts`.
  * Selection, folds, tabs and the connection are not steps.
  *
  * ## Switching with unsaved edits asks first
@@ -75,7 +78,7 @@ import {
   WIDGET_NAMES,
 } from '@perch/ui-kit';
 import type { LayoutElement, Rect } from '@perch/layout-schema';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { CANVAS_HANDLES_STYLES } from './canvas-handles.js';
 import {
   CONNECTION_STYLES,
@@ -84,15 +87,17 @@ import {
   type Connection,
   type RelayLink,
 } from './connection-control.js';
-import { CONTROLS_STYLES, escapeIsTaken } from './controls/index.js';
+import { CONTROLS_STYLES } from './controls/index.js';
 import { canSave, isDirty } from './draft.js';
+import { useEditGesture } from './edit-gestures.js';
 import {
-  HISTORY_SHORTCUTS,
-  historyShortcut,
-  isTextEntry,
-  useEditGesture,
-} from './edit-gestures.js';
-import { ariaKeys, currentPlatform, shortcutHint, type Platform } from './platform.js';
+  KeybindingsProvider,
+  keyScope,
+  useCommand,
+  useKeybinding,
+  type CommandId,
+} from './keybindings/index.js';
+import { currentPlatform, type Platform } from './platform.js';
 import { INSPECTOR_STYLES, Inspector } from './inspector.js';
 import type { LayoutLibrary } from './layout-library.js';
 import { addElement, removeElement, setElementRect, type LayoutUpdate } from './layout-edits.js';
@@ -159,6 +164,7 @@ export function Editor({
   storage,
   library,
   initialLayout,
+  platform = currentPlatform(),
   ...rest
 }: EditorProps): ReactNode {
   // Made once per mounted editor, and the first layout opened in it before anything renders, so the
@@ -173,8 +179,27 @@ export function Editor({
 
   return (
     <EditorStoreProvider store={editorStore}>
-      <ConnectedEditor library={library} {...rest} />
+      <EditorKeybindings platform={platform}>
+        <ConnectedEditor library={library} {...rest} />
+      </EditorKeybindings>
     </EditorStoreProvider>
+  );
+}
+
+/** The one keyboard dispatcher, over the store's keybinding overrides. */
+function EditorKeybindings({
+  platform,
+  children,
+}: {
+  readonly platform: Platform;
+  readonly children: ReactNode;
+}): ReactNode {
+  const overrides = useEditorStore((state) => state.settings.keybindings);
+
+  return (
+    <KeybindingsProvider platform={platform} overrides={overrides}>
+      {children}
+    </KeybindingsProvider>
   );
 }
 
@@ -185,8 +210,7 @@ function ConnectedEditor({
   topics,
   transport,
   relay,
-  platform = currentPlatform(),
-}: Omit<EditorProps, 'store' | 'storage' | 'initialLayout'>): ReactNode {
+}: Omit<EditorProps, 'store' | 'storage' | 'initialLayout' | 'platform'>): ReactNode {
   const connection = useConnection(relay);
   const live = relay !== undefined && connection.state.phase === 'connected';
 
@@ -253,7 +277,6 @@ function ConnectedEditor({
         transport={transport}
         connection={connection}
         live={live}
-        platform={platform}
       />
     </SensorProvider>
   );
@@ -273,11 +296,9 @@ function EditorShell({
   transport,
   connection,
   live,
-  platform,
 }: Omit<EditorProps, 'source' | 'relay' | 'storage' | 'store' | 'initialLayout' | 'platform'> & {
   readonly connection: Connection;
   readonly live: boolean;
-  readonly platform: Platform;
 }): ReactNode {
   const viewport = usePreviewViewport();
 
@@ -350,20 +371,12 @@ function EditorShell({
     [undo, redo],
   );
 
-  /** The keys, from anywhere on the page but a text field, which keeps the browser's own undo. */
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => {
-      const which = historyShortcut(event, platform);
-      if (which === null || isTextEntry(event.target)) return;
-      event.preventDefault();
-      onHistory(which);
-    };
-    window.addEventListener('keydown', onKey);
-
-    return () => {
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [onHistory, platform]);
+  useCommand('history.undo', () => {
+    onHistory('undo');
+  });
+  useCommand('history.redo', () => {
+    onHistory('redo');
+  });
 
   /** A dragged or resized element's rect, as one edit. The same `editDraft` path as the field form. */
   const onRect = useCallback(
@@ -393,38 +406,21 @@ function EditorShell({
     [onEdit, select],
   );
 
-  /** Delete or Backspace with the canvas focused: ask, through the header's own confirm. */
-  const onDeleteKey = useCallback(() => {
-    if (!opened.ok || opened.state.draft.elements[selected] === undefined) return;
-    setDeleteAsked(true);
-  }, [opened, selected]);
-
-  const paneRef = useRef<HTMLElement>(null);
-  const sideRef = useRef<HTMLElement>(null);
   const hasSelection = opened.ok && opened.state.draft.elements[selected] !== undefined;
 
-  /** Escape on the canvas or in the sidebar, when nothing nearer uses it: deselect. */
-  useEffect(() => {
-    if (!hasSelection) return undefined;
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-      const target = event.target;
-      if (!(target instanceof Element) || escapeIsTaken(target)) return;
-      if (
-        paneRef.current?.contains(target) !== true &&
-        sideRef.current?.contains(target) !== true
-      ) {
-        return;
-      }
-      event.preventDefault();
-      select(NOTHING_SELECTED);
-    };
-    window.addEventListener('keydown', onKey);
+  /** Delete or Backspace with the canvas focused: ask, through the header's own confirm. */
+  useCommand('selection.delete', () => {
+    if (hasSelection) setDeleteAsked(true);
+  });
 
-    return () => {
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [hasSelection, select]);
+  /** Escape on the canvas or in the sidebar, when nothing nearer uses it: deselect. */
+  useCommand(
+    'selection.clear',
+    () => {
+      select(NOTHING_SELECTED);
+    },
+    { enabled: hasSelection },
+  );
 
   const onPick = useCallback(
     (name: string) => {
@@ -532,31 +528,25 @@ function EditorShell({
           </span>
         ) : null}
 
-        <button
-          type="button"
-          className="perch-editor-button"
+        <CommandButton
+          command="history.undo"
           disabled={!canUndo}
-          aria-keyshortcuts={ariaKeys(HISTORY_SHORTCUTS[platform].undo)}
-          title={shortcutHint('Undo', HISTORY_SHORTCUTS[platform].undo, platform)}
           onClick={() => {
             onHistory('undo');
           }}
         >
           undo
-        </button>
+        </CommandButton>
 
-        <button
-          type="button"
-          className="perch-editor-button"
+        <CommandButton
+          command="history.redo"
           disabled={!canRedo}
-          aria-keyshortcuts={ariaKeys(HISTORY_SHORTCUTS[platform].redo)}
-          title={shortcutHint('Redo', HISTORY_SHORTCUTS[platform].redo, platform)}
           onClick={() => {
             onHistory('redo');
           }}
         >
           redo
-        </button>
+        </CommandButton>
 
         <button
           type="button"
@@ -622,7 +612,7 @@ function EditorShell({
       )}
 
       <div className="perch-editor-body">
-        <main className="perch-editor-pane" ref={paneRef}>
+        <main className="perch-editor-pane" {...keyScope('canvas')}>
           {opened.ok ? (
             <LayoutPreview
               layout={opened.state.rendered}
@@ -632,7 +622,6 @@ function EditorShell({
               selected={selected}
               onSelect={select}
               onRect={onRect}
-              onDeleteKey={onDeleteKey}
             />
           ) : (
             <p className="perch-editor-empty" data-testid="perch-editor-unopened">
@@ -641,7 +630,7 @@ function EditorShell({
           )}
         </main>
 
-        <aside className="perch-editor-side" ref={sideRef}>
+        <aside className="perch-editor-side" {...keyScope('sidebar')}>
           <LayoutProblems
             issues={opened.ok ? opened.state.issues : opened.issues}
             onSelectElement={select}
@@ -663,6 +652,34 @@ function EditorShell({
         </aside>
       </div>
     </div>
+  );
+}
+
+/** A header button for `command`, titled and `aria-keyshortcuts`-labelled with its keys. */
+function CommandButton({
+  command,
+  disabled,
+  onClick,
+  children,
+}: {
+  readonly command: CommandId;
+  readonly disabled: boolean;
+  readonly onClick: () => void;
+  readonly children: ReactNode;
+}): ReactNode {
+  const shown = useKeybinding(command);
+
+  return (
+    <button
+      type="button"
+      className="perch-editor-button"
+      disabled={disabled}
+      aria-keyshortcuts={shown.ariaKeyShortcuts}
+      title={shown.hint}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   );
 }
 
