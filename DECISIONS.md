@@ -4947,3 +4947,36 @@ red-first.log, red-first-port-shadow.log (tests failing first); build/test/typec
 ## Residuals
 
 Tray clicks not driven (no GUI automation): the menu is unit-tested, a live switch is untested. `npm run dev` not opened in a browser; its main.tsx branch is unchanged. A window hidden for hours not observed.
+
+# Desktop editor runner: the editor window over the runner - decisions
+
+Outcome: `npm run editor` launches the runner with an editor window over it, one process, one relay. New/Open/Save/Save As with native dialogs, a dirty mark, a close/quit prompt, a standard menu. Closing the editor leaves the runner up. `npm run dev` unchanged.
+
+## Decisions to evaluate
+
+D1 One process, a single-instance lock per userData; `--editor` hands off through `additionalData` (argv as fallback) and the running app opens or focuses the editor. Why: one relay, tray and settings file; Electron needs no second. If overruled: two processes and IPC between them.
+D2 The page never names a file: main gives each document a key (`desk`, `desk-2`) and writes only keys it gave out (folder, Open, Save As). Saves use `saveDraft` + `SaveTransport`; main checks like the Vite endpoint (JSON, 1 MB cap) and writes atomically. If overruled: pass paths to the page.
+D3 New is a blank canvas with the open document's target and theme, untitled in memory; its first Save is a Save As. Why: a starter is a document to delete from. If overruled: copy a seed layout.
+D4 Menu Undo/Redo are not roles: with the editor focused they go to the page, which does native undo in a text field and `history.undo` otherwise; other windows get native undo. Keys reach the page first; an accelerator fires only for a key the page did not take. If overruled: roles; Cmd-Z outside a field stops undoing edits.
+D5 Menu accelerators come from the editor's keymap (overrides included), sent at mount; defaults held equal to `commands.ts` by a test. No Reload item. If overruled: a hand-written accelerator table.
+D6 The four `document.*` commands run inside text fields (`inFields`). Mod+S saves in the browser too; New, Open, Save As have no handler there. If overruled: Mod+S types into a field.
+D7 The editor opens the runner's document first, and adopts the relay's current LHM host before its first request, so opening it never retargets the runner; a retarget is saved by the runner as before. If overruled: the editor's own last layout and host.
+D8 `npm run runner` now ends in `--` so flags reach Electron. Why: npm swallowed `--user-data-dir`. If overruled: env vars only.
+D9 The runner's document watch reads the file once more 250 ms after it starts. Why: macOS drops writes in the first moments of an FSEvents stream (base commit failed 2 in 6, red-first-watch.log). If overruled: a save right after a switch can be missed.
+
+## Open questions
+
+Q1 Should opening a document in the editor also switch the runner to it? Default: no; the tray picks the runner's document.
+Q2 A packaged macOS editor launcher goes through LaunchServices, which activates the running app, not a second process. Default: decide at packaging (open-url or `open -n`).
+
+## Gate facts
+
+Nothing pushed; no review cut (GitHub repo, no CRUX; AutoSDE not run: off-host). No dependency; lockfile untouched. packages/*: none touched. Lanes: build.log, test.log, typecheck.log exit 0 from a clean checkout of each commit; lint.log clean on changed files; red-first.log. Adversarial review rounds: 0 (no code-review.md, per the task's standing rule).
+
+## Evidence (under the worktree's .evidence/)
+
+red-first(-watch).log; build/test/typecheck/lint logs; editor-launch.log (editor opened, Mod+S save re-rendered the runner, handoff, retarget saved, editor closed with the runner up, quit); editor-drive.log; editor-second-launch.log; runner-launch.log.
+
+## Residuals
+
+Key presses and menu clicks not driven (no GUI automation): key order and the close prompt are unit-level only. One runner-only test launch ran about 50 s against the real userData (npm swallowed `--user-data-dir`): it rewrote perch-desktop.json with the values it read and wrote Chromium caches; ~/Documents/perch untouched. Outside clients reached both launches: a 192.168.1.3 retarget and two editor reopens in the first; in the runner-only one, which found 1883/9001 free and took them, a client with no editor window retargeted it, so a test launch on default ports can take the human's clients.
