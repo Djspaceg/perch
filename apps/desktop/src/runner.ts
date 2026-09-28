@@ -1,7 +1,7 @@
 /**
  * THE RUNNER: the relay, one layout document, the window that renders it, and the tray that picks
- * it. Runs without the editor; the editor, when it arrives, is a second window beside this one and
- * talks to the same relay through its control topics.
+ * it. Runs without the editor; the editor (`editor.ts`) is a second window beside this one, reads
+ * the same folder, and talks to the same relay through its control topics.
  *
  * ```text
  * settings (userData)  ->  which document, which LHM host
@@ -29,6 +29,7 @@ import {
   type IpcMainInvokeEvent,
 } from 'electron';
 import { isRuntimePage } from './app-protocol.js';
+import { dockVisible } from './editor-close.js';
 import { readLayoutDocument, watchDocument, type DocumentPayload } from './document.js';
 import {
   listLayoutDocuments,
@@ -36,6 +37,7 @@ import {
   type LayoutDocument,
 } from './layouts-folder.js';
 import { layoutsFolder, runtimePreloadPath, seedLayoutsFolder } from './paths.js';
+import { relayTarget, type RelayTarget } from './lhm-sync.js';
 import { desktopRelayConfig, startDesktopRelay } from './relay-host.js';
 import { chooseDocument } from './resume.js';
 import { RUNNER_DOCUMENT_CHANNEL, RUNNER_LOAD_CHANNEL } from './runner-channels.js';
@@ -51,6 +53,10 @@ export interface RunnerOptions {
   readonly documentsPath: string;
   readonly userDataPath: string;
   readonly log: (line: string) => void;
+  /** Whether the editor window is open, for the dock icon. */
+  readonly editorOpen: () => boolean;
+  /** The tray's "Open editor". */
+  readonly openEditor: () => void;
 }
 
 export interface Runner {
@@ -58,6 +64,20 @@ export interface Runner {
   readonly brokerUrl: string;
   /** The open document's folder, which `app://document/` serves, or `null`. */
   documentFolder(): string | null;
+  /** The layouts folder. */
+  readonly folder: string;
+  /** The open document's path, or `null`. */
+  currentDocument(): string | null;
+  /** What the relay is polling now. */
+  relayTarget(): RelayTarget;
+  /** Called, debounced, whenever the layouts folder changes. Returns an unsubscribe. */
+  onFolderChange(listener: () => void): () => void;
+  /** Whether the runner's window is showing. */
+  windowVisible(): boolean;
+  /** Called once a quit is going ahead: from now on, closing the window closes it. */
+  prepareQuit(): void;
+  /** Show or hide the dock icon for the windows showing now. */
+  updateDock(): void;
   /** Create the window and the tray. Call once `app://` is being served. */
   open(): void;
   show(): void;
@@ -163,11 +183,14 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
 
   await openDocument(choice.document, false);
 
-  // The tray's list follows the folder: an editor's "save as" appears without a relaunch.
+  // The tray's list follows the folder: an editor's "save as" appears without a relaunch. So does
+  // the editor's picker, which is told through `onFolderChange`.
   let folderTimer: NodeJS.Timeout | undefined;
+  const folderListeners = new Set<() => void>();
   const folderWatcher = watchFolder(folder, () => {
     if (folderTimer !== undefined) clearTimeout(folderTimer);
     folderTimer = setTimeout(() => {
+      for (const listener of folderListeners) listener();
       listLayoutDocuments(folder).then(
         (listed) => {
           documents = listed;
@@ -214,6 +237,9 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
               log(`document: could not open ${document.path}: ${describe(error)}`);
             });
           },
+          openEditor: () => {
+            options.openEditor();
+          },
           openFolder: () => {
             shell.openPath(folder).then(
               (problem) => {
@@ -256,18 +282,40 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
 
   function hideWindow(): void {
     window?.hide();
-    app.dock?.hide();
+    updateDock();
     refreshTray();
   }
 
+  function updateDock(): void {
+    const visible = dockVisible({
+      runnerVisible: window?.isVisible() ?? false,
+      editorOpen: options.editorOpen(),
+    });
+    if (visible) app.dock?.show().catch(() => undefined);
+    else app.dock?.hide();
+  }
+
+  // Set by `prepareQuit`, which `main.ts` calls once a quit is going ahead: a quit the editor's
+  // unsaved-changes prompt calls off must leave this window hiding on close, as before.
   let quitting = false;
-  app.on('before-quit', () => {
-    quitting = true;
-  });
 
   return {
     brokerUrl,
+    folder,
     documentFolder: () => (current === null ? null : join(current.path, '..')),
+    currentDocument: () => current?.path ?? null,
+    relayTarget: () => relayTarget(service),
+    onFolderChange: (listener) => {
+      folderListeners.add(listener);
+      return () => {
+        folderListeners.delete(listener);
+      };
+    },
+    windowVisible: () => window?.isVisible() ?? false,
+    prepareQuit: () => {
+      quitting = true;
+    },
+    updateDock,
     open: () => {
       const bitmapColour =
         process.platform === 'darwin' ? { r: 0, g: 0, b: 0 } : { r: 154, g: 164, b: 178 };

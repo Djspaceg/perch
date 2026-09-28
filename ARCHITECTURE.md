@@ -94,7 +94,7 @@ perch/
     editor/SPEC.md                authors a layout
     agent/SPEC.md                 reads sensors, publishes MQTT
     caster/SPEC.md                puts a bundle on a capturable surface
-    desktop/README.md             the desktop app: relay + runtime page in one Electron process
+    desktop/README.md             the desktop app: relay, runtime page and editor in one Electron process
   layouts/README.md               your actual dashboards (content, not code)
 ```
 
@@ -120,7 +120,7 @@ leaves" rule structural instead of a convention someone has to remember.
 | `editor` | core | drag-and-drop authoring; writes a layout definition | `ui-kit`, `sensor-sources`, both contracts |
 | `agent` | input adapter | reads a sensor source, publishes to MQTT | `sensor-contract` |
 | `caster` | output adapter | runs a bundle at target resolution on a capturable surface | — (consumes runtime's built artifact) |
-| `desktop` | host | the Electron app: the runner (relay in-process, runtime page rendering a layout document from disk, tray); the editor window is next | `agent` (as a library), runtime's built page (artifact) |
+| `desktop` | host | the Electron app: the runner (relay in-process, runtime page rendering a layout document from disk, tray) and the editor window over it (the editor's built page, its documents written by the main process) | `agent` (as a library), runtime's and editor's built pages (artifacts) |
 
 Dependency rules:
 
@@ -142,8 +142,9 @@ Dependency rules:
   them, and they never import each other. The one exception is `desktop`, a host
   rather than a product of its own: it imports `agent` through its library
   export (`startRelayService`) to run the relay in its main process, and loads
-  `runtime`'s **built page**, an artifact boundary like `caster`'s. Nothing
-  imports `desktop`.
+  `runtime`'s and `editor`'s **built pages**, artifact boundaries like `caster`'s.
+  One test in `desktop` reads the editor's keybinding table, to hold the menu's
+  accelerators to it; no source imports it. Nothing imports `desktop`.
 - `caster` depends on runtime's **built output**, not its source. Artifact
   boundary, not a code boundary — which is what keeps a browser engine out of a
   browser bundle.
@@ -223,8 +224,9 @@ business importing layout code.
 
 `ASSUMPTION:` The editor ships first as a plain web app. A native desktop
 wrapper is additive and leaks into neither the layout format nor `ui-kit`.
-(Held by `apps/desktop`'s runner: neither was touched. The page learns it is
-hosted only through a preload bridge that `runtime/src/desktop-host.ts` reads.)
+(Held by `apps/desktop`: neither was touched. Each page learns it is hosted only
+through a preload bridge that its own `desktop-host.ts` reads, and the editor's
+file dialogs, menu and close prompt reach it through one `EditorHost` seam.)
 
 `ASSUMPTION:` Layouts *reference* background media by path; the bundle build
 copies assets in. Media is never embedded in the layout file.

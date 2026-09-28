@@ -20,6 +20,7 @@ function recording(): { actions: TrayActions; calls: unknown[][] } {
     actions: {
       open: (document) => calls.push(['open', document.name]),
       openFolder: () => calls.push(['openFolder']),
+      openEditor: () => calls.push(['openEditor']),
       toggleWindow: () => calls.push(['toggleWindow']),
       setStartAtLogin: (enabled) => calls.push(['setStartAtLogin', enabled]),
       quit: () => calls.push(['quit']),
@@ -56,6 +57,7 @@ describe('trayMenuTemplate', () => {
       'desk',
       'tower',
       'Open layouts folder',
+      'Open editor',
       'Hide window',
       'Start at login',
       'Quit perch',
@@ -87,6 +89,7 @@ describe('trayMenuTemplate', () => {
 
     click(item(template, 'desk'));
     click(item(template, 'Open layouts folder'));
+    click(item(template, 'Open editor'));
     click(item(template, 'Hide window'));
     click(item(template, 'Start at login'), true);
     click(item(template, 'Quit perch'));
@@ -94,6 +97,7 @@ describe('trayMenuTemplate', () => {
     expect(calls).toEqual([
       ['open', 'desk'],
       ['openFolder'],
+      ['openEditor'],
       ['toggleWindow'],
       ['setStartAtLogin', true],
       ['quit'],

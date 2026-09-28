@@ -1,23 +1,37 @@
 /**
- * The Electron main process: the app-wide rules, then the runner.
+ * The Electron main process: the app-wide rules, then the runner, then the editor if asked for.
  *
- * What belongs here is what every window this app will ever have shares — the `app://` scheme, the
- * navigation lock, the permission policy, single-instance and quit handling. What one window does
- * belongs to that window's module: `runner.ts` today, and an editor module beside it next, which
- * adds a host to `app-protocol.ts` and a preload of its own and changes nothing here but a call.
+ * What belongs here is what every window this app has shares — the `app://` scheme, the navigation
+ * lock, the permission policy, the application menu, single-instance and quit handling. What one
+ * window does belongs to that window's module: `runner.ts` and `editor.ts`.
+ *
+ * One process, one lock per userData (`launch.ts`): `electron . --editor` while a runner is up hands
+ * off to it, which opens or focuses the editor; with nothing running it starts the runner and opens
+ * the editor over it.
  *
  * The one file in this app that imports `electron` at the top level and has side effects on load.
  */
 
 import { pathToFileURL } from 'node:url';
-import { app, net, protocol, session } from 'electron';
+import { BrowserWindow, Menu, app, net, protocol, session } from 'electron';
+import { appMenuTemplate, historyMenuTarget, type MenuCommandId } from './app-menu.js';
 import {
   APP_SCHEME,
   contentSecurityPolicy,
-  isRuntimePage,
+  editorContentSecurityPolicy,
+  isAppPage,
   resolveAppRequest,
 } from './app-protocol.js';
-import { runtimePageFolder, userDataOverride } from './paths.js';
+import { createEditor, type Editor } from './editor.js';
+import {
+  handoffData,
+  handoffIntent,
+  launchIntent,
+  launchPlan,
+  secondInstanceAction,
+  type LaunchIntent,
+} from './launch.js';
+import { editorPageFolder, runtimePageFolder, userDataOverride } from './paths.js';
 import { startRunner, type Runner } from './runner.js';
 
 const log = (line: string): void => {
@@ -25,7 +39,7 @@ const log = (line: string): void => {
 };
 
 // Before `ready`, and before anything reads `userData`: a test launch must never touch the real one.
-const userData = userDataOverride(process.env);
+const userData = userDataOverride(process.env, process.argv);
 if (userData !== null) app.setPath('userData', userData);
 
 // A privileged standard scheme, so the page has a real origin: module scripts load, `fetch` works,
@@ -34,17 +48,18 @@ protocol.registerSchemesAsPrivileged([
   { scheme: APP_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
-// Every web contents the app creates, present and future: it may be at its own page and nowhere
-// else, may open no windows, and may attach no webviews.
+// Every web contents the app creates, present and future: it may be at one of the app's two pages
+// and nowhere else, may open no windows, and may attach no webviews. Each window's IPC answers only
+// its own page (`runner.ts`, `editor.ts`).
 app.on('web-contents-created', (_event, contents) => {
   contents.on('will-navigate', (event, url) => {
-    if (!isRuntimePage(url)) {
+    if (!isAppPage(url)) {
       event.preventDefault();
       log(`refused navigation to ${url}`);
     }
   });
   contents.on('will-redirect', (event, url) => {
-    if (!isRuntimePage(url)) event.preventDefault();
+    if (!isAppPage(url)) event.preventDefault();
   });
   contents.on('will-attach-webview', (event) => {
     event.preventDefault();
@@ -55,7 +70,7 @@ app.on('web-contents-created', (_event, contents) => {
   });
 });
 
-// The runner needs no camera, microphone, notification or anything else a page can ask for.
+// Neither page needs a camera, microphone, notification or anything else a page can ask for.
 function denyPermissions(): void {
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => {
     callback(false);
@@ -63,10 +78,12 @@ function denyPermissions(): void {
   session.defaultSession.setPermissionCheckHandler(() => false);
 }
 
-async function serveApp(request: Request, runner: Runner): Promise<Response> {
+async function serveApp(request: Request, runner: Runner, editor: Editor): Promise<Response> {
   const path = resolveAppRequest(request.url, {
     runtime: runtimePageFolder(process.env),
     document: runner.documentFolder(),
+    editor: editorPageFolder(process.env),
+    editorDocument: (key) => editor.documentFolder(key),
   });
   if (path === null) return new Response('not found', { status: 404 });
 
@@ -79,26 +96,113 @@ async function serveApp(request: Request, runner: Runner): Promise<Response> {
   if (!path.endsWith('.html')) return response;
 
   const headers = new Headers(response.headers);
-  headers.set('Content-Security-Policy', contentSecurityPolicy(runner.brokerUrl));
+  const editorPage = new URL(request.url).host === 'editor';
+  headers.set(
+    'Content-Security-Policy',
+    editorPage
+      ? editorContentSecurityPolicy(runner.brokerUrl)
+      : contentSecurityPolicy(runner.brokerUrl),
+  );
   return new Response(response.body, { status: response.status, headers });
 }
 
 let runner: Runner | null = null;
+let editor: Editor | null = null;
 let stopped = false;
+/** Set once the editor's unsaved-changes prompt, if any, has let a quit go ahead. */
+let quitConfirmed = false;
 
-if (!app.requestSingleInstanceLock()) {
-  // Another runner already has this userData; it shows its window (below) and this one leaves.
+const intent = launchIntent(process.argv);
+
+/** The application menu, rebuilt whenever the editor opens, closes or changes its bindings. */
+function rebuildMenu(): void {
+  if (editor === null) return;
+  const opened = editor;
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate(
+      appMenuTemplate(
+        {
+          platform: process.platform,
+          appName: app.name,
+          bindings: opened.bindings(),
+          editorOpen: opened.isOpen(),
+          devTools: !app.isPackaged,
+        },
+        {
+          command: (id) => {
+            runMenuCommand(opened, id);
+          },
+          openEditor: () => {
+            opened.open();
+          },
+          showRunner: () => {
+            runner?.show();
+          },
+        },
+      ),
+    ),
+  );
+}
+
+/** A menu command: Undo and Redo go by focus (`historyMenuTarget`); the rest go to the editor. */
+function runMenuCommand(opened: Editor, id: MenuCommandId): void {
+  if (id !== 'history.undo' && id !== 'history.redo') {
+    opened.sendCommand(id);
+    return;
+  }
+  const focused = BrowserWindow.getFocusedWindow();
+  const target = historyMenuTarget(
+    focused === null ? null : opened.owns(focused) ? 'editor' : 'other',
+  );
+  if (target === 'editor-page') opened.sendCommand(id);
+  else if (id === 'history.undo') focused?.webContents.undo();
+  else focused?.webContents.redo();
+}
+
+/** What a launch, first or second, asked for, once the runner is up. */
+function act(wanted: LaunchIntent): void {
+  if (secondInstanceAction(wanted) === 'open-editor') editor?.open();
+  else runner?.show();
+}
+
+let started: Promise<void> | null = null;
+
+if (!app.requestSingleInstanceLock(handoffData(intent))) {
+  // Another perch already has this userData. It was handed this launch's intent and acts on it
+  // (below); this one leaves.
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    runner?.show();
+  app.on('second-instance', (_event, argv, _cwd, data) => {
+    const wanted = handoffIntent(data, argv);
+    log(`a second launch asked for the ${wanted}`);
+    void started?.then(() => {
+      act(wanted);
+    });
   });
-  // macOS: clicking the dock icon brings the window back.
+  // macOS: clicking the dock icon brings a window back, the editor's when it is open.
   app.on('activate', () => {
-    runner?.show();
+    if (editor?.isOpen() === true) editor.open();
+    else runner?.show();
   });
-  // Closing the window hides it; the runner is quit from its tray, not by closing a window.
+  // Closing a window never quits: the runner hides into its tray, the editor just closes. Quit is
+  // the tray's and the app menu's.
   app.on('window-all-closed', () => undefined);
+
+  // Unsaved edits in the editor are asked about before anything closes, and a Cancel calls the quit
+  // off. Only a quit going ahead reaches the runner, so its window still hides on close after one.
+  app.on('before-quit', (event) => {
+    if (!quitConfirmed && editor?.needsQuitConfirmation() === true) {
+      event.preventDefault();
+      const asking = editor;
+      void asking.confirmQuit().then((go) => {
+        if (!go) return;
+        quitConfirmed = true;
+        app.quit();
+      });
+      return;
+    }
+    runner?.prepareQuit();
+  });
 
   // Stop the relay before exiting, so both ports are released and a relaunch can have them.
   app.on('will-quit', (event) => {
@@ -106,6 +210,7 @@ if (!app.requestSingleInstanceLock()) {
     event.preventDefault();
     const stopping = runner;
     runner = null;
+    editor?.stop();
     stopping
       .stop()
       .catch((error: unknown) => {
@@ -124,20 +229,30 @@ if (!app.requestSingleInstanceLock()) {
     });
   }
 
-  app
+  started = app
     .whenReady()
     .then(async () => {
       denyPermissions();
       log(`userData: ${app.getPath('userData')}`);
-      const started = await startRunner({
+      log(`launched for the ${intent}`);
+      const plan = launchPlan(intent);
+      const up = await startRunner({
         env: process.env,
         documentsPath: app.getPath('documents'),
         userDataPath: app.getPath('userData'),
         log,
+        editorOpen: () => editor?.isOpen() ?? false,
+        openEditor: () => {
+          editor?.open();
+        },
       });
-      runner = started;
-      protocol.handle(APP_SCHEME, (request) => serveApp(request, started));
-      started.open();
+      runner = up;
+      const made = createEditor({ runner: up, log, onChange: rebuildMenu });
+      editor = made;
+      protocol.handle(APP_SCHEME, (request) => serveApp(request, up, made));
+      rebuildMenu();
+      up.open();
+      if (plan.editor) made.open();
     })
     .catch((error: unknown) => {
       log(

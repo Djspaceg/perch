@@ -22,6 +22,7 @@ export interface TrayState {
 export interface TrayActions {
   open(document: LayoutDocument): void;
   openFolder(): void;
+  openEditor(): void;
   toggleWindow(): void;
   setStartAtLogin(enabled: boolean): void;
   quit(): void;
@@ -54,6 +55,12 @@ export function trayMenuTemplate(
       label: 'Open layouts folder',
       click: () => {
         actions.openFolder();
+      },
+    },
+    {
+      label: 'Open editor',
+      click: () => {
+        actions.openEditor();
       },
     },
     {
