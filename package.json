@@ -18,7 +18,7 @@
     "dev:runtime": "npm run dev -w @perch/runtime",
     "dev:editor": "npm run dev -w @perch/editor",
     "relay": "npm run build -w @perch/agent && npm start -w @perch/agent",
-    "runner": "npm run build -w @perch/runtime && npm run build -w @perch/desktop && npm start -w @perch/desktop --",
+    "runner": "npm run build -w @perch/runtime && npm run build -w @perch/editor && npm run build -w @perch/desktop && npm start -w @perch/desktop --",
     "editor": "npm run build -w @perch/runtime && npm run build -w @perch/editor && npm run build -w @perch/desktop && npm start -w @perch/desktop -- --editor",
     "build": "npm run build --workspaces --if-present",
     "package:mac": "npm run build && npm run package:mac -w @perch/desktop",

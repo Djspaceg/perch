@@ -4,7 +4,8 @@
  * ```text
  * app://runtime/…                the built runtime page, apps/runtime/dist/page
  * app://document/…               files beside the runner's open document, for its media
- * app://editor/…                 the built editor page, apps/editor/dist/page
+ * app://editor/…                 the built editor page, apps/editor/dist/page; settings.html is
+ *                                the Settings window's page, from the same build
  * app://editor-document/<key>/…  files beside the editor's document <key>, for its media
  * ```
  *
@@ -39,6 +40,9 @@ export const DOCUMENT_ASSET_ORIGIN = `${APP_SCHEME}://document`;
 
 /** The editor window's one page. */
 export const EDITOR_PAGE_URL = `${APP_SCHEME}://editor/index.html`;
+
+/** The Settings window's page: a second entry of the editor's build, so it shares its controls. */
+export const SETTINGS_PAGE_URL = `${APP_SCHEME}://editor/settings.html`;
 
 /** Prefix of every media URL the editor is handed. */
 export const EDITOR_DOCUMENT_ASSET_ORIGIN = `${APP_SCHEME}://editor-document`;
@@ -110,7 +114,11 @@ export function resolveAppRequest(url: string, roots: AppRoots): string | null {
   return path.startsWith(root.endsWith(sep) ? root : `${root}${sep}`) ? path : null;
 }
 
-function isPage(url: string, host: 'runtime' | 'editor'): boolean {
+function isPage(
+  url: string,
+  host: 'runtime' | 'editor',
+  paths: readonly string[] = ['/', '/index.html'],
+): boolean {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -119,9 +127,7 @@ function isPage(url: string, host: 'runtime' | 'editor'): boolean {
   }
 
   return (
-    parsed.protocol === `${APP_SCHEME}:` &&
-    parsed.host === host &&
-    (parsed.pathname === '/' || parsed.pathname === '/index.html')
+    parsed.protocol === `${APP_SCHEME}:` && parsed.host === host && paths.includes(parsed.pathname)
   );
 }
 
@@ -135,9 +141,14 @@ export function isEditorPage(url: string): boolean {
   return isPage(url, 'editor');
 }
 
-/** Whether a window may be at `url`: one of the app's two pages, and nothing else. */
+/** Whether `url` is the Settings page: the only sender the Settings window's IPC answers. */
+export function isSettingsPage(url: string): boolean {
+  return isPage(url, 'editor', ['/settings.html']);
+}
+
+/** Whether a window may be at `url`: one of the app's three pages, and nothing else. */
 export function isAppPage(url: string): boolean {
-  return isRuntimePage(url) || isEditorPage(url);
+  return isRuntimePage(url) || isEditorPage(url) || isSettingsPage(url);
 }
 
 /**

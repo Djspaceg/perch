@@ -6,14 +6,17 @@
  * editor page                    <-  load, documents; save, Save As, Open through the main process
  * the page's document state      ->  the window's title, its edited mark, the close prompt
  * the page's keymap              ->  the application menu's accelerators (main.ts rebuilds it)
+ * the page's menu state          ->  which of Undo, Redo, Save and Save As the menu enables
  * the menu                       ->  the page's commands, through its keybinding registry
+ * Open preset, Open recent       ->  a document handed to the page, which opens it as Open does
+ * each document opened or saved  ->  File > Open recent (the runner's settings keep the list)
  * ```
  *
  * Opening the editor starts nothing: the relay, the folder watch and the settings are the runner's,
  * and the page dials the runner's relay. Closing the window closes the window; the runner carries on.
  * A save rewrites a file in the runner's folder, and the runner's own watch re-renders it if it is
- * the document the runner shows. A host the editor's connection control switches the relay to is
- * saved by the runner (`runner.ts`, on the relay's retarget), so the runner resumes with it.
+ * the document the runner shows. The sensor host is the Settings window's (`settings-window.ts`);
+ * the editor's header only follows the relay.
  */
 
 import { dirname, join } from 'node:path';
@@ -28,8 +31,10 @@ import { isEditorPage } from './app-protocol.js';
 import {
   DEFAULT_MENU_BINDINGS,
   menuBindingsFrom,
+  pageMenuStateFrom,
   type MenuBindings,
   type MenuCommandId,
+  type MenuEnabled,
 } from './app-menu.js';
 import { EDITOR_CHANNELS } from './editor-channels.js';
 import { closeChoice, mustAsk, unsavedPrompt } from './editor-close.js';
@@ -46,8 +51,10 @@ import type { Runner } from './runner.js';
 export interface EditorOptions {
   readonly runner: Runner;
   readonly log: (line: string) => void;
-  /** The window opened or closed, or its bindings changed: the menu is rebuilt. */
+  /** The window opened or closed, or its bindings, document or menu state changed: the menu is rebuilt. */
   readonly onChange: () => void;
+  /** The page asked for the Settings window. */
+  readonly openSettings: () => void;
 }
 
 export interface Editor {
@@ -60,6 +67,12 @@ export interface Editor {
   sendCommand(id: MenuCommandId): void;
   /** The bindings the menu should show. */
   bindings(): MenuBindings;
+  /** The page's last word on what the menu's Undo, Redo, Save and Save As may do, or `null`. */
+  pageMenuState(): MenuEnabled | null;
+  /** The path of the document open in the page, or `null` for none or an untitled one. */
+  currentPath(): string | null;
+  /** Open `path` in the page (Open preset, Open recent), opening the window first when it is closed. */
+  openPath(path: string): void;
   /** The folder of the editor document with this key, for `app://editor-document/`. */
   documentFolder(key: string): string | null;
   /** Whether a quit must ask first. */
@@ -79,11 +92,14 @@ export function createEditor(options: EditorOptions): Editor {
     process.platform === 'darwin' ? DEFAULT_MENU_BINDINGS.mac : DEFAULT_MENU_BINDINGS.other;
 
   let window: BrowserWindow | null = null;
-  /** The page has mounted (it sends its bindings then); commands before that wait in `queued`. */
+  /** The page has mounted (it sends its bindings then); what is sent before that waits in `queued`. */
   let ready = false;
-  let queued: MenuCommandId[] = [];
+  let queued: (() => void)[] = [];
   let bindings: MenuBindings = platformBindings;
   let documentState: { name: string; dirty: boolean } | null = null;
+  let pageMenu: MenuEnabled | null = null;
+  /** The document the next window opens first, instead of the runner's: an Open preset while closed. */
+  let initialPath: string | null = null;
   /** This close, or this quit, has been answered: do not ask again. */
   let answered = false;
   let asking: Promise<boolean> | null = null;
@@ -113,7 +129,8 @@ export function createEditor(options: EditorOptions): Editor {
   // ---- what the page asks ------------------------------------------------------------------
   ipcMain.handle(EDITOR_CHANNELS.load, async (event) => {
     if (!fromEditor(event)) refuse('load');
-    const current = runner.currentDocument();
+    const current = initialPath ?? runner.currentDocument();
+    initialPath = null;
     const key = current === null ? null : registry.keyOf(current);
     const documents = await registry.entries();
     const initial = documents.some((document) => document.name === key) ? key : null;
@@ -133,6 +150,10 @@ export function createEditor(options: EditorOptions): Editor {
     if (reply.ok) {
       log(`editor: saved ${path ?? name}`);
       pushDocuments();
+      if (path !== undefined) {
+        runner.addRecentDocument(path);
+        options.onChange();
+      }
     } else {
       log(`editor: refused a save of ${name} (${String(reply.status)}): ${reply.text}`);
     }
@@ -181,7 +202,8 @@ export function createEditor(options: EditorOptions): Editor {
     if (typeof state !== 'object' || state === null) return;
     const { name, dirty } = state as { name?: unknown; dirty?: unknown };
     if (typeof name !== 'string' || typeof dirty !== 'boolean') return;
-    const changed = documentState?.name !== name || documentState.dirty !== dirty;
+    const renamed = documentState?.name !== name;
+    const changed = renamed || documentState?.dirty !== dirty;
     documentState = { name, dirty };
     if (!changed) return;
     log(`editor: ${name}${dirty ? ' has unsaved changes' : ' is saved'}`);
@@ -189,6 +211,27 @@ export function createEditor(options: EditorOptions): Editor {
     window.setTitle(`${name}${dirty && process.platform !== 'darwin' ? ' *' : ''} - perch editor`);
     window.setDocumentEdited(dirty);
     if (process.platform === 'darwin') window.setRepresentedFilename(path ?? '');
+    // A document the page now shows was opened: Open recent lists it, Open preset checks it.
+    if (renamed) {
+      if (path !== undefined) runner.addRecentDocument(path);
+      options.onChange();
+    }
+  });
+
+  ipcMain.on(EDITOR_CHANNELS.menuState, (event, input: unknown) => {
+    if (!fromEditor(event)) return;
+    const read = pageMenuStateFrom(input);
+    if (read === null) return;
+    const changed = (['undo', 'redo', 'save', 'saveAs'] as const).some(
+      (item) => pageMenu?.[item] !== read[item],
+    );
+    pageMenu = read;
+    if (changed) options.onChange();
+  });
+
+  ipcMain.on(EDITOR_CHANNELS.openSettings, (event) => {
+    if (!fromEditor(event)) return;
+    options.openSettings();
   });
 
   ipcMain.on(EDITOR_CHANNELS.menuBindings, (event, input: unknown) => {
@@ -199,7 +242,7 @@ export function createEditor(options: EditorOptions): Editor {
       ready = true;
       const flush = queued;
       queued = [];
-      for (const id of flush) window?.webContents.send(EDITOR_CHANNELS.command, id);
+      for (const send of flush) send();
     }
   });
 
@@ -256,6 +299,34 @@ export function createEditor(options: EditorOptions): Editor {
     return asking;
   };
 
+  /** Send now, or once the page has mounted. */
+  const whenReady = (send: () => void): void => {
+    if (ready) send();
+    else queued.push(send);
+  };
+
+  /** Hand the page the document at `path`, registered under its key. */
+  const deliver = (path: string): void => {
+    const name = registry.keyOf(path);
+    registry.entries().then(
+      (entries) => {
+        pushDocuments(entries);
+        const found = entries.find((entry) => entry.name === name);
+        if (found === undefined) {
+          log(`editor: could not read ${path} to open it`);
+          return;
+        }
+        log(`editor: open ${path} (key ${name}) from the menu`);
+        if (window !== null && !window.isDestroyed()) {
+          window.webContents.send(EDITOR_CHANNELS.openDocument, found);
+        }
+      },
+      (error: unknown) => {
+        log(`editor: could not list ${runner.folder}: ${describe(error)}`);
+      },
+    );
+  };
+
   const needsAsking = (): boolean =>
     window !== null && mustAsk({ dirty: documentState?.dirty === true, answered });
 
@@ -287,6 +358,8 @@ export function createEditor(options: EditorOptions): Editor {
       ready = false;
       queued = [];
       documentState = null;
+      pageMenu = null;
+      initialPath = null;
       for (const resolve of pendingSaves.values()) resolve(false);
       pendingSaves.clear();
       stopFolder?.();
@@ -309,17 +382,32 @@ export function createEditor(options: EditorOptions): Editor {
     sendCommand: (id) => {
       if (window === null) {
         if (id !== 'document.new' && id !== 'document.open') return;
-        queued.push(id);
+        queued.push(() => {
+          window?.webContents.send(EDITOR_CHANNELS.command, id);
+        });
         open();
         return;
       }
-      if (!ready) {
-        queued.push(id);
-        return;
-      }
-      window.webContents.send(EDITOR_CHANNELS.command, id);
+      whenReady(() => {
+        window?.webContents.send(EDITOR_CHANNELS.command, id);
+      });
     },
     bindings: () => bindings,
+    pageMenuState: () => pageMenu,
+    currentPath: () =>
+      documentState === null ? null : (registry.pathOf(documentState.name) ?? null),
+    openPath: (path) => {
+      if (window === null) {
+        // The page opens it first, rather than the runner's document and then this one.
+        initialPath = path;
+        open();
+        return;
+      }
+      open();
+      whenReady(() => {
+        deliver(path);
+      });
+    },
     documentFolder: (key) => registry.folderOf(key),
     needsQuitConfirmation: needsAsking,
     confirmQuit: async () => {
@@ -343,6 +431,8 @@ export function createEditor(options: EditorOptions): Editor {
         EDITOR_CHANNELS.menuBindings,
         EDITOR_CHANNELS.nativeEdit,
         EDITOR_CHANNELS.saveDone,
+        EDITOR_CHANNELS.menuState,
+        EDITOR_CHANNELS.openSettings,
       ]) {
         ipcMain.removeAllListeners(channel);
       }

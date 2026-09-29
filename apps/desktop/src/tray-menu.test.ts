@@ -22,6 +22,7 @@ function recording(): { actions: TrayActions; calls: unknown[][] } {
       openFolder: () => calls.push(['openFolder']),
       openEditor: () => calls.push(['openEditor']),
       toggleWindow: () => calls.push(['toggleWindow']),
+      openSettings: () => calls.push(['openSettings']),
       setStartAtLogin: (enabled) => calls.push(['setStartAtLogin', enabled]),
       quit: () => calls.push(['quit']),
     },
@@ -47,7 +48,7 @@ describe('trayMenuTemplate', () => {
     expect(item(template, 'tower')).toMatchObject({ type: 'checkbox', checked: true });
   });
 
-  it('has the folder, window, login and quit items, in that order, login off by default', () => {
+  it('has the folder, editor, preview, settings, login and quit items, in that order', () => {
     const labels = trayMenuTemplate(state, recording().actions)
       .map((entry) => entry.label)
       .filter((label) => label !== undefined);
@@ -58,7 +59,8 @@ describe('trayMenuTemplate', () => {
       'tower',
       'Open layouts folder',
       'Open editor',
-      'Hide window',
+      'Hide preview',
+      'Settings...',
       'Start at login',
       'Quit perch',
     ]);
@@ -67,10 +69,15 @@ describe('trayMenuTemplate', () => {
     );
   });
 
-  it('offers Show window while the window is hidden', () => {
-    const template = trayMenuTemplate({ ...state, windowVisible: false }, recording().actions);
+  it('offers Show preview while the runner window is hidden, Hide preview while it shows', () => {
+    const hidden = trayMenuTemplate({ ...state, windowVisible: false }, recording().actions);
+    const shown = trayMenuTemplate(state, recording().actions);
 
-    expect(template.some((entry) => entry.label === 'Show window')).toBe(true);
+    expect(hidden.some((entry) => entry.label === 'Show preview')).toBe(true);
+    expect(shown.some((entry) => entry.label === 'Hide preview')).toBe(true);
+    const labels = [...hidden, ...shown].map((entry) => entry.label);
+    expect(labels).not.toContain('Show window');
+    expect(labels).not.toContain('Hide window');
   });
 
   it('puts a notice first, and says when there is nothing to list', () => {
@@ -90,7 +97,8 @@ describe('trayMenuTemplate', () => {
     click(item(template, 'desk'));
     click(item(template, 'Open layouts folder'));
     click(item(template, 'Open editor'));
-    click(item(template, 'Hide window'));
+    click(item(template, 'Hide preview'));
+    click(item(template, 'Settings...'));
     click(item(template, 'Start at login'), true);
     click(item(template, 'Quit perch'));
 
@@ -99,6 +107,7 @@ describe('trayMenuTemplate', () => {
       ['openFolder'],
       ['openEditor'],
       ['toggleWindow'],
+      ['openSettings'],
       ['setStartAtLogin', true],
       ['quit'],
     ]);

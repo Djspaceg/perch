@@ -26,6 +26,7 @@ export const MENU_COMMAND_IDS = [
   'document.saveAs',
   'history.undo',
   'history.redo',
+  'app.settings',
 ] as const satisfies readonly CommandId[];
 
 export type MenuCommandId = (typeof MENU_COMMAND_IDS)[number];
@@ -37,6 +38,34 @@ export type MenuBindings = Readonly<Record<MenuCommandId, readonly string[]>>;
 export interface DocumentState {
   readonly name: string;
   readonly dirty: boolean;
+}
+
+/** Whether the host's menu Undo, Redo, Save and Save As have anything to do. */
+export interface HostMenuState {
+  readonly undo: boolean;
+  readonly redo: boolean;
+  readonly save: boolean;
+  readonly saveAs: boolean;
+}
+
+/**
+ * The menu's state from the editor's. Undo and Redo are offered while the history has a step that
+ * way, and always while a text field has focus, where the menu's Undo is the field's own and the
+ * editor cannot see whether the field has anything to undo.
+ */
+export function hostMenuState(inputs: {
+  readonly canUndo: boolean;
+  readonly canRedo: boolean;
+  readonly fieldFocused: boolean;
+  readonly canSave: boolean;
+  readonly canSaveAs: boolean;
+}): HostMenuState {
+  return {
+    undo: inputs.canUndo || inputs.fieldFocused,
+    redo: inputs.canRedo || inputs.fieldFocused,
+    save: inputs.canSave,
+    saveAs: inputs.canSaveAs,
+  };
 }
 
 export interface EditorHost {
@@ -57,6 +86,12 @@ export interface EditorHost {
   saveDone(id: number, saved: boolean): void;
   /** The menu's Undo or Redo, done by the platform in the focused text field. */
   nativeEdit(which: 'undo' | 'redo'): void;
+  /** What the menu's Undo, Redo, Save and Save As may offer, whenever it changes. */
+  setMenuState(state: HostMenuState): void;
+  /** Open, or bring forward, the host's Settings window. */
+  openSettings(): void;
+  /** The host's menu picked a document: Open preset or Open recent. Returns an unsubscribe. */
+  onOpenDocument(listener: (entry: LayoutLibraryEntry) => void): () => void;
 }
 
 export type MenuRoute =

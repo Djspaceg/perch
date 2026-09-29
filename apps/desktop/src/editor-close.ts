@@ -46,15 +46,19 @@ export function closeChoice(response: number): CloseChoice {
 }
 
 /**
- * macOS: a dock icon while either window is showing, none once neither is. The runner lives in the
- * menu bar; the editor is an ordinary window and has one while it is open.
+ * macOS: a dock icon while any window is showing, none once none is. The runner lives in the menu
+ * bar; the editor and Settings are ordinary windows and have one while they are open. Settings needs
+ * it for more than looks: a macOS app with no dock icon has no menu bar, and paste into the host
+ * field is the Edit menu's.
  */
 export function dockVisible({
   runnerVisible,
   editorOpen,
+  settingsOpen,
 }: {
   runnerVisible: boolean;
   editorOpen: boolean;
+  settingsOpen: boolean;
 }): boolean {
-  return runnerVisible || editorOpen;
+  return runnerVisible || editorOpen || settingsOpen;
 }

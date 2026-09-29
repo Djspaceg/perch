@@ -10,7 +10,10 @@
  * window.perchEditorHost.setMenuBindings(record)  // what the menu shows
  * window.perchEditorHost.nativeEdit(which)        // 'undo' | 'redo' in the focused field
  * window.perchEditorHost.saveDone(id, saved)      // a save request's answer
- * window.perchEditorHost.onDocuments(fn) / onCommand(fn) / onSaveRequest(fn)   // -> unsubscribe
+ * window.perchEditorHost.setMenuState(state)      // { undo, redo, save, saveAs }: what the menu enables
+ * window.perchEditorHost.openSettings()           // the Settings window
+ * window.perchEditorHost.onDocuments(fn) / onCommand(fn) / onSaveRequest(fn) / onOpenDocument(fn)
+ *                                                 // -> unsubscribe
  * ```
  *
  * The page never names a file. A save names a document by the key the main process gave it, and
@@ -41,9 +44,12 @@ const CHANNELS = {
   menuBindings: 'perch:editor:menu-bindings',
   nativeEdit: 'perch:editor:native-edit',
   saveDone: 'perch:editor:save-done',
+  menuState: 'perch:editor:menu-state',
+  openSettings: 'perch:editor:open-settings',
   documents: 'perch:editor:documents',
   command: 'perch:editor:command',
   saveRequest: 'perch:editor:save-request',
+  openDocument: 'perch:editor:open-document',
 } as const;
 
 /** Subscribe `listener` to `channel`'s payload, without the event; returns the unsubscribe. */
@@ -75,10 +81,18 @@ contextBridge.exposeInMainWorld(BRIDGE_GLOBAL, {
   saveDone: (id: unknown, saved: unknown): void => {
     ipcRenderer.send(CHANNELS.saveDone, id, saved);
   },
+  setMenuState: (state: unknown): void => {
+    ipcRenderer.send(CHANNELS.menuState, state);
+  },
+  openSettings: (): void => {
+    ipcRenderer.send(CHANNELS.openSettings);
+  },
   onDocuments: (listener: (documents: unknown) => void): (() => void) =>
     subscribe(CHANNELS.documents, listener),
   onCommand: (listener: (id: unknown) => void): (() => void) =>
     subscribe(CHANNELS.command, listener),
   onSaveRequest: (listener: (id: unknown) => void): (() => void) =>
     subscribe(CHANNELS.saveRequest, listener),
+  onOpenDocument: (listener: (document: unknown) => void): (() => void) =>
+    subscribe(CHANNELS.openDocument, listener),
 });

@@ -45,6 +45,9 @@ function fakeBridge(overrides: Partial<EditorBridge> = {}): EditorBridge & { cal
     onSaveRequest: () => () => undefined,
     saveDone: (id, saved) => calls.push(['saveDone', id, saved]),
     nativeEdit: (which) => calls.push(['nativeEdit', which]),
+    setMenuState: (state) => calls.push(['menuState', state]),
+    openSettings: () => calls.push(['openSettings']),
+    onOpenDocument: () => () => undefined,
     ...overrides,
   };
   return Object.assign(bridge, { calls });
@@ -126,6 +129,8 @@ describe('editorHostFrom', () => {
     host.setDocumentState({ name: 'desk', dirty: true });
     host.nativeEdit('redo');
     host.saveDone(2, false);
+    host.setMenuState({ undo: true, redo: false, save: true, saveAs: true });
+    host.openSettings();
 
     expect(bridge.calls).toEqual([
       ['saveAs', 'desk'],
@@ -133,7 +138,34 @@ describe('editorHostFrom', () => {
       ['state', { name: 'desk', dirty: true }],
       ['nativeEdit', 'redo'],
       ['saveDone', 2, false],
+      ['menuState', { undo: true, redo: false, save: true, saveAs: true }],
+      ['openSettings'],
     ]);
+  });
+
+  it("hands on a document the menu opened as a library entry, and unsubscribes with the bridge's", () => {
+    let listener: ((document: typeof tower) => void) | undefined;
+    let stopped = false;
+    const host = editorHostFrom(
+      fakeBridge({
+        onOpenDocument: (next) => {
+          listener = next;
+          return () => {
+            stopped = true;
+          };
+        },
+      }),
+    );
+    const seen: unknown[] = [];
+
+    const stop = host.onOpenDocument((entry) => seen.push(entry));
+    listener?.(tower);
+    stop();
+
+    expect(seen).toEqual([
+      { name: 'tower', text: '{"tower":1}', offered: true, path: '/l/tower.json' },
+    ]);
+    expect(stopped).toBe(true);
   });
 
   it('reads a cancelled dialog as null', async () => {

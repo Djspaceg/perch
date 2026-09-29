@@ -8,6 +8,7 @@ import {
   DEFAULT_LHM_PORT,
   choiceRequest,
   deriveConnection,
+  followedRequest,
   parseHostInput,
   readSavedConnection,
 } from './connection.js';
@@ -163,5 +164,17 @@ describe('deriveConnection', () => {
       phase: 'connected',
       target: 'localhost:28085',
     });
+  });
+});
+
+describe('followedRequest', () => {
+  it('is whatever the relay reports polling, once it has reported', () => {
+    expect(
+      followedRequest({ host: '192.168.1.3', port: 8086, state: 'ok' }, { host: 'localhost' }),
+    ).toEqual({ host: '192.168.1.3', port: 8086 });
+  });
+
+  it('is the fallback until then', () => {
+    expect(followedRequest(undefined, { host: 'localhost' })).toEqual({ host: 'localhost' });
   });
 });

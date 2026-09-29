@@ -31,19 +31,14 @@
  *
  * The window's preload puts a bridge on `window.perchEditorHost` (`desktop-host.ts`). With it, the
  * library is the layouts folder's documents, kept current as the folder changes; a save is written
- * by the main process; the relay is the app's own, and the connection control starts on the host it
- * is already polling, so opening the editor never moves the runner. Without it, everything above
- * holds exactly as it did.
+ * by the main process; the relay is the app's own, and the header follows the host it is polling
+ * (the Settings window, `settings-main.tsx`, is where it is changed), so opening the editor never
+ * moves the runner. Without it, everything above holds exactly as it did.
  */
 
 import { StrictMode, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import {
-  createMockSource,
-  createMqttSource,
-  createRelayControl,
-  isRelayBrokerUrl,
-} from '@perch/sensor-sources';
+import { createMockSource } from '@perch/sensor-sources';
 import { Editor } from './app.js';
 import type { RelayLink } from './connection-control.js';
 import {
@@ -56,30 +51,11 @@ import {
 } from './desktop-host.js';
 import { choiceForRelay } from './editor-host.js';
 import { LAYOUT_LIBRARY } from './layout-library.js';
+import { buildRelay } from './relay-link.js';
 import { browserSaveTransport } from './save.js';
 import { createEditorStore, type EditorStore, type SettingsStorage } from './store.js';
 
 const source = createMockSource();
-
-/** The relay the stack started, or `undefined`. A malformed URL is a thrown error, not the mock. */
-function buildRelay(
-  url: string | undefined,
-  origin: 'env' | 'config' = 'env',
-): RelayLink | undefined {
-  const trimmed = url?.trim() ?? '';
-  if (trimmed === '') return undefined;
-  if (!isRelayBrokerUrl(trimmed)) {
-    throw new TypeError(
-      `${origin === 'env' ? 'PERCH_RELAY_URL' : 'the desktop relay URL'} is not a ws:// or wss:// URL: ${JSON.stringify(trimmed)}`,
-    );
-  }
-
-  return {
-    url: trimmed,
-    source: createMqttSource({ url: trimmed, origin }),
-    control: createRelayControl({ url: trimmed }),
-  };
-}
 
 /** The editor in the desktop app's window: the folder as its library, kept current. */
 function DesktopEditor({
@@ -167,8 +143,8 @@ if (bridge === null) {
 } else {
   bridge.load().then(
     (start) => {
-      // Before the first render, so the connection control's first request is the host the relay
-      // already polls, and the relay is not moved by the editor opening.
+      // Before the first render, so the header describes the host the relay already polls until the
+      // relay's own status arrives; the editor window never asks the relay for one.
       store.getState().adoptConnection(choiceForRelay(start.relay));
       root.render(
         <StrictMode>

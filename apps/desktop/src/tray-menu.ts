@@ -23,7 +23,9 @@ export interface TrayActions {
   open(document: LayoutDocument): void;
   openFolder(): void;
   openEditor(): void;
+  /** Show and focus the runner's window, the preview, or hide it. */
   toggleWindow(): void;
+  openSettings(): void;
   setStartAtLogin(enabled: boolean): void;
   quit(): void;
 }
@@ -64,9 +66,15 @@ export function trayMenuTemplate(
       },
     },
     {
-      label: state.windowVisible ? 'Hide window' : 'Show window',
+      label: state.windowVisible ? 'Hide preview' : 'Show preview',
       click: () => {
         actions.toggleWindow();
+      },
+    },
+    {
+      label: 'Settings...',
+      click: () => {
+        actions.openSettings();
       },
     },
     {

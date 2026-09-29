@@ -12,9 +12,10 @@
  * The one file in this app that imports `electron` at the top level and has side effects on load.
  */
 
+import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { BrowserWindow, Menu, app, net, protocol, session } from 'electron';
-import { appMenuTemplate, historyMenuTarget, type MenuCommandId } from './app-menu.js';
+import { appMenuTemplate, historyMenuTarget, menuEnabled, type MenuCommandId } from './app-menu.js';
 import {
   APP_SCHEME,
   contentSecurityPolicy,
@@ -32,7 +33,9 @@ import {
   type LaunchIntent,
 } from './launch.js';
 import { appResources, editorPageFolder, runtimePageFolder, userDataOverride } from './paths.js';
+import { recentEntries } from './recent.js';
 import { startRunner, type Runner } from './runner.js';
+import { createSettingsWindow, type SettingsWindow } from './settings-window.js';
 
 const log = (line: string): void => {
   process.stdout.write(`[runner] ${line}\n`);
@@ -114,16 +117,34 @@ async function serveApp(request: Request, runner: Runner, editor: Editor): Promi
 
 let runner: Runner | null = null;
 let editor: Editor | null = null;
+let settingsWindow: SettingsWindow | null = null;
 let stopped = false;
 /** Set once the editor's unsaved-changes prompt, if any, has let a quit go ahead. */
 let quitConfirmed = false;
 
 const intent = launchIntent(process.argv);
 
-/** The application menu, rebuilt whenever the editor opens, closes or changes its bindings. */
+/**
+ * The application menu, rebuilt whenever the editor opens, closes, or reports new bindings, a new
+ * document or a new menu state; whenever the layouts folder or the recent list changes; and whenever
+ * focus moves between windows, since Undo and Redo are enabled by the focused one.
+ */
+/** What the last rebuild's two submenus listed, so the log says when either changes. */
+let listedInMenu = '';
+
 function rebuildMenu(): void {
-  if (editor === null) return;
+  if (editor === null || runner === null) return;
   const opened = editor;
+  const running = runner;
+  const focused = BrowserWindow.getFocusedWindow();
+  const recent = recentEntries(running.recentDocuments(), existsSync);
+  const names = (items: readonly { readonly name?: string; readonly label?: string }[]): string =>
+    items.length === 0 ? '(none)' : items.map((item) => item.name ?? item.label).join(', ');
+  const listed = `Open preset: ${names(running.documents())}; Open recent: ${names(recent)}`;
+  if (listed !== listedInMenu) {
+    listedInMenu = listed;
+    log(`menu: ${listed}`);
+  }
   Menu.setApplicationMenu(
     Menu.buildFromTemplate(
       appMenuTemplate(
@@ -133,6 +154,14 @@ function rebuildMenu(): void {
           bindings: opened.bindings(),
           editorOpen: opened.isOpen(),
           devTools: !app.isPackaged,
+          enabled: menuEnabled({
+            editorOpen: opened.isOpen(),
+            focused: focused === null ? null : opened.owns(focused) ? 'editor' : 'other',
+            page: opened.pageMenuState(),
+          }),
+          presets: running.documents(),
+          openDocument: opened.currentPath(),
+          recent,
         },
         {
           command: (id) => {
@@ -142,12 +171,35 @@ function rebuildMenu(): void {
             opened.open();
           },
           showRunner: () => {
-            runner?.show();
+            running.show();
+          },
+          openSettings: () => {
+            settingsWindow?.open();
+          },
+          openPreset: (path) => {
+            opened.openPath(path);
+          },
+          openRecent: (path) => {
+            opened.openPath(path);
+          },
+          clearRecent: () => {
+            running.clearRecentDocuments();
+            rebuildMenu();
           },
         },
       ),
     ),
   );
+}
+
+/** Focus settles a moment after the event that reports it moving; rebuild once it has. */
+let focusRebuild: NodeJS.Immediate | undefined;
+function rebuildMenuSoon(): void {
+  if (focusRebuild !== undefined) return;
+  focusRebuild = setImmediate(() => {
+    focusRebuild = undefined;
+    rebuildMenu();
+  });
 }
 
 /** A menu command: Undo and Redo go by focus (`historyMenuTarget`); the rest go to the editor. */
@@ -193,6 +245,16 @@ if (!app.requestSingleInstanceLock(handoffData(intent))) {
   // Closing a window never quits: the runner hides into its tray, the editor just closes. Quit is
   // the tray's and the app menu's.
   app.on('window-all-closed', () => undefined);
+  app.on('browser-window-focus', rebuildMenuSoon);
+  app.on('browser-window-blur', rebuildMenuSoon);
+  // macOS: a document picked from the Dock's recent list, which `addRecentDocument` keeps.
+  app.on('open-file', (event, path) => {
+    event.preventDefault();
+    log(`asked to open ${path}`);
+    void started?.then(() => {
+      editor?.openPath(path);
+    });
+  });
 
   // Unsaved edits in the editor are asked about before anything closes, and a Cancel calls the quit
   // off. Only a quit going ahead reaches the runner, so its window still hides on close after one.
@@ -217,6 +279,7 @@ if (!app.requestSingleInstanceLock(handoffData(intent))) {
     const stopping = runner;
     runner = null;
     editor?.stop();
+    settingsWindow?.stop();
     stopping
       .stop()
       .catch((error: unknown) => {
@@ -249,13 +312,32 @@ if (!app.requestSingleInstanceLock(handoffData(intent))) {
         resources,
         log,
         editorOpen: () => editor?.isOpen() ?? false,
+        settingsOpen: () => settingsWindow?.isOpen() ?? false,
         openEditor: () => {
           editor?.open();
         },
+        openSettings: () => {
+          settingsWindow?.open();
+        },
       });
       runner = up;
-      const made = createEditor({ runner: up, log, onChange: rebuildMenu });
+      settingsWindow = createSettingsWindow({
+        runner: up,
+        log,
+        onChange: () => {
+          up.updateDock();
+        },
+      });
+      const made = createEditor({
+        runner: up,
+        log,
+        onChange: rebuildMenu,
+        openSettings: () => {
+          settingsWindow?.open();
+        },
+      });
       editor = made;
+      up.onFolderChange(rebuildMenu);
       protocol.handle(APP_SCHEME, (request) => serveApp(request, up, made));
       rebuildMenu();
       up.open();

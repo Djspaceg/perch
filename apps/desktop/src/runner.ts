@@ -16,7 +16,7 @@
  * next; an edit to the open document re-renders in place.
  */
 
-import { stat, watch as watchFolder } from 'node:fs';
+import { stat } from 'node:fs';
 import { join } from 'node:path';
 import {
   Menu,
@@ -31,6 +31,7 @@ import {
 import { isRuntimePage } from './app-protocol.js';
 import { dockVisible } from './editor-close.js';
 import { readLayoutDocument, watchDocument, type DocumentPayload } from './document.js';
+import { watchLayoutsFolder } from './folder-watch.js';
 import {
   listLayoutDocuments,
   prepareLayoutsFolder,
@@ -39,6 +40,7 @@ import {
 import { layoutsFolder, runtimePreloadPath, seedLayoutsFolder } from './paths.js';
 import { relayTarget, type RelayTarget } from './lhm-sync.js';
 import { desktopRelayConfig, startDesktopRelay } from './relay-host.js';
+import { addRecent } from './recent.js';
 import { chooseDocument } from './resume.js';
 import { RUNNER_DOCUMENT_CHANNEL, RUNNER_LOAD_CHANNEL } from './runner-channels.js';
 import { createRunnerWindow } from './runner-window.js';
@@ -57,8 +59,12 @@ export interface RunnerOptions {
   readonly log: (line: string) => void;
   /** Whether the editor window is open, for the dock icon. */
   readonly editorOpen: () => boolean;
+  /** Whether the Settings window is open, for the dock icon. */
+  readonly settingsOpen: () => boolean;
   /** The tray's "Open editor". */
   readonly openEditor: () => void;
+  /** The tray's "Settings...". */
+  readonly openSettings: () => void;
 }
 
 export interface Runner {
@@ -72,8 +78,15 @@ export interface Runner {
   currentDocument(): string | null;
   /** What the relay is polling now. */
   relayTarget(): RelayTarget;
-  /** Called, debounced, whenever the layouts folder changes. Returns an unsubscribe. */
+  /** The layouts folder's documents, as last listed. */
+  documents(): readonly LayoutDocument[];
+  /** Called, debounced, whenever the layouts folder changes, once `documents` has the new listing. */
   onFolderChange(listener: () => void): () => void;
+  /** File > Open recent's documents, newest first (`recent.ts`), as the settings remember them. */
+  recentDocuments(): readonly string[];
+  /** Put `path` first in the recent list, and remember it. */
+  addRecentDocument(path: string): void;
+  clearRecentDocuments(): void;
   /** Whether the runner's window is showing. */
   windowVisible(): boolean;
   /** Called once a quit is going ahead: from now on, closing the window closes it. */
@@ -186,27 +199,19 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
 
   await openDocument(choice.document, false);
 
-  // The tray's list follows the folder: an editor's "save as" appears without a relaunch. So does
-  // the editor's picker, which is told through `onFolderChange`.
-  let folderTimer: NodeJS.Timeout | undefined;
+  // The tray's list follows the folder: an editor's "save as" appears without a relaunch. So do
+  // the editor's picker and File > Open preset, which are told through `onFolderChange`.
   const folderListeners = new Set<() => void>();
-  const folderWatcher = watchFolder(folder, () => {
-    if (folderTimer !== undefined) clearTimeout(folderTimer);
-    folderTimer = setTimeout(() => {
+  const stopFolderWatch = watchLayoutsFolder(folder, {
+    onList: (listed) => {
+      documents = listed;
+      log(`layouts folder: ${String(listed.length)} documents after a change`);
+      refreshTray();
       for (const listener of folderListeners) listener();
-      listLayoutDocuments(folder).then(
-        (listed) => {
-          documents = listed;
-          refreshTray();
-        },
-        (error: unknown) => {
-          log(`layouts folder: could not list ${folder}: ${describe(error)}`);
-        },
-      );
-    }, 200);
-  });
-  folderWatcher.on('error', (error) => {
-    log(`layouts folder: stopped watching ${folder}: ${error.message}`);
+    },
+    onError: (error) => {
+      log(`layouts folder: ${folder}: ${error.message}`);
+    },
   });
 
   // ---- the page's one request ----------------------------------------------------------
@@ -257,6 +262,9 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
             if (window?.isVisible() === true) hideWindow();
             else showWindow();
           },
+          openSettings: () => {
+            options.openSettings();
+          },
           setStartAtLogin: (enabled) => {
             app.setLoginItemSettings({ openAtLogin: enabled });
             log(`start at login: ${enabled ? 'on' : 'off'}`);
@@ -293,6 +301,7 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
     const visible = dockVisible({
       runnerVisible: window?.isVisible() ?? false,
       editorOpen: options.editorOpen(),
+      settingsOpen: options.settingsOpen(),
     });
     if (visible) app.dock?.show().catch(() => undefined);
     else app.dock?.hide();
@@ -308,6 +317,21 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
     documentFolder: () => (current === null ? null : join(current.path, '..')),
     currentDocument: () => current?.path ?? null,
     relayTarget: () => relayTarget(service),
+    documents: () => documents,
+    // File > Open recent, remembered in the settings; the Dock's list on macOS kept to match.
+    recentDocuments: () => settings.current.recent,
+    addRecentDocument: (path) => {
+      const next = addRecent(settings.current.recent, path);
+      if (next.join('\n') === settings.current.recent.join('\n')) return;
+      remember({ recent: next });
+      log(`recent: ${path} (${String(next.length)} listed)`);
+      if (process.platform === 'darwin') app.addRecentDocument(path);
+    },
+    clearRecentDocuments: () => {
+      remember({ recent: [] });
+      log('recent: cleared');
+      if (process.platform === 'darwin') app.clearRecentDocuments();
+    },
     onFolderChange: (listener) => {
       folderListeners.add(listener);
       return () => {
@@ -355,8 +379,7 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
     show: showWindow,
     stop: async () => {
       stopWatching();
-      if (folderTimer !== undefined) clearTimeout(folderTimer);
-      folderWatcher.close();
+      stopFolderWatch();
       ipcMain.removeHandler(RUNNER_LOAD_CHANNEL);
       await service.stop();
       log('relay stopped');

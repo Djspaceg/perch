@@ -93,13 +93,16 @@ describe('the editor preload', () => {
       'nativeEdit',
       'onCommand',
       'onDocuments',
+      'onOpenDocument',
       'onSaveRequest',
       'open',
+      'openSettings',
       'save',
       'saveAs',
       'saveDone',
       'setDocumentState',
       'setMenuBindings',
+      'setMenuState',
     ]);
   });
 
@@ -126,12 +129,16 @@ describe('the editor preload', () => {
     call(api, 'setMenuBindings', { 'document.save': ['Mod+S'] });
     call(api, 'nativeEdit', 'undo');
     call(api, 'saveDone', 3, true);
+    call(api, 'setMenuState', { undo: true, redo: false, save: true, saveAs: true });
+    call(api, 'openSettings', 'ignored');
 
     expect(loaded.sent).toEqual([
       [EDITOR_CHANNELS.documentState, { name: 'desk', dirty: true }],
       [EDITOR_CHANNELS.menuBindings, { 'document.save': ['Mod+S'] }],
       [EDITOR_CHANNELS.nativeEdit, 'undo'],
       [EDITOR_CHANNELS.saveDone, 3, true],
+      [EDITOR_CHANNELS.menuState, { undo: true, redo: false, save: true, saveAs: true }],
+      [EDITOR_CHANNELS.openSettings],
     ]);
   });
 
@@ -143,6 +150,7 @@ describe('the editor preload', () => {
       call(api, 'onDocuments', (...args: unknown[]) => seen.push(['documents', ...args])),
       call(api, 'onCommand', (...args: unknown[]) => seen.push(['command', ...args])),
       call(api, 'onSaveRequest', (...args: unknown[]) => seen.push(['save', ...args])),
+      call(api, 'onOpenDocument', (...args: unknown[]) => seen.push(['open', ...args])),
     ] as (() => void)[];
     const fire = (channel: string, payload: unknown) => {
       for (const listener of loaded.listeners.get(channel) ?? []) {
@@ -152,11 +160,13 @@ describe('the editor preload', () => {
     fire(EDITOR_CHANNELS.documents, [{ name: 'desk' }]);
     fire(EDITOR_CHANNELS.command, 'document.save');
     fire(EDITOR_CHANNELS.saveRequest, 4);
+    fire(EDITOR_CHANNELS.openDocument, { name: 'tower' });
 
     expect(seen).toEqual([
       ['documents', [{ name: 'desk' }]],
       ['command', 'document.save'],
       ['save', 4],
+      ['open', { name: 'tower' }],
     ]);
 
     for (const stop of stops) stop();
@@ -164,6 +174,7 @@ describe('the editor preload', () => {
       EDITOR_CHANNELS.documents,
       EDITOR_CHANNELS.command,
       EDITOR_CHANNELS.saveRequest,
+      EDITOR_CHANNELS.openDocument,
     ]) {
       expect(loaded.listeners.get(channel)?.size, channel).toBe(0);
     }

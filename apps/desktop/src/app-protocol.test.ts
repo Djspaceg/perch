@@ -4,12 +4,14 @@ import {
   APP_SCHEME,
   EDITOR_PAGE_URL,
   RUNTIME_PAGE_URL,
+  SETTINGS_PAGE_URL,
   contentSecurityPolicy,
   editorAssetUrl,
   editorContentSecurityPolicy,
   isAppPage,
   isEditorPage,
   isRuntimePage,
+  isSettingsPage,
   resolveAppRequest,
 } from './app-protocol.js';
 
@@ -85,7 +87,18 @@ describe('the editor hosts', () => {
     }
   });
 
-  it('knows each page apart, and the navigation lock allows exactly the two', () => {
+  it('serves the Settings page from the editor build, and tells it apart from the editor', () => {
+    expect(SETTINGS_PAGE_URL).toBe('app://editor/settings.html');
+    expect(resolveAppRequest(SETTINGS_PAGE_URL, roots)).toBe(
+      join('/opt/perch/editor-page', 'settings.html'),
+    );
+    expect(isSettingsPage(SETTINGS_PAGE_URL)).toBe(true);
+    expect(isSettingsPage(EDITOR_PAGE_URL)).toBe(false);
+    expect(isEditorPage(SETTINGS_PAGE_URL)).toBe(false);
+    expect(isRuntimePage(SETTINGS_PAGE_URL)).toBe(false);
+  });
+
+  it('knows each page apart, and the navigation lock allows exactly the three', () => {
     expect(isEditorPage('app://editor/index.html')).toBe(true);
     expect(isEditorPage('app://editor/')).toBe(true);
     expect(isEditorPage('app://runtime/index.html')).toBe(false);
@@ -93,6 +106,8 @@ describe('the editor hosts', () => {
     expect(isAppPage('app://editor/index.html')).toBe(true);
     expect(isAppPage('app://runtime/index.html')).toBe(true);
     expect(isAppPage('app://editor-document/desk/a.svg')).toBe(false);
+    expect(isAppPage(SETTINGS_PAGE_URL)).toBe(true);
+    expect(isAppPage('app://editor/other.html')).toBe(false);
     expect(isAppPage('https://example.com/')).toBe(false);
   });
 

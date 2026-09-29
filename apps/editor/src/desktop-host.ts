@@ -14,7 +14,7 @@
  * preload test.
  */
 
-import type { EditorHost, MenuBindings, RelayTarget } from './editor-host.js';
+import type { EditorHost, HostMenuState, MenuBindings, RelayTarget } from './editor-host.js';
 import {
   createLayoutLibrary,
   type LayoutLibrary,
@@ -60,6 +60,9 @@ export interface EditorBridge {
   onSaveRequest(listener: (id: number) => void): () => void;
   saveDone(id: number, saved: boolean): void;
   nativeEdit(which: 'undo' | 'redo'): void;
+  setMenuState(state: HostMenuState): void;
+  openSettings(): void;
+  onOpenDocument(listener: (document: DesktopEditorDocument) => void): () => void;
 }
 
 const BRIDGE_METHODS = [
@@ -74,6 +77,9 @@ const BRIDGE_METHODS = [
   'onSaveRequest',
   'saveDone',
   'nativeEdit',
+  'setMenuState',
+  'openSettings',
+  'onOpenDocument',
 ] as const satisfies readonly (keyof EditorBridge)[];
 
 /** The bridge, if this page is in the editor window. Checked structurally, since it arrives untyped. */
@@ -140,5 +146,15 @@ export function editorHostFrom(bridge: EditorBridge): EditorHost {
     nativeEdit: (which) => {
       bridge.nativeEdit(which);
     },
+    setMenuState: (state) => {
+      bridge.setMenuState(state);
+    },
+    openSettings: () => {
+      bridge.openSettings();
+    },
+    onOpenDocument: (listener) =>
+      bridge.onOpenDocument((document) => {
+        listener(entryOf(document));
+      }),
   };
 }

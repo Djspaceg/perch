@@ -14,6 +14,13 @@
  *
  * `useConnection` reads them above the sensor provider, because the connection decides which source
  * the preview reads: the relay's once connected, the mock until then (see `app.tsx`).
+ *
+ * ## In the desktop app
+ *
+ * The control lives in the Settings window (`settings-page.tsx`), and the editor's header shows
+ * `ConnectionIndicator` instead: a dot and a few words that open Settings. The editor window then
+ * *follows* the relay (`useConnection(relay, { follow: true })`): it asks the relay for nothing and
+ * describes whatever the relay reports polling, so a host picked in Settings is what its header says.
  */
 
 import type { SensorSource } from '@perch/sensor-contract';
@@ -22,6 +29,7 @@ import { useEffect, useReducer, type ReactNode } from 'react';
 import {
   choiceRequest,
   deriveConnection,
+  followedRequest,
   parseHostInput,
   type ConnectionState,
   type HostInput,
@@ -55,7 +63,16 @@ export interface Connection {
   connect(): void;
 }
 
-export function useConnection(relay: RelayLink | undefined): Connection {
+export interface ConnectionOptions {
+  /** Ask the relay for nothing, and describe what it reports polling (`followedRequest`). */
+  readonly follow?: boolean;
+}
+
+export function useConnection(
+  relay: RelayLink | undefined,
+  options: ConnectionOptions = {},
+): Connection {
+  const follow = options.follow === true;
   const saved = useEditorStore((state) => state.settings.connection);
   const selectLocalhost = useEditorStore((state) => state.selectLocalhost);
   const selectRemote = useEditorStore((state) => state.selectRemote);
@@ -79,14 +96,15 @@ export function useConnection(relay: RelayLink | undefined): Connection {
   // localhost connects on selection and how a remembered host reconnects on load.
   const { choice } = saved;
   useEffect(() => {
-    relay?.control.request(choiceRequest(choice));
-  }, [relay, choice]);
+    if (!follow) relay?.control.request(choiceRequest(choice));
+  }, [relay, choice, follow]);
 
+  const status = relay?.control.status;
   const state = deriveConnection({
     relayUrl: relay?.url,
     link: relay?.control.link ?? 'down',
-    status: relay?.control.status,
-    request: choiceRequest(choice),
+    status,
+    request: follow ? followedRequest(status, choiceRequest(choice)) : choiceRequest(choice),
     sourceStatus: relay?.source.status ?? 'error',
   });
 
@@ -197,6 +215,34 @@ export function ConnectionControl({ connection }: { readonly connection: Connect
   );
 }
 
+/**
+ * The desktop editor's header: the connection as a dot and its phase and host, the relay's reason in
+ * the tooltip, and a click away from the Settings window that changes it.
+ */
+export function ConnectionIndicator({
+  connection,
+  onOpenSettings,
+}: {
+  readonly connection: Connection;
+  readonly onOpenSettings: () => void;
+}): ReactNode {
+  const { state } = connection;
+
+  return (
+    <button
+      type="button"
+      className="perch-connection__status perch-connection__indicator"
+      data-testid="perch-editor-connection-indicator"
+      data-perch-connection={state.phase}
+      title={`${describeState(state)}. Change the sensor host in Settings.`}
+      onClick={onOpenSettings}
+    >
+      <span className="perch-connection__dot" aria-hidden="true" />
+      {`${state.phase} · ${state.target}`}
+    </button>
+  );
+}
+
 /** The control's chrome: the header's own look, the sidebar's field and focus ring. */
 export const CONNECTION_STYLES = `
 .perch-connection { display: flex; align-items: center; gap: 6px; min-width: 0; }
@@ -224,6 +270,16 @@ export const CONNECTION_STYLES = `
 [data-perch-connection='connected'] > .perch-connection__dot { background: #7ee2a8; }
 [data-perch-connection='disconnected'] > .perch-connection__dot { background: var(--ed-danger); }
 [data-perch-connection='disconnected'] { color: var(--ed-danger); }
+.perch-connection__indicator {
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  font: inherit;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.perch-connection__indicator:hover { border-color: var(--ed-bar-edge); }
+.perch-connection__indicator:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 0; }
 .perch-editor-sample {
   white-space: nowrap;
   border-radius: 999px;

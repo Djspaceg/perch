@@ -97,6 +97,11 @@ export function editorPreloadPath(): string {
   return join(HERE, 'editor-preload.cjs');
 }
 
+/** The Settings window's compiled preload. */
+export function settingsPreloadPath(): string {
+  return join(HERE, 'settings-preload.cjs');
+}
+
 function nonEmpty(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed === undefined || trimmed === '' ? undefined : resolve(trimmed);

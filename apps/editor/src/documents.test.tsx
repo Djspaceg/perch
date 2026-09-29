@@ -66,6 +66,9 @@ function recordingHost(
     },
     saveDone: (id, saved) => calls.push(['saveDone', id, saved]),
     nativeEdit: (which) => calls.push(['nativeEdit', which]),
+    setMenuState: (state) => calls.push(['menuState', state]),
+    openSettings: () => calls.push(['openSettings']),
+    onOpenDocument: () => () => undefined,
   };
 
   const transport: SaveTransport = (url, init) => {
@@ -286,7 +289,9 @@ describe('Save As', () => {
     expect(recorded.writes.map((write) => write.url)).toEqual(['/__perch/layout/desk-copy']);
     expect(openName(result)).toBe('desk-copy');
     expect(result.queryByTestId('perch-editor-dirty')).toBeNull();
-    expect(result.getByRole('button', { name: 'undo' })).toBeEnabled();
+    // The history is kept: the host's menu still offers Undo.
+    const menu = recorded.calls.filter((call) => call[0] === 'menuState').at(-1);
+    expect(menu?.[1]).toMatchObject({ undo: true });
   });
 
   it('writes nothing when the dialog is cancelled, and the edits stay unsaved', async () => {

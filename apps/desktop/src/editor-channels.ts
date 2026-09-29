@@ -26,10 +26,16 @@ export const EDITOR_CHANNELS = {
   nativeEdit: 'perch:editor:native-edit',
   /** Sent by the page: a save request's answer. */
   saveDone: 'perch:editor:save-done',
+  /** Sent by the page: whether the menu's Undo, Redo, Save and Save As have anything to do. */
+  menuState: 'perch:editor:menu-state',
+  /** Sent by the page: open the Settings window (its `app.settings` command, its header indicator). */
+  openSettings: 'perch:editor:open-settings',
   /** Sent to the page: the documents, whenever they change. */
   documents: 'perch:editor:documents',
   /** Sent to the page: the menu ran a command. */
   command: 'perch:editor:command',
   /** Sent to the page: save before closing, then answer. */
   saveRequest: 'perch:editor:save-request',
+  /** Sent to the page: a document the menu picked (Open preset, Open recent), to open. */
+  openDocument: 'perch:editor:open-document',
 } as const;

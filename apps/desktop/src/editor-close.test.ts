@@ -28,9 +28,13 @@ describe('closing the editor with unsaved changes', () => {
 });
 
 describe('the dock icon', () => {
-  it('shows while either window is showing, and hides once neither is', () => {
-    expect(dockVisible({ runnerVisible: true, editorOpen: false })).toBe(true);
-    expect(dockVisible({ runnerVisible: false, editorOpen: true })).toBe(true);
-    expect(dockVisible({ runnerVisible: false, editorOpen: false })).toBe(false);
+  it('shows while any window is showing, and hides once none is', () => {
+    const none = { runnerVisible: false, editorOpen: false, settingsOpen: false };
+    expect(dockVisible({ ...none, runnerVisible: true })).toBe(true);
+    expect(dockVisible({ ...none, editorOpen: true })).toBe(true);
+    // The Settings window too: without a dock icon a macOS app has no menu bar, and the host
+    // field's paste is a menu item.
+    expect(dockVisible({ ...none, settingsOpen: true })).toBe(true);
+    expect(dockVisible(none)).toBe(false);
   });
 });

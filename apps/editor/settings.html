@@ -1,0 +1,18 @@
+<!doctype html>
+<!--
+  The desktop app's Settings window: a second page of the editor's build (`vite.config.ts`), so it
+  is made from the editor's own controls and chrome. See `index.html` for why this page has no
+  import map or stylesheet link, and for the warning about writing the document head tag's name
+  inside a comment; it applies here too.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>perch · settings</title>
+  </head>
+  <body>
+    <div id="perch-settings-root"></div>
+    <script type="module" src="/src/settings-main.tsx"></script>
+  </body>
+</html>

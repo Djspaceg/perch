@@ -9,7 +9,8 @@ Electron main process (single instance per userData)
   relay (apps/agent, in process)  --ws://127.0.0.1:<port>-->  runner window, editor window
   layouts folder, watched         --runtime preload------->   app://runtime/index.html
   editor documents, dialogs       --editor preload-------->   app://editor/index.html
-  tray: layouts, folder, Open editor, window, start at login, quit
+  the relay's URL and poll target --settings preload------>  app://editor/settings.html
+  tray: layouts, folder, Open editor, Show/Hide preview, Settings..., start at login, quit
   menu: App (macOS), File, Edit, View, Window
 ```
 
@@ -60,8 +61,8 @@ per userData, so a launch with its own never hands off to a perch you already ha
 - **The document is watched.** A save re-renders in place; a malformed save shows the runtime's
   own refusal and the watch continues; a fixed save renders again. Switching documents in the tray
   reloads the page.
-- **Remembered:** the open document and the LHM host a client (the editor's connection control)
-  last switched the relay to, in `perch-desktop.json`, written atomically.
+- **Remembered:** the open document, the LHM host a client (the Settings window) last switched the
+  relay to, and File > Open recent's list, in `perch-desktop.json`, written atomically.
 - **Security.** Sandboxed renderers, context isolation, no Node in either page, a preload each, a
   content security policy each, navigation locked to the two pages. The editor page never names a
   file: every document has a key (`desk`, `desk-2`), and only the main process maps a key to a
@@ -78,13 +79,35 @@ per userData, so a launch with its own never hands off to a perch you already ha
   quitting, with unsaved changes asks Save / Don't Save / Cancel. Cancel calls a quit off.
 - **The runner sees saves.** Saving the document the runner shows re-renders it, through the
   runner's own watch.
-- **The sensor host.** The editor's connection control starts on the host the relay is polling,
-  so opening the editor never moves it; switching it retargets the relay, and the runner saves it
-  and resumes with it.
-- **Menu.** Each item shows the accelerator of the editor's binding for it, overrides included.
-  Undo and Redo are not the platform roles: in a text field they are the field's native undo, and
-  elsewhere the editor's history, through its keybinding registry. There is no Reload, which would
-  drop unsaved edits. Developer tools are in View for an unpackaged run.
+- **Header.** No picker, connection control, undo, redo or save: those are in the menu bar and the
+  Settings window. It keeps the fit, a connection indicator (a dot, the phase and the host, the
+  relay's reason in its tooltip) that opens Settings, the sample-data badge, the unsaved mark and
+  revert. `npm run dev` in a browser has no menu bar and keeps the whole toolbar.
+- **Menu.** File: New, Open..., Open preset, Open recent, Save, Save As..., and Settings (Ctrl+,) on
+  Windows and Linux. On macOS Settings... (Cmd+,) is in the app menu. Each item shows the
+  accelerator of the editor's binding for it, overrides included, and runs the same registry command
+  the key does. Undo, Redo, Save and Save As are enabled as the editor says: Undo with a step to
+  undo (or a text field focused), Save with unsaved changes. Undo and Redo are not the platform
+  roles: in a text field they are the field's native undo, elsewhere the editor's history, and in
+  another window that window's native undo. There is no Reload, which would drop unsaved edits.
+  Developer tools are in View for an unpackaged run.
+- **Open preset** lists the layouts folder, the list the picker showed, with a checkmark on the
+  document the editor has open, and follows the folder: add, rename or remove a file and it is
+  rebuilt. "No presets" when the folder has none. Picking one opens it in the editor, opening the
+  editor first if need be, behind the unsaved-changes bar as Open is.
+- **Open recent** lists the last 10 documents opened or saved in the editor, newest first; one no
+  longer on disk is left out (and comes back if the file does). "Clear recently opened" empties
+  it. On macOS the Dock's recent list is kept to match.
+
+## Settings
+
+One small window, only ever one: opening it again brings it forward. From the app menu's
+Settings... (macOS), File > Settings (Windows, Linux), the tray's Settings..., or in the editor its
+Mod+Comma and the header's connection indicator. It holds the sensor host control the editor header
+used to: localhost or a typed host[:port], Connect, and the status with the relay's reason. It
+starts on the host the relay is polling, so opening it moves nothing; a Connect retargets the relay,
+and the runner saves the host and resumes with it. The page is a second entry of the editor's build,
+so `npm run runner` now builds the editor too.
 
 ## Layout
 
@@ -96,8 +119,11 @@ src/runtime-preload.cts  the runner page's bridge; CommonJS because a sandboxed 
 src/editor.ts            the editor: its IPC, dialogs, close prompt and window lifecycle
 src/editor-window.ts     the editor's BrowserWindow
 src/editor-preload.cts   the editor page's bridge
+src/settings-window.ts   the Settings window, one at a time (single-window.ts), and its IPC
+src/settings-preload.cts the Settings page's bridge: one load
+src/folder-watch.ts      the layouts folder's watch, which the tray and Open preset follow
 src/*.ts                 the pure parts, each with its test: launch, app-menu, editor-documents,
-                         editor-close, lhm-sync, app-protocol, settings, ...
+                         editor-close, lhm-sync, app-protocol, settings, recent, ...
 src/packaging.ts         the electron-builder config, and the launcher files it cannot make itself
 src/app-icon.ts          the placeholder app icon, drawn at packaging time
 electron-builder.config.mjs  calls packaging.ts; electron-builder reads it

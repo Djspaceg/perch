@@ -6,6 +6,7 @@ import {
   MENU_COMMAND_IDS,
   blankLayoutLike,
   choiceForRelay,
+  hostMenuState,
   menuBindings,
   menuCommandRoute,
   untitledName,
@@ -75,6 +76,37 @@ describe('menuBindings', () => {
       'Mod+Shift+Z',
       'Ctrl+Y',
     ]);
+    expect(bindings['app.settings']).toEqual(['Mod+,']);
+  });
+});
+
+describe('hostMenuState', () => {
+  const idle = {
+    canUndo: false,
+    canRedo: false,
+    fieldFocused: false,
+    canSave: false,
+    canSaveAs: true,
+  };
+
+  it("offers Undo and Redo while the document's history has a step that way", () => {
+    expect(hostMenuState(idle)).toEqual({ undo: false, redo: false, save: false, saveAs: true });
+    expect(hostMenuState({ ...idle, canUndo: true })).toMatchObject({ undo: true, redo: false });
+    expect(hostMenuState({ ...idle, canRedo: true })).toMatchObject({ undo: false, redo: true });
+  });
+
+  it("offers both while a text field has focus, where they are the field's own undo", () => {
+    expect(hostMenuState({ ...idle, fieldFocused: true })).toMatchObject({
+      undo: true,
+      redo: true,
+    });
+  });
+
+  it('passes Save and Save As through', () => {
+    expect(hostMenuState({ ...idle, canSave: true, canSaveAs: false })).toMatchObject({
+      save: true,
+      saveAs: false,
+    });
   });
 });
 

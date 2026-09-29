@@ -36,6 +36,9 @@ export const COMMANDS = {
     scope: 'global',
     keys: { mac: ['Mod+Shift+Z'], other: ['Mod+Shift+Z', 'Ctrl+Y'] },
   },
+  // The desktop app's Settings window, where each platform puts Settings: Cmd-, and Ctrl-,. Only
+  // where a host is; in a browser the key stays the browser's.
+  'app.settings': { label: 'Settings', scope: 'global', keys: ['Mod+,'], inFields: true },
   'selection.delete': {
     label: 'Delete selected element',
     scope: 'canvas',

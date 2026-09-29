@@ -74,6 +74,14 @@
  * commands through the registry, and the host is told the document's name and whether it is dirty so
  * it can mark the window and ask before closing. New is an untitled document in memory; its first
  * Save is a Save As. Every write still goes through `saveDraft` and the injected transport.
+ *
+ * ## Two headers
+ *
+ * In a browser the header is the whole toolbar: the layout picker, the connection control, undo,
+ * redo and save. Given a host, those are the host's: the menu bar has Open, Open preset (the picker's
+ * list), Save, Save As, Undo and Redo, told what to enable (`hostMenuState`), and the Settings window
+ * has the connection control. The header keeps the fit, a connection indicator that opens Settings,
+ * the sample-data badge, the unsaved mark and revert.
  */
 
 import type { SensorSource } from '@perch/sensor-contract';
@@ -91,6 +99,7 @@ import { CANVAS_HANDLES_STYLES } from './canvas-handles.js';
 import {
   CONNECTION_STYLES,
   ConnectionControl,
+  ConnectionIndicator,
   useConnection,
   type Connection,
   type RelayLink,
@@ -99,6 +108,7 @@ import { CONTROLS_STYLES } from './controls/index.js';
 import { canSave, isDirty, type DraftState } from './draft.js';
 import {
   blankLayoutLike,
+  hostMenuState,
   menuBindings,
   menuCommandRoute,
   untitledName,
@@ -107,6 +117,7 @@ import {
 import { useEditGesture } from './edit-gestures.js';
 import {
   KeybindingsProvider,
+  isTextEntry,
   keyScope,
   useCommand,
   useCommandRunner,
@@ -258,7 +269,8 @@ function ConnectedEditor({
   relay,
   host,
 }: Omit<EditorProps, 'store' | 'storage' | 'initialLayout' | 'platform'>): ReactNode {
-  const connection = useConnection(relay);
+  // In the desktop app the Settings window picks the host; this window follows the relay.
+  const connection = useConnection(relay, { follow: host !== undefined });
   const live = relay !== undefined && connection.state.phase === 'connected';
 
   return (
@@ -620,6 +632,34 @@ function EditorShell({
   useCommand('document.saveAs', () => void onSaveAs(), { enabled: hosted });
   useCommand('document.new', onNew, { enabled: hosted });
   useCommand('document.open', onOpen, { enabled: hosted });
+  useCommand('app.settings', () => host?.openSettings(), { enabled: hosted });
+
+  // The host's Open preset and Open recent: the same bar as Open over unsaved edits.
+  useEffect(
+    () =>
+      host?.onOpenDocument((entry) => {
+        guard(entry.name, () => {
+          show(openLayoutEntry(entry), true);
+        });
+      }),
+    [host, guard, show],
+  );
+
+  // What the host's menu may offer, told whenever it changes.
+  const fieldFocused = useTextEntryFocus(hosted);
+  const canSaveNow = opened.ok && !saving && (canSave(opened.state) || untitled === name);
+  const canSaveAsNow = opened.ok && !saving;
+  useEffect(() => {
+    host?.setMenuState(
+      hostMenuState({
+        canUndo,
+        canRedo,
+        fieldFocused,
+        canSave: canSaveNow,
+        canSaveAs: canSaveAsNow,
+      }),
+    );
+  }, [host, canUndo, canRedo, fieldFocused, canSaveNow, canSaveAsNow]);
 
   // The host marks its window and asks before closing from this.
   useEffect(() => {
@@ -662,22 +702,24 @@ function EditorShell({
       <header className="perch-editor-header" data-testid="perch-editor-header">
         <span className="perch-editor-brand">perch · editor</span>
 
-        <label className="perch-editor-picker">
-          layout
-          <select
-            className="perch-editor-input"
-            value={name}
-            onChange={(event) => {
-              onPick(event.target.value);
-            }}
-          >
-            {choices.map((choice) => (
-              <option key={choice} value={choice}>
-                {choice}
-              </option>
-            ))}
-          </select>
-        </label>
+        {hosted ? null : (
+          <label className="perch-editor-picker">
+            layout
+            <select
+              className="perch-editor-input"
+              value={name}
+              onChange={(event) => {
+                onPick(event.target.value);
+              }}
+            >
+              {choices.map((choice) => (
+                <option key={choice} value={choice}>
+                  {choice}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         {opened.ok ? (
           <span className="perch-editor-item" data-testid="perch-editor-fit">
@@ -685,7 +727,16 @@ function EditorShell({
           </span>
         ) : null}
 
-        <ConnectionControl connection={connection} />
+        {hosted ? (
+          <ConnectionIndicator
+            connection={connection}
+            onOpenSettings={() => {
+              host.openSettings();
+            }}
+          />
+        ) : (
+          <ConnectionControl connection={connection} />
+        )}
 
         {live ? (
           <span
@@ -714,25 +765,29 @@ function EditorShell({
           </span>
         ) : null}
 
-        <CommandButton
-          command="history.undo"
-          disabled={!canUndo}
-          onClick={() => {
-            onHistory('undo');
-          }}
-        >
-          undo
-        </CommandButton>
+        {hosted ? null : (
+          <>
+            <CommandButton
+              command="history.undo"
+              disabled={!canUndo}
+              onClick={() => {
+                onHistory('undo');
+              }}
+            >
+              undo
+            </CommandButton>
 
-        <CommandButton
-          command="history.redo"
-          disabled={!canRedo}
-          onClick={() => {
-            onHistory('redo');
-          }}
-        >
-          redo
-        </CommandButton>
+            <CommandButton
+              command="history.redo"
+              disabled={!canRedo}
+              onClick={() => {
+                onHistory('redo');
+              }}
+            >
+              redo
+            </CommandButton>
+          </>
+        )}
 
         <button
           type="button"
@@ -745,17 +800,19 @@ function EditorShell({
           revert
         </button>
 
-        <button
-          type="button"
-          className="perch-editor-button perch-editor-button--save"
-          data-testid="perch-editor-save"
-          disabled={!opened.ok || saving || !canSave(opened.state)}
-          onClick={() => {
-            void onSave();
-          }}
-        >
-          save
-        </button>
+        {hosted ? null : (
+          <button
+            type="button"
+            className="perch-editor-button perch-editor-button--save"
+            data-testid="perch-editor-save"
+            disabled={!opened.ok || saving || !canSave(opened.state)}
+            onClick={() => {
+              void onSave();
+            }}
+          >
+            save
+          </button>
+        )}
       </header>
 
       {/*
@@ -863,6 +920,34 @@ function CommandButton({
       {children}
     </button>
   );
+}
+
+/**
+ * Whether a text entry has focus, followed while `watching`: the host's menu Undo is the field's own
+ * there, so it is offered whatever the document's history holds.
+ */
+function useTextEntryFocus(watching: boolean): boolean {
+  const [focused, setFocused] = useState(() => watching && isTextEntry(document.activeElement));
+
+  useEffect(() => {
+    if (!watching) return undefined;
+    const onIn = (event: FocusEvent): void => {
+      setFocused(isTextEntry(event.target));
+    };
+    // Where focus is going, which during `focusout` is not yet `document.activeElement`.
+    const onOut = (event: FocusEvent): void => {
+      setFocused(isTextEntry(event.relatedTarget));
+    };
+    document.addEventListener('focusin', onIn);
+    document.addEventListener('focusout', onOut);
+
+    return () => {
+      document.removeEventListener('focusin', onIn);
+      document.removeEventListener('focusout', onOut);
+    };
+  }, [watching]);
+
+  return focused;
 }
 
 /** The document open for editing. `Editor` opens one before the shell first renders. */

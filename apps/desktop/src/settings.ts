@@ -1,8 +1,8 @@
 /**
- * What the desktop app remembers between launches: which layout document was open, and which
- * LibreHardwareMonitor host the relay was last told to poll.
+ * What the desktop app remembers between launches: which layout document was open, which
+ * LibreHardwareMonitor host the relay was last told to poll, and the editor's recent documents.
  *
- * One small JSON file in Electron's `userData`, rather than a settings library, because two fields
+ * One small JSON file in Electron's `userData`, rather than a settings library, because three fields
  * do not need one. Two properties matter and both are here:
  *
  * - **A write is atomic.** The new contents go to a temporary file beside the real one and are
@@ -16,6 +16,7 @@
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { parseLhmRequest } from '@perch/agent';
+import { RECENT_LIMIT } from './recent.js';
 
 /** The file's name inside `userData`. */
 export const SETTINGS_FILENAME = 'perch-desktop.json';
@@ -31,9 +32,15 @@ export interface DesktopSettings {
   readonly lastDocument: string | null;
   /** The LHM host a client last switched the relay to, or `null` for the relay's own default. */
   readonly lhm: LhmHostSetting | null;
+  /** File > Open recent: absolute paths, newest first, at most `RECENT_LIMIT` (`recent.ts`). */
+  readonly recent: readonly string[];
 }
 
-export const DEFAULT_SETTINGS: DesktopSettings = Object.freeze({ lastDocument: null, lhm: null });
+export const DEFAULT_SETTINGS: DesktopSettings = Object.freeze({
+  lastDocument: null,
+  lhm: null,
+  recent: Object.freeze([]),
+});
 
 export interface SettingsRead {
   readonly settings: DesktopSettings;
@@ -61,7 +68,11 @@ export async function readSettings(file: string): Promise<SettingsRead> {
     return { settings: DEFAULT_SETTINGS, problem: `${file} is not a JSON object` };
   }
 
-  const { lastDocument, lhm } = body as { lastDocument?: unknown; lhm?: unknown };
+  const { lastDocument, lhm, recent } = body as {
+    lastDocument?: unknown;
+    lhm?: unknown;
+    recent?: unknown;
+  };
   const bad: string[] = [];
 
   const lastOk = lastDocument === null || typeof lastDocument === 'string';
@@ -70,10 +81,19 @@ export async function readSettings(file: string): Promise<SettingsRead> {
   const lhmOk = lhm === null || isLhmHostSetting(lhm);
   if (!lhmOk && lhm !== undefined) bad.push('lhm');
 
+  // A file from before the list has none, which is an empty one; anything else that is not a list
+  // of paths keeps the paths it has.
+  const listed = Array.isArray(recent) ? (recent as unknown[]) : [];
+  const paths = listed.filter((path): path is string => typeof path === 'string' && path !== '');
+  if ((recent !== undefined && !Array.isArray(recent)) || paths.length !== listed.length) {
+    bad.push('recent');
+  }
+
   return {
     settings: {
       lastDocument: lastOk ? lastDocument : null,
       lhm: lhmOk ? lhm : null,
+      recent: paths.slice(0, RECENT_LIMIT),
     },
     problem: bad.length === 0 ? null : `${file}: ignored ${bad.join(', ')}, which did not parse`,
   };
@@ -88,7 +108,11 @@ export async function writeSettings(file: string, settings: DesktopSettings): Pr
 
   writeCount += 1;
   const temporary = `${file}.${String(process.pid)}.${String(writeCount)}.tmp`;
-  const body: DesktopSettings = { lastDocument: settings.lastDocument, lhm: settings.lhm };
+  const body: DesktopSettings = {
+    lastDocument: settings.lastDocument,
+    lhm: settings.lhm,
+    recent: settings.recent,
+  };
 
   try {
     await writeFile(temporary, `${JSON.stringify(body, null, 2)}\n`, 'utf8');

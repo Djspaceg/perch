@@ -60,7 +60,9 @@ relay's reason (`EHOSTUNREACH`, `ECONNREFUSED`) when it has one. Connected means
 the relay's poll of that host works *and* readings are arriving in the editor;
 only then do the preview and the sensor picker use live data. Until then the
 preview shows sample values under a **sample data** badge. The choice and the
-typed host are remembered in the browser.
+typed host are remembered in the browser. In the desktop app the same control
+is in its Settings window (Cmd+, or Ctrl+,, or the tray), and the runner
+remembers the host.
 
 The stack starts the relay first and hands the editor the WebSocket port the
 relay actually bound. If 1883 or 9001 is already held (a Homebrew mosquitto) and

@@ -12,6 +12,7 @@
  *  2. **A save endpoint**, below.
  *  3. **`PERCH_` reaches the page**, as it does the runtime's, for `PERCH_RELAY_URL`: the relay URL the
  *     dev stack hands the editor. See `src/main.tsx`.
+ *  4. **A second page**, `settings.html`: the desktop app's Settings window. See `src/settings-main.tsx`.
  *
  * ## The save endpoint
  *
@@ -240,6 +241,14 @@ export default defineConfig({
     // in `.gitignore`.
     outDir: 'dist/page',
     sourcemap: true,
+    // Two pages: the editor, and the desktop app's Settings window (`settings.html`), which is built
+    // from the editor's controls. The browser never links to the second.
+    rollupOptions: {
+      input: {
+        editor: fileURLToPath(new URL('index.html', import.meta.url)),
+        settings: fileURLToPath(new URL('settings.html', import.meta.url)),
+      },
+    },
   },
 
   server: {

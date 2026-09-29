@@ -1,6 +1,33 @@
 /**
  * The application menu, as data: App (macOS), File, Edit, View, Window.
  *
+ * ```text
+ * perch (macOS)  About, Settings... (Mod+,), Services, Hide, Quit
+ * File           New, Open..., Open preset >, Open recent >, Save, Save As...,
+ *                Settings (Windows, Linux), Close, Quit (Windows, Linux)
+ * Edit           Undo, Redo, the clipboard roles
+ * Window         Open editor, Show preview
+ * ```
+ *
+ * Settings is where each platform keeps it: the app menu on macOS, File elsewhere. It opens the
+ * Settings window from the main process directly rather than through the editor page, because it
+ * has to work with no editor open; in the editor window its key reaches the page first, whose
+ * `app.settings` command asks for the same window.
+ *
+ * ## Open preset and Open recent
+ *
+ * Open preset lists the layouts folder, the list the editor's picker showed, with a checkmark on the
+ * document the editor has open; `main.ts` rebuilds the menu whenever the folder changes
+ * (`folder-watch.ts`). Open recent is `recent.ts`'s list. Either opens the document in the editor,
+ * opening the editor first if it is closed, through the same unsaved-changes bar as Open.
+ *
+ * ## What is enabled follows the editor
+ *
+ * The editor page reports whether Undo, Redo, Save and Save As have anything to do
+ * (`pageMenuStateFrom`), and `menuEnabled` turns that into the items' state: Save and Save As always
+ * the editor's, Undo and Redo the editor's only while its window is focused, since elsewhere they are
+ * that window's native undo, which no page reports.
+ *
  * macOS needs one with an Edit menu or Cmd-C, V, X and A do nothing in a text field, since the
  * platform delivers those through the menu. The clipboard items are Electron's roles, so they do
  * exactly what the platform's do.
@@ -41,6 +68,7 @@ export const MENU_COMMANDS = [
   'document.saveAs',
   'history.undo',
   'history.redo',
+  'app.settings',
 ] as const;
 
 export type MenuCommandId = (typeof MENU_COMMANDS)[number];
@@ -53,6 +81,7 @@ const SHARED: Omit<MenuBindings, 'history.redo'> = {
   'document.save': ['Mod+S'],
   'document.saveAs': ['Mod+Shift+S'],
   'history.undo': ['Mod+Z'],
+  'app.settings': ['Mod+,'],
 };
 
 /** The editor registry's defaults for the menu's commands, per platform. */
@@ -141,6 +170,66 @@ export function historyMenuTarget(focused: 'editor' | 'other' | null): 'editor-p
   return focused === 'editor' ? 'editor-page' : 'native';
 }
 
+/** What the editor page says the menu's Undo, Redo, Save and Save As have to do. */
+export interface MenuEnabled {
+  readonly undo: boolean;
+  readonly redo: boolean;
+  readonly save: boolean;
+  readonly saveAs: boolean;
+}
+
+/** The editor page's report, read as untrusted: four booleans, else `null`. */
+export function pageMenuStateFrom(input: unknown): MenuEnabled | null {
+  if (typeof input !== 'object' || input === null) return null;
+  const { undo, redo, save, saveAs } = input as Record<string, unknown>;
+  if (
+    typeof undo !== 'boolean' ||
+    typeof redo !== 'boolean' ||
+    typeof save !== 'boolean' ||
+    typeof saveAs !== 'boolean'
+  ) {
+    return null;
+  }
+
+  return { undo, redo, save, saveAs };
+}
+
+/**
+ * Which of the four items are enabled. `page` is the editor page's last report, `null` before it
+ * has made one, when everything is offered as it was before the page could say. `focused` is which
+ * window has focus, as `historyMenuTarget` reads it.
+ */
+export function menuEnabled({
+  editorOpen,
+  focused,
+  page,
+}: {
+  editorOpen: boolean;
+  focused: 'editor' | 'other' | null;
+  page: MenuEnabled | null;
+}): MenuEnabled {
+  const history = historyMenuTarget(focused) === 'editor-page';
+
+  return {
+    undo: history ? (page?.undo ?? true) : true,
+    redo: history ? (page?.redo ?? true) : true,
+    save: editorOpen && (page?.save ?? true),
+    saveAs: editorOpen && (page?.saveAs ?? true),
+  };
+}
+
+/** A document the Open preset submenu lists. */
+export interface PresetDocument {
+  readonly name: string;
+  readonly path: string;
+}
+
+/** A document the Open recent submenu lists (`recent.ts`). */
+export interface RecentDocument {
+  readonly path: string;
+  readonly label: string;
+}
+
 export interface AppMenuState {
   readonly platform: NodeJS.Platform;
   readonly appName: string;
@@ -148,6 +237,12 @@ export interface AppMenuState {
   readonly editorOpen: boolean;
   /** Whether View offers the developer tools: an unpackaged run only. */
   readonly devTools: boolean;
+  readonly enabled: MenuEnabled;
+  /** The layouts folder's documents. */
+  readonly presets: readonly PresetDocument[];
+  /** The path of the document open in the editor, or `null`. */
+  readonly openDocument: string | null;
+  readonly recent: readonly RecentDocument[];
 }
 
 export interface AppMenuActions {
@@ -155,6 +250,53 @@ export interface AppMenuActions {
   command(id: MenuCommandId): void;
   openEditor(): void;
   showRunner(): void;
+  openSettings(): void;
+  /** Open a document in the editor, opening the editor first when it is closed. */
+  openPreset(path: string): void;
+  openRecent(path: string): void;
+  clearRecent(): void;
+}
+
+/** File > Open preset's items. Exported for `folder-watch.test.ts`, which rebuilds it from a real folder. */
+export function presetSubmenu(
+  documents: readonly PresetDocument[],
+  openDocument: string | null,
+  open: (path: string) => void,
+): MenuItemConstructorOptions[] {
+  if (documents.length === 0) return [{ label: 'No presets', enabled: false }];
+
+  return documents.map((document) => ({
+    label: document.name,
+    type: 'checkbox',
+    checked: document.path === openDocument,
+    click: () => {
+      open(document.path);
+    },
+  }));
+}
+
+function recentSubmenu(
+  recent: readonly RecentDocument[],
+  actions: AppMenuActions,
+): MenuItemConstructorOptions[] {
+  return [
+    ...(recent.length === 0
+      ? [{ label: 'No recent documents', enabled: false }]
+      : recent.map((document) => ({
+          label: document.label,
+          click: () => {
+            actions.openRecent(document.path);
+          },
+        }))),
+    { type: 'separator' },
+    {
+      label: 'Clear recently opened',
+      enabled: recent.length > 0,
+      click: () => {
+        actions.clearRecent();
+      },
+    },
+  ];
 }
 
 export function appMenuTemplate(
@@ -178,12 +320,23 @@ export function appMenuTemplate(
     };
   };
 
+  const settingsAccelerator = acceleratorFor(state.bindings['app.settings'][0]);
+  const settings = (label: string): MenuItemConstructorOptions => ({
+    label,
+    ...(settingsAccelerator === undefined ? {} : { accelerator: settingsAccelerator }),
+    click: () => {
+      actions.openSettings();
+    },
+  });
+
   const appMenu: MenuItemConstructorOptions[] = mac
     ? [
         {
           label: state.appName,
           submenu: [
             { role: 'about' },
+            { type: 'separator' },
+            settings('Settings...'),
             { type: 'separator' },
             { role: 'services' },
             { type: 'separator' },
@@ -200,17 +353,25 @@ export function appMenuTemplate(
   const file: MenuItemConstructorOptions[] = [
     command('New', 'document.new'),
     command('Open...', 'document.open'),
+    {
+      label: 'Open preset',
+      submenu: presetSubmenu(state.presets, state.openDocument, (path) => {
+        actions.openPreset(path);
+      }),
+    },
+    { label: 'Open recent', submenu: recentSubmenu(state.recent, actions) },
     { type: 'separator' },
-    command('Save', 'document.save', { enabled: state.editorOpen }),
-    command('Save As...', 'document.saveAs', { enabled: state.editorOpen }),
+    command('Save', 'document.save', { enabled: state.enabled.save }),
+    command('Save As...', 'document.saveAs', { enabled: state.enabled.saveAs }),
     { type: 'separator' },
+    ...(mac ? [] : [settings('Settings'), { type: 'separator' as const }]),
     { role: 'close' },
     ...(mac ? [] : [{ type: 'separator' as const }, { role: 'quit' as const }]),
   ];
 
   const edit: MenuItemConstructorOptions[] = [
-    command('Undo', 'history.undo'),
-    command('Redo', 'history.redo'),
+    command('Undo', 'history.undo', { enabled: state.enabled.undo }),
+    command('Redo', 'history.redo', { enabled: state.enabled.redo }),
     { type: 'separator' },
     { role: 'cut' },
     { role: 'copy' },
@@ -243,7 +404,7 @@ export function appMenuTemplate(
       },
     },
     {
-      label: 'Show runner window',
+      label: 'Show preview',
       click: () => {
         actions.showRunner();
       },

@@ -24,6 +24,11 @@ source with `data-perch-source-kind` (`mock` or `mqtt`) so no
 capture can be misread as a live panel. Open a specific file with `?layout=`,
 including one under `layouts/invalid/` that the picker does not offer.
 
+That is the browser. In the desktop app (`npm run editor`) the header is slimmer: the picker, undo,
+redo and save are in the menu bar (File > Open preset is the picker's list), and the connection
+control is in the Settings window (Mod+Comma, or click the header's connection indicator). See
+`apps/desktop/README.md`.
+
 ## Settings
 
 The editor's settings live in one zustand store (`src/store.ts`), persisted to `localStorage` under

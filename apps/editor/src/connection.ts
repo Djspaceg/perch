@@ -82,6 +82,18 @@ export function choiceRequest(choice: ConnectionChoice): RelayLhmRequest {
     : { host: choice.host, port: choice.port };
 }
 
+/**
+ * The request a window that only follows the relay compares against: whatever the relay reports
+ * polling, once it has reported, else `fallback`. The desktop editor's header indicator follows, so a
+ * host chosen in the Settings window, or by any other client, is what it describes.
+ */
+export function followedRequest(
+  status: RelayLhmStatus | undefined,
+  fallback: RelayLhmRequest,
+): RelayLhmRequest {
+  return status === undefined ? fallback : { host: status.host, port: status.port };
+}
+
 /** What is remembered: the choice in effect, and whatever is in the host field. */
 export interface SavedConnection {
   readonly choice: ConnectionChoice;
