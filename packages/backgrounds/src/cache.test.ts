@@ -253,7 +253,8 @@ describe('ensure', () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
       return ok(MP4);
     });
-    const made = cache();
+    const lines: string[] = [];
+    const made = cache({ log: (line) => lines.push(line) });
     const [one, two] = await Promise.all([
       made.ensure('thermalright:a042', TARGET),
       made.ensure('thermalright:a042', { width: 1920, height: 420 }),
@@ -261,6 +262,9 @@ describe('ensure', () => {
 
     expect(one.ok && two.ok).toBe(true);
     expect(calls).toHaveLength(1);
+    // One download, said once: the second caller's line says it waited on the first's.
+    expect(lines.filter((line) => line.includes('downloaded'))).toHaveLength(1);
+    expect(lines.filter((line) => line.includes('shared the download already running'))).toHaveLength(1);
   });
 
   it('runs no more downloads at once than its concurrency', async () => {

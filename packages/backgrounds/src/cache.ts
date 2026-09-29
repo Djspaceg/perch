@@ -204,14 +204,19 @@ export function createBackgroundCache(options: BackgroundCacheOptions): Backgrou
       return answer('cache');
     }
     const began = Date.now();
+    // Asked before `download`, which would join it: the runtime page and the editor both ask for a
+    // layout's background as it opens, and one download should read as one in the log.
+    const joined = inFlight.has(relative);
     const outcome = await download(relative, `${id}.mp4`, 'video', size);
     if (!outcome.ok) {
       log(`backgrounds: ${ref} at ${sizeName(size)}: ${outcome.code}: ${outcome.reason}`);
       return atSize(outcome, size);
     }
     log(
-      `backgrounds: ${ref} at ${sizeName(size)}: downloaded ${String(outcome.bytes)} bytes from ` +
-        `${outcome.server} in ${String(Date.now() - began)} ms -> ${path}`,
+      joined
+        ? `backgrounds: ${ref} at ${sizeName(size)}: shared the download already running -> ${path}`
+        : `backgrounds: ${ref} at ${sizeName(size)}: downloaded ${String(outcome.bytes)} bytes from ` +
+            `${outcome.server} in ${String(Date.now() - began)} ms -> ${path}`,
     );
     return answer(outcome.server);
   }
