@@ -5075,7 +5075,7 @@ Q4 A static build (such as caster's bundle) has no cache and shows the failure b
 
 ## Gate facts
 
-Nothing pushed; no review cut (GitHub repo, no CRUX; AutoSDE not run because it sends the diff off-host). No external dependency. The lockfile changed only through `npm install` registering the workspace link and three `@perch/backgrounds` entries. packages/* call sites: the last section of CALL_SITES.md. Lanes: build-, test-, typecheck- and lint-{a..g}.log all exit 0; package-mac.log exit 0 with no media in the app (package-media-check.log). Adversarial review rounds: 0 (standing rule 13, no code-review.md).
+Nothing pushed; no review cut (GitHub repo, no CRUX; AutoSDE not run: off-host). No external dependency. The lockfile changed only through `npm install` registering the workspace link and three `@perch/backgrounds` entries. packages/* call sites: the last section of CALL_SITES.md. Lanes: build-, test-, typecheck- and lint-{a..g}.log all exit 0; package-mac.log exit 0 with no media in the app (package-media-check.log). Adversarial review rounds: 0 (standing rule 13, no code-review.md).
 
 ## Evidence (under the worktree's .evidence/)
 
@@ -5087,6 +5087,8 @@ Nothing pushed; no review cut (GitHub repo, no CRUX; AutoSDE not run because it 
 - editor-background-browser.png, runner-playing-background.png, editor-not-hosted-alert.png.
 - package-launch.log: the packaged runner downloads into a temp userData.
 
+File capture refused this worktree: logs are notes, the PNGs stay in .evidence/.
+
 ## Residuals
 
-The size probe sent two HEADs per size instead of one. Test traffic: about 18 HEADs, 5 whole videos, 35 thumbnail heads. Many first frames are black (the videos fade in). A 404 video is not remembered, so reopening the browser asks those cells again. Keyboard use was synthetic events; no screen reader. Windows and Linux were not launched. A SIGTERM to the npm electron wrapper closed the editor but did not quit (pre-existing); the Electron child was signalled.
+The size probe sent two HEADs per size instead of one. Test traffic: about 18 HEADs, 5 whole videos, 35 thumbnail heads. Many first frames are black. A 404 video is not remembered, so reopening the browser asks those cells again. Keyboard use was synthetic events; no screen reader. Windows and Linux were not launched. A SIGTERM to the npm electron wrapper closed the editor but did not quit (pre-existing); the Electron child was signalled.
