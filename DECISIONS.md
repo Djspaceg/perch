@@ -5049,3 +5049,44 @@ red-first.log, red-first-watch.log; build/test/typecheck/lint logs; launch.log (
 ## Residuals
 
 Native menu and tray clicks not driven (no GUI automation): templates, enabled state and submenus are unit-tested; Settings was driven over the DevTools protocol. Windows and Linux placement is unit-level only. The Dock list and open-file were not exercised. No screenshots (brief).
+
+# Cloud backgrounds: Thermalright videos behind a layout - decisions
+
+Outcome: a media `src` may be `thermalright:<id>`. The desktop main process (or the dev server) downloads it into a userData cache and the page plays it as a `<video>`. The editor picks one from a tabbed thumbnail browser. Spec: docs/backgrounds.md. Nothing is bundled.
+
+## Decisions to evaluate
+
+D1 A new workspace package, @perch/backgrounds (browser half plus `./node`). Why: desktop main and both dev servers need one cache, and apps cannot import apps. If overruled: the cache lives in apps/desktop and dev mode gets a copy.
+D2 The reference is a media `src`; layout-schema checks the grammar only (`[a-z][0-9]{3}`); no version step. Why: the human said no migration. If overruled: schema v3, so an old build refuses at the version rather than calling the src malformed.
+D3 Items are hosted per size (a042 at 480x480, not 1920x440), so a 404 reads "not hosted at 1920x440" and the grid marks the cell. The rule is not relaxed. If overruled: fall back through the ranked sizes, upscaling.
+D4 Thumbnails are the PNG, else the video's first 384 KiB (a Range request; moov is at the front). A `.nopng` marker means each PNG is asked for once. Why: a001.png is 404 on both servers at every size tried. If overruled: the whole video per visible cell, about 2.4 MB each.
+D5 Each page asks the main process to ensure the references on load; the main process still never parses a layout. If overruled: the main process scans the document text.
+D6 `perch-cache://` is its own `stream` scheme serving cache names only, with ranges.
+D7 The video pauses while the page is hidden, including a runner window covered by the editor. If overruled: always play.
+D8 Add > Background inserts a full-canvas cover media element first in paint order.
+D9 The dev cache is node_modules/.cache/perch/backgrounds (PERCH_BACKGROUNDS_DIR moves it). `npm run dev` builds the package first, and the configs import it lazily.
+
+## Open questions
+
+Q1 At 1920x400 some items are missing (Gallery 11, 17, 18; Tech 14, 16, 17, 21, 23 among those seen). Default: strict rule (D3).
+Q2 Least area ignores aspect: a 100x100 target picks 176x320 over 240x240. Default: as briefed.
+Q3 The servers are plain http. The only checks are length, MP4/PNG magic and size caps. Default: accept.
+Q4 A static build (such as caster's bundle) has no cache and shows the failure box. Default: that.
+
+## Gate facts
+
+Nothing pushed; no review cut (GitHub repo, no CRUX; AutoSDE not run because it sends the diff off-host). No external dependency. The lockfile changed only through `npm install` registering the workspace link and three `@perch/backgrounds` entries. packages/* call sites: the last section of CALL_SITES.md. Lanes: build-, test-, typecheck- and lint-{a..g}.log all exit 0; package-mac.log exit 0 with no media in the app (package-media-check.log). Adversarial review rounds: 0 (standing rule 13, no code-review.md).
+
+## Evidence (under the worktree's .evidence/)
+
+- red-first-{a..e}.log and red-first-launch.log: tests failing first.
+- probe-sizes.log: the 28 sizes.
+- dev-mode.log: under Vite, a download, a cache hit, a range, a traversal refused.
+- launch-1*.log: the first run; it found the fragment and hidden-at-mount defects.
+- launch-2*.log: the runner downloads on load, a pick is a cache hit, the runner plays (currentTime advancing), and a missing size raises an alert.
+- editor-background-browser.png, runner-playing-background.png, editor-not-hosted-alert.png.
+- package-launch.log: the packaged runner downloads into a temp userData.
+
+## Residuals
+
+The size probe sent two HEADs per size instead of one. Test traffic: about 18 HEADs, 5 whole videos, 35 thumbnail heads. Many first frames are black (the videos fade in). A 404 video is not remembered, so reopening the browser asks those cells again. Keyboard use was synthetic events; no screen reader. Windows and Linux were not launched. A SIGTERM to the npm electron wrapper closed the editor but did not quit (pre-existing); the Electron child was signalled.

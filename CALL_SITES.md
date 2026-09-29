@@ -618,3 +618,22 @@ moved — what follows is what now exists to be called, and what a change to it 
 - **`OutputCapabilities.frameRate` is deliberately omitted by `fitCanvas`.** Supplying it would start
   refusing layouts on a claim a browser cannot honestly make. A test asserts the mismatch text never
   mentions Hz.
+
+## Cloud backgrounds: every call site of the `packages/*` symbols touched (docs/backgrounds.md)
+
+- `layout-schema` `validateMediaPath` (now accepts `thermalright:<id>`, new `malformed-background-ref`):
+  one caller, `element.ts` `validateMediaElement`; reached by every `loadLayout`/`validateLayout`
+  caller (runtime `app.tsx`; editor `draft.ts`, `open-layout.ts`, `save.ts`; `layouts.test.ts`). The
+  shipped layouts use paths only, so no result changes.
+- `layout-schema` `parseBackgroundRef` / `isBackgroundRef` / `backgroundRef`: `media.ts`;
+  `ui-kit` `layout-canvas.tsx`, `background-sources.ts`; `backgrounds` `cache.ts`; editor
+  `background-picker.tsx`.
+- `ui-kit` `LayoutCanvas` (new optional `resolveBackground`): runtime `app.tsx` `Page` (passes it);
+  editor `preview.tsx` `LayoutPreview` (passes it from `app.tsx`). No other renderer.
+- `ui-kit` `LAYOUT_CANVAS_STYLES` (now carries `VIDEO_BACKGROUND_STYLES`): runtime `app.tsx`, editor
+  `app.tsx`; image media rules unchanged.
+- `ui-kit` `useBackgroundSources`: runtime `app.tsx` `Page`, editor `app.tsx` `EditorShell`.
+- `ui-kit` `VideoBackground`: only `layout-canvas.tsx` `renderBackground`.
+- `backgrounds` (new): desktop `main.ts`, `backgrounds.ts`, `runner.ts`, `editor.ts` (Node half);
+  runtime `main.tsx`, editor `main.tsx`, `background-picker.tsx` (browser half);
+  `tools/backgrounds-dev.mjs`, mounted by both `vite.config.ts` (Node half, lazily).
