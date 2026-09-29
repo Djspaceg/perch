@@ -28,7 +28,9 @@ import {
   type BrowserWindow,
   type IpcMainInvokeEvent,
 } from 'electron';
+import type { BackgroundCache, TargetSize } from '@perch/backgrounds/node';
 import { isRuntimePage } from './app-protocol.js';
+import { forPage } from './backgrounds.js';
 import { dockVisible } from './editor-close.js';
 import { readLayoutDocument, watchDocument, type DocumentPayload } from './document.js';
 import { watchLayoutsFolder } from './folder-watch.js';
@@ -42,7 +44,11 @@ import { relayTarget, type RelayTarget } from './lhm-sync.js';
 import { desktopRelayConfig, startDesktopRelay } from './relay-host.js';
 import { addRecent } from './recent.js';
 import { chooseDocument } from './resume.js';
-import { RUNNER_DOCUMENT_CHANNEL, RUNNER_LOAD_CHANNEL } from './runner-channels.js';
+import {
+  RUNNER_BACKGROUND_CHANNEL,
+  RUNNER_DOCUMENT_CHANNEL,
+  RUNNER_LOAD_CHANNEL,
+} from './runner-channels.js';
 import { createRunnerWindow } from './runner-window.js';
 import { SETTINGS_FILENAME, createSettingsStore } from './settings.js';
 import { trayIconBitmap } from './tray-icon.js';
@@ -57,6 +63,8 @@ export interface RunnerOptions {
   /** The packaged app's resources folder, or `null` in a run from the repository (`paths.ts`). */
   readonly resources: string | null;
   readonly log: (line: string) => void;
+  /** The background cache the page's layout references are downloaded into and read from. */
+  readonly backgrounds: BackgroundCache;
   /** Whether the editor window is open, for the dock icon. */
   readonly editorOpen: () => boolean;
   /** Whether the Settings window is open, for the dock icon. */
@@ -223,6 +231,22 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
     return { brokerUrl, document: payload };
   });
 
+  // The page ensures each background its layout names when it loads it, so the open layout's
+  // background is cached by the runner whether or not an editor ever picked it on this machine.
+  // The reference and the target are the page's; the cache checks both before any request.
+  ipcMain.handle(
+    RUNNER_BACKGROUND_CHANNEL,
+    async (event: IpcMainInvokeEvent, ref: unknown, target: unknown) => {
+      if (event.senderFrame === null || !isRuntimePage(event.senderFrame.url)) {
+        throw new Error('perch: refused a background request from outside the runtime page');
+      }
+      log(
+        `backgrounds: the runtime page asked for ${JSON.stringify(ref)} at ${JSON.stringify(target)}`,
+      );
+      return forPage(await options.backgrounds.ensure(ref as string, target as TargetSize));
+    },
+  );
+
   // ---- window and tray -----------------------------------------------------------------
   function trayState(): TrayState {
     return {
@@ -381,6 +405,7 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
       stopWatching();
       stopFolderWatch();
       ipcMain.removeHandler(RUNNER_LOAD_CHANNEL);
+      ipcMain.removeHandler(RUNNER_BACKGROUND_CHANNEL);
       await service.stop();
       log('relay stopped');
     },

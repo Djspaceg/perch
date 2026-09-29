@@ -14,6 +14,7 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import {
   DESKTOP_BRIDGE_GLOBAL,
+  RUNNER_BACKGROUND_CHANNEL,
   RUNNER_DOCUMENT_CHANNEL,
   RUNNER_LOAD_CHANNEL,
 } from './runner-channels.js';
@@ -74,6 +75,7 @@ async function loadPreload(): Promise<Loaded> {
 
 interface Bridge {
   load(): Promise<unknown>;
+  ensureBackground(...args: unknown[]): Promise<unknown>;
   onDocument(listener: (document: unknown) => void): () => void;
 }
 
@@ -87,11 +89,11 @@ describe('the runtime preload', () => {
     expect((await loadPreload()).required).toEqual(['electron']);
   });
 
-  it('exposes one global, holding exactly load and onDocument', async () => {
+  it('exposes one global, holding exactly load, onDocument and ensureBackground', async () => {
     const { loaded, api } = await bridge();
 
     expect([...loaded.exposed.keys()]).toEqual([DESKTOP_BRIDGE_GLOBAL]);
-    expect(Object.keys(api).sort()).toEqual(['load', 'onDocument']);
+    expect(Object.keys(api).sort()).toEqual(['ensureBackground', 'load', 'onDocument']);
     expect(typeof api.load).toBe('function');
     expect(typeof api.onDocument).toBe('function');
   });
@@ -102,6 +104,16 @@ describe('the runtime preload', () => {
     await api.load();
 
     expect(loaded.invoked).toEqual([[RUNNER_LOAD_CHANNEL]]);
+  });
+
+  it('ensureBackground passes on the reference and the target, and nothing more', async () => {
+    const { loaded, api } = await bridge();
+
+    await api.ensureBackground('thermalright:a042', { width: 1920, height: 400 }, 'extra');
+
+    expect(loaded.invoked).toEqual([
+      [RUNNER_BACKGROUND_CHANNEL, 'thermalright:a042', { width: 1920, height: 400 }],
+    ]);
   });
 
   it('onDocument hands the page the document only, never the IPC event', async () => {

@@ -27,7 +27,9 @@ import {
   type IpcMainEvent,
   type IpcMainInvokeEvent,
 } from 'electron';
+import type { BackgroundCache, TargetSize } from '@perch/backgrounds/node';
 import { isEditorPage } from './app-protocol.js';
+import { forPage } from './backgrounds.js';
 import {
   DEFAULT_MENU_BINDINGS,
   menuBindingsFrom,
@@ -51,6 +53,8 @@ import type { Runner } from './runner.js';
 export interface EditorOptions {
   readonly runner: Runner;
   readonly log: (line: string) => void;
+  /** The background cache: a pick downloads into it, and thumbnails come from it. */
+  readonly backgrounds: BackgroundCache;
   /** The window opened or closed, or its bindings, document or menu state changed: the menu is rebuilt. */
   readonly onChange: () => void;
   /** The page asked for the Settings window. */
@@ -127,6 +131,20 @@ export function createEditor(options: EditorOptions): Editor {
   };
 
   // ---- what the page asks ------------------------------------------------------------------
+  // A background: the page names a reference and its layout's target, and the cache checks both.
+  ipcMain.handle(EDITOR_CHANNELS.background, async (event, ref: unknown, target: unknown) => {
+    if (!fromEditor(event)) refuse('background');
+    log(`backgrounds: the editor asked for ${JSON.stringify(ref)} at ${JSON.stringify(target)}`);
+    return forPage(await options.backgrounds.ensure(ref as string, target as TargetSize));
+  });
+  ipcMain.handle(
+    EDITOR_CHANNELS.backgroundPreview,
+    async (event, ref: unknown, target: unknown) => {
+      if (!fromEditor(event)) refuse('backgroundPreview');
+      return forPage(await options.backgrounds.preview(ref as string, target as TargetSize));
+    },
+  );
+
   ipcMain.handle(EDITOR_CHANNELS.load, async (event) => {
     if (!fromEditor(event)) refuse('load');
     const current = initialPath ?? runner.currentDocument();
@@ -423,6 +441,8 @@ export function createEditor(options: EditorOptions): Editor {
         EDITOR_CHANNELS.save,
         EDITOR_CHANNELS.saveAs,
         EDITOR_CHANNELS.open,
+        EDITOR_CHANNELS.background,
+        EDITOR_CHANNELS.backgroundPreview,
       ]) {
         ipcMain.removeHandler(channel);
       }

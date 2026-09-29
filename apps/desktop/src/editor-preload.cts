@@ -12,6 +12,8 @@
  * window.perchEditorHost.saveDone(id, saved)      // a save request's answer
  * window.perchEditorHost.setMenuState(state)      // { undo, redo, save, saveAs }: what the menu enables
  * window.perchEditorHost.openSettings()           // the Settings window
+ * window.perchEditorHost.ensureBackground(ref, target)   // -> { ok, url }, downloading it first
+ * window.perchEditorHost.previewBackground(ref, target)  // -> { ok, kind, url }: a thumbnail
  * window.perchEditorHost.onDocuments(fn) / onCommand(fn) / onSaveRequest(fn) / onOpenDocument(fn)
  *                                                 // -> unsubscribe
  * ```
@@ -50,6 +52,8 @@ const CHANNELS = {
   command: 'perch:editor:command',
   saveRequest: 'perch:editor:save-request',
   openDocument: 'perch:editor:open-document',
+  background: 'perch:editor:background',
+  backgroundPreview: 'perch:editor:background-preview',
 } as const;
 
 /** Subscribe `listener` to `channel`'s payload, without the event; returns the unsubscribe. */
@@ -87,6 +91,10 @@ contextBridge.exposeInMainWorld(BRIDGE_GLOBAL, {
   openSettings: (): void => {
     ipcRenderer.send(CHANNELS.openSettings);
   },
+  ensureBackground: (ref: unknown, target: unknown): Promise<unknown> =>
+    ipcRenderer.invoke(CHANNELS.background, ref, target),
+  previewBackground: (ref: unknown, target: unknown): Promise<unknown> =>
+    ipcRenderer.invoke(CHANNELS.backgroundPreview, ref, target),
   onDocuments: (listener: (documents: unknown) => void): (() => void) =>
     subscribe(CHANNELS.documents, listener),
   onCommand: (listener: (id: unknown) => void): (() => void) =>

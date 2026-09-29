@@ -11,5 +11,5 @@
   // so it is the one file here that compiles to `.cjs`. See `runtime-preload.cts`.
   "include": ["src/**/*.ts", "src/**/*.cts"],
   "exclude": ["src/**/*.test.ts"],
-  "references": [{ "path": "../agent" }]
+  "references": [{ "path": "../agent" }, { "path": "../../packages/backgrounds" }]
 }

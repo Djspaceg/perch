@@ -89,6 +89,7 @@ describe('the editor preload', () => {
     expect(EDITOR_BRIDGE_GLOBAL).toBe('perchEditorHost');
     expect([...loaded.exposed.keys()]).toEqual([EDITOR_BRIDGE_GLOBAL]);
     expect(Object.keys(api).sort()).toEqual([
+      'ensureBackground',
       'load',
       'nativeEdit',
       'onCommand',
@@ -97,6 +98,7 @@ describe('the editor preload', () => {
       'onSaveRequest',
       'open',
       'openSettings',
+      'previewBackground',
       'save',
       'saveAs',
       'saveDone',
@@ -113,12 +115,16 @@ describe('the editor preload', () => {
     await call(api, 'open');
     await call(api, 'saveAs', 'desk', 'extra');
     await call(api, 'save', '/__perch/layout/desk', '{}', 'extra');
+    await call(api, 'ensureBackground', 'thermalright:a042', { width: 1920, height: 400 }, 'extra');
+    await call(api, 'previewBackground', 'thermalright:a042', { width: 1920, height: 400 }, 'x');
 
     expect(loaded.invoked).toEqual([
       [EDITOR_CHANNELS.load],
       [EDITOR_CHANNELS.open],
       [EDITOR_CHANNELS.saveAs, 'desk'],
       [EDITOR_CHANNELS.save, '/__perch/layout/desk', '{}'],
+      [EDITOR_CHANNELS.background, 'thermalright:a042', { width: 1920, height: 400 }],
+      [EDITOR_CHANNELS.backgroundPreview, 'thermalright:a042', { width: 1920, height: 400 }],
     ]);
   });
 

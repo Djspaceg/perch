@@ -15,6 +15,7 @@
 import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { BrowserWindow, Menu, app, net, protocol, session } from 'electron';
+import { createBackgroundCache } from '@perch/backgrounds/node';
 import { appMenuTemplate, historyMenuTarget, menuEnabled, type MenuCommandId } from './app-menu.js';
 import {
   APP_SCHEME,
@@ -23,6 +24,7 @@ import {
   isAppPage,
   resolveAppRequest,
 } from './app-protocol.js';
+import { CACHE_SCHEME, backgroundsRoot, cacheUrlFor, serveCacheRequest } from './backgrounds.js';
 import { createEditor, type Editor } from './editor.js';
 import {
   handoffData,
@@ -53,8 +55,15 @@ const resources = appResources({
 
 // A privileged standard scheme, so the page has a real origin: module scripts load, `fetch` works,
 // and `'self'` in its policy means `app://runtime`. See `app-protocol.ts` for why not `file://`.
+//
+// The background cache's scheme is its own and adds `stream`, without which Electron hands a
+// `<video>` nothing it can play from a custom protocol. See `backgrounds.ts`.
 protocol.registerSchemesAsPrivileged([
   { scheme: APP_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  {
+    scheme: CACHE_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
 ]);
 
 // Every web contents the app creates, present and future: it may be at one of the app's two pages
@@ -305,12 +314,33 @@ if (!app.requestSingleInstanceLock(handoffData(intent))) {
       log(`userData: ${app.getPath('userData')}`);
       log(`launched for the ${intent}`);
       const plan = launchPlan(intent);
+      // One cache for every window, downloading through Chromium's network stack (so the system's
+      // proxy settings apply), in the app's data folder: never in the app or the repository.
+      const backgrounds = createBackgroundCache({
+        root: backgroundsRoot(app.getPath('userData')),
+        fetch: (url, init) => net.fetch(url, init),
+        urlFor: cacheUrlFor,
+        log,
+      });
+      log(`backgrounds: cache ${backgrounds.root}`);
+      protocol.handle(CACHE_SCHEME, (request) => serveCacheRequest(request, backgrounds));
+      backgrounds.sweep().then(
+        (removed) => {
+          if (removed > 0) log(`backgrounds: removed ${String(removed)} abandoned downloads`);
+        },
+        (error: unknown) => {
+          log(
+            `backgrounds: could not sweep: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        },
+      );
       const up = await startRunner({
         env: process.env,
         documentsPath: app.getPath('documents'),
         userDataPath: app.getPath('userData'),
         resources,
         log,
+        backgrounds,
         editorOpen: () => editor?.isOpen() ?? false,
         settingsOpen: () => settingsWindow?.isOpen() ?? false,
         openEditor: () => {
@@ -331,6 +361,7 @@ if (!app.requestSingleInstanceLock(handoffData(intent))) {
       const made = createEditor({
         runner: up,
         log,
+        backgrounds,
         onChange: rebuildMenu,
         openSettings: () => {
           settingsWindow?.open();

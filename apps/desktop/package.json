@@ -18,7 +18,8 @@
     "package:linux": "electron-builder --linux --config electron-builder.config.mjs"
   },
   "dependencies": {
-    "@perch/agent": "0.0.0"
+    "@perch/agent": "0.0.0",
+    "@perch/backgrounds": "0.0.0"
   },
   "devDependencies": {
     "electron": "^44.4.5",

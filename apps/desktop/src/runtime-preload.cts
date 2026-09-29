@@ -4,10 +4,12 @@
  * ```ts
  * window.perchDesktop.load()            // -> { brokerUrl, document }
  * window.perchDesktop.onDocument(fn)    // fn(document) on every change on disk; returns unsubscribe
+ * window.perchDesktop.ensureBackground(ref, target)  // -> { ok, url } | { ok: false, code, reason }
  * ```
  *
- * Two functions, and neither takes anything from the page: the page cannot name a file, a channel
- * or a URL. The IPC event object never reaches it either — only the payload — so no `sender` or
+ * Three functions. The first two take nothing from the page; the third takes a background reference
+ * and a target size, which the main process checks, so the page still cannot name a file, a
+ * channel or a URL. The IPC event object never reaches it either — only the payload — so no `sender` or
  * `ports` leak through the bridge.
  *
  * ## Why this file is `.cts`, and self-contained
@@ -33,9 +35,12 @@ const { contextBridge, ipcRenderer } = require('electron') as {
 const BRIDGE_GLOBAL = 'perchDesktop';
 const LOAD_CHANNEL = 'perch:runner:load';
 const DOCUMENT_CHANNEL = 'perch:runner:document';
+const BACKGROUND_CHANNEL = 'perch:runner:background';
 
 contextBridge.exposeInMainWorld(BRIDGE_GLOBAL, {
   load: (): Promise<unknown> => ipcRenderer.invoke(LOAD_CHANNEL),
+  ensureBackground: (ref: unknown, target: unknown): Promise<unknown> =>
+    ipcRenderer.invoke(BACKGROUND_CHANNEL, ref, target),
   onDocument: (listener: (document: unknown) => void): (() => void) => {
     const forward = (_event: unknown, document: unknown): void => {
       listener(document);

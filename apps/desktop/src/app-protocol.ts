@@ -29,6 +29,7 @@
  */
 
 import { join, sep } from 'node:path';
+import { BACKGROUNDS_ORIGIN } from './backgrounds.js';
 
 export const APP_SCHEME = 'app';
 
@@ -155,8 +156,9 @@ export function isAppPage(url: string): boolean {
  * The page's content security policy.
  *
  * Its own scripts and nothing inline; inline styles, because React hoists `ui-kit`'s sheets as
- * `<style>` elements and widgets set `style` attributes; images from the document's folder; and
- * exactly one connection, the in-process relay.
+ * `<style>` elements and widgets set `style` attributes; images from the document's folder; video
+ * from the background cache (`backgrounds.ts`); and exactly one connection, the in-process relay.
+ * The editor's thumbnails are images from that cache too, so its policy adds it to `img-src`.
  *
  * `worker-src blob:` is for mqtt.js, which runs its keepalive timer in a worker built from a blob so
  * the timer is not throttled in a hidden window. Refused, the first launch showed the page's client
@@ -172,6 +174,7 @@ export function contentSecurityPolicy(
     "worker-src 'self' blob:",
     "style-src 'self' 'unsafe-inline'",
     `img-src ${mediaOrigin} 'self' data:`,
+    `media-src ${BACKGROUNDS_ORIGIN}`,
     "font-src 'self'",
     `connect-src ${brokerUrl}`,
     "base-uri 'none'",
@@ -181,5 +184,5 @@ export function contentSecurityPolicy(
 
 /** The editor page's policy: the runtime page's, with its own documents' media. */
 export function editorContentSecurityPolicy(brokerUrl: string): string {
-  return contentSecurityPolicy(brokerUrl, EDITOR_DOCUMENT_ASSET_ORIGIN);
+  return contentSecurityPolicy(brokerUrl, `${EDITOR_DOCUMENT_ASSET_ORIGIN} ${BACKGROUNDS_ORIGIN}`);
 }

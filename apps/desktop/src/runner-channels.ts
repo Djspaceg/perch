@@ -16,3 +16,9 @@ export const RUNNER_LOAD_CHANNEL = 'perch:runner:load';
 
 /** Sent to the page whenever the open document changes on disk. */
 export const RUNNER_DOCUMENT_CHANNEL = 'perch:runner:document';
+
+/**
+ * Invoked by the page with a background reference and its layout's target: the cache URL of that
+ * background, downloaded first if it is not cached (`backgrounds.ts`).
+ */
+export const RUNNER_BACKGROUND_CHANNEL = 'perch:runner:background';

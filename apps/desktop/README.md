@@ -63,6 +63,10 @@ per userData, so a launch with its own never hands off to a perch you already ha
   reloads the page.
 - **Remembered:** the open document, the LHM host a client (the Settings window) last switched the
   relay to, and File > Open recent's list, in `perch-desktop.json`, written atomically.
+- **Cloud backgrounds** (docs/backgrounds.md) download into `<userData>/backgrounds` and are read
+  back over `perch-cache://backgrounds/`, which serves only cache names, with byte ranges. The
+  runtime page asks for its layout's references when it loads one; the editor's picker asks
+  before it sets one. Nothing is downloaded into the app or the repository.
 - **Security.** Sandboxed renderers, context isolation, no Node in either page, a preload each, a
   content security policy each, navigation locked to the two pages. The editor page never names a
   file: every document has a key (`desk`, `desk-2`), and only the main process maps a key to a

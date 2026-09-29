@@ -38,4 +38,8 @@ export const EDITOR_CHANNELS = {
   saveRequest: 'perch:editor:save-request',
   /** Sent to the page: a document the menu picked (Open preset, Open recent), to open. */
   openDocument: 'perch:editor:open-document',
+  /** Invoked with a background reference and a target: its cache URL, downloading it first. */
+  background: 'perch:editor:background',
+  /** Invoked with a background reference and a target: a thumbnail's cache URL and kind. */
+  backgroundPreview: 'perch:editor:background-preview',
 } as const;
