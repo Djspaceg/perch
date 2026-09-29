@@ -75,9 +75,13 @@ export interface EditorBridge {
 /** Where the main process serves its background cache; an answer naming anywhere else is refused. */
 const BACKGROUNDS_ORIGIN = 'perch-cache://backgrounds/';
 
-/** The main process's background cache, as the editor asks it, or `undefined` without one. */
+/**
+ * The main process's background cache, as the editor asks it, or `undefined` without one. Also the
+ * dev server's (`devBackgroundBridge`), given its `origin`.
+ */
 export function desktopBackgroundHost(
   bridge: Pick<EditorBridge, 'ensureBackground' | 'previewBackground'>,
+  origin: string = BACKGROUNDS_ORIGIN,
 ): BackgroundHost | undefined {
   const ensure = bridge.ensureBackground?.bind(bridge);
   const preview = bridge.previewBackground?.bind(bridge);
@@ -88,10 +92,8 @@ export function desktopBackgroundHost(
   });
 
   return {
-    ensure: async (ref, target) =>
-      sourceFromAnswer(await ensure(ref, size(target)), BACKGROUNDS_ORIGIN),
-    preview: async (ref, target) =>
-      thumbnailFromAnswer(await preview(ref, size(target)), BACKGROUNDS_ORIGIN),
+    ensure: async (ref, target) => sourceFromAnswer(await ensure(ref, size(target)), origin),
+    preview: async (ref, target) => thumbnailFromAnswer(await preview(ref, size(target)), origin),
   };
 }
 

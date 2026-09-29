@@ -207,7 +207,7 @@ export function createBackgroundCache(options: BackgroundCacheOptions): Backgrou
     const outcome = await download(relative, `${id}.mp4`, 'video', size);
     if (!outcome.ok) {
       log(`backgrounds: ${ref} at ${sizeName(size)}: ${outcome.code}: ${outcome.reason}`);
-      return outcome;
+      return atSize(outcome, size);
     }
     log(
       `backgrounds: ${ref} at ${sizeName(size)}: downloaded ${String(outcome.bytes)} bytes from ` +
@@ -242,7 +242,7 @@ export function createBackgroundCache(options: BackgroundCacheOptions): Backgrou
     }
 
     const headed = await download(head, `${id}.mp4`, 'head', size);
-    if (!headed.ok) return headed;
+    if (!headed.ok) return atSize(headed, size);
     log(
       `backgrounds: ${ref} preview at ${sizeName(size)}: no PNG, the first ` +
         `${String(headed.bytes)} bytes of the video, from ${headed.server}`,
@@ -285,6 +285,17 @@ function resolveRequest(ref: unknown, target: unknown): Resolved {
   }
 
   return { ok: true, id: parsed.id, size: pickHostedSize({ width, height }) };
+}
+
+/**
+ * A 404 from both servers, said as what it means. Thermalright hosts each item at some sizes and not
+ * others (`a042` is at 480x480 and not at 1920x440), and the size is the rule's, not the author's,
+ * so the reason names it rather than leaving "HTTP 404" to read as a broken link.
+ */
+function atSize(failure: BackgroundFailure, size: HostedSize): BackgroundFailure {
+  return failure.code === 'not-found'
+    ? { ...failure, reason: `not hosted at ${sizeName(size)} (${failure.reason})` }
+    : failure;
 }
 
 function invalid(reason: string): BackgroundFailure {

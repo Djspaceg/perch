@@ -24,6 +24,8 @@ interface ImportMetaEnv {
    * powered off has to keep doing. See the seam in `main.tsx`.
    */
   readonly PERCH_BROKER_URL?: string;
+  /** Vite's own: `true` under the dev server, which has the background endpoint. */
+  readonly DEV: boolean;
 }
 
 interface ImportMeta {

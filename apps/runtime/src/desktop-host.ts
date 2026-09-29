@@ -53,24 +53,25 @@ const BACKGROUNDS_ORIGIN = 'perch-cache://backgrounds/';
 
 /**
  * The runner's background cache, as the canvas asks it (`useBackgroundSources`), or `undefined`
- * for a bridge without one. The answer arrives untyped over IPC, so it is checked: a URL outside
+ * for a bridge without one. Also the dev server's (`devBackgroundBridge`), given its `origin`. The answer arrives untyped over IPC, so it is checked: a URL outside
  * the cache's origin is not played.
  */
 export function desktopBackgrounds(
   bridge: Pick<DesktopBridge, 'ensureBackground'>,
+  origin: string = BACKGROUNDS_ORIGIN,
 ): EnsureBackground | undefined {
   const ask = bridge.ensureBackground?.bind(bridge);
   if (ask === undefined) return undefined;
 
   return async (ref, target) =>
-    backgroundAnswer(await ask(ref, { width: target.width, height: target.height }));
+    backgroundAnswer(await ask(ref, { width: target.width, height: target.height }), origin);
 }
 
-function backgroundAnswer(answer: unknown): BackgroundSource {
+function backgroundAnswer(answer: unknown, origin: string): BackgroundSource {
   const record =
     typeof answer === 'object' && answer !== null ? (answer as Record<string, unknown>) : {};
   const url = record['url'];
-  if (record['ok'] === true && typeof url === 'string' && url.startsWith(BACKGROUNDS_ORIGIN)) {
+  if (record['ok'] === true && typeof url === 'string' && url.startsWith(origin)) {
     return { status: 'ready', url };
   }
   const reason = record['reason'];

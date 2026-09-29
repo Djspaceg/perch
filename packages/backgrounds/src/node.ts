@@ -23,3 +23,11 @@ export {
 } from './cache.js';
 
 export { serveCachedFile } from './serve.js';
+
+export {
+  devBackgroundsMiddleware,
+  devBackgroundsRoot,
+  devCacheUrlFor,
+  toPageAnswer,
+  type PageAnswer,
+} from './dev-endpoint.js';

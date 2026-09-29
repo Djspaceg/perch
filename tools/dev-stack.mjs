@@ -437,6 +437,21 @@ if (relay.start) {
   }
 }
 
+// ---- the background endpoint's package ----------------------------------------------------
+//
+// Both dev servers import `@perch/backgrounds/node` from its build output for their background
+// endpoint (`tools/backgrounds-dev.mjs`), so it is compiled first, in the foreground, as the relay is.
+
+{
+  const build = spawn(NPM, ['run', 'build', '-w', '@perch/backgrounds'], { stdio: 'inherit' });
+  const [buildCode] = await once(build, 'exit');
+  if (buildCode !== 0) {
+    process.stderr.write(
+      'the backgrounds build failed; the dev servers start without backgrounds\n',
+    );
+  }
+}
+
 // ---- the two dev servers ------------------------------------------------------------------
 //
 // The port is passed on the command line rather than written into each `vite.config.ts`, so

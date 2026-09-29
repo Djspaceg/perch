@@ -242,3 +242,23 @@ describe('desktopBackgroundHost', () => {
     expect(desktopBackgroundHost(fakeBridge())).toBeUndefined();
   });
 });
+
+describe('desktopBackgroundHost, over the dev server', () => {
+  it("takes the dev endpoint's files, given its origin", async () => {
+    const host = desktopBackgroundHost(
+      fakeBridge({
+        ensureBackground: () =>
+          Promise.resolve({ ok: true, url: '/__perch/backgrounds/file/x.mp4' }),
+        previewBackground: () =>
+          Promise.resolve({ ok: true, kind: 'image', url: '/__perch/backgrounds/file/x.png' }),
+      }),
+      '/__perch/backgrounds/file/',
+    );
+    if (host === undefined) throw new Error('expected a background host');
+
+    expect(await host.ensure('thermalright:a042', { width: 1920, height: 400 })).toEqual({
+      status: 'ready',
+      url: '/__perch/backgrounds/file/x.mp4',
+    });
+  });
+});

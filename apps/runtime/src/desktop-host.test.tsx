@@ -201,3 +201,22 @@ describe('the page, fed a document naming a cloud background', () => {
     expect(asked).toEqual([['thermalright:a042', { width: 1024, height: 768 }]]);
   });
 });
+
+describe('desktopBackgrounds, over the dev server', () => {
+  it('plays what the dev endpoint serves, given its origin, and nothing from the desktop scheme', async () => {
+    const answer = { ok: true, url: '/__perch/backgrounds/file/thermalright/1920x440/a042.mp4' };
+    const dev = desktopBackgrounds(
+      { ensureBackground: () => Promise.resolve(answer) },
+      '/__perch/backgrounds/file/',
+    );
+    const desktop = backgroundsOf({ ensureBackground: () => Promise.resolve(answer) });
+
+    expect(await dev?.('thermalright:a042', { width: 1920, height: 400 })).toEqual({
+      status: 'ready',
+      url: answer.url,
+    });
+    expect((await desktop('thermalright:a042', { width: 1920, height: 400 })).status).toBe(
+      'failed',
+    );
+  });
+});

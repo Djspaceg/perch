@@ -38,6 +38,7 @@
 
 import { StrictMode, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { DEV_FILE_PREFIX, devBackgroundBridge } from '@perch/backgrounds';
 import { createMockSource } from '@perch/sensor-sources';
 import { Editor } from './app.js';
 import type { RelayLink } from './connection-control.js';
@@ -140,6 +141,12 @@ if (bridge === null) {
         store={store}
         transport={browserSaveTransport}
         initialLayout={requestedLayout(window.location.search)}
+        // The Vite dev server's background endpoint; a static build has none, and the control says so.
+        backgrounds={
+          import.meta.env.DEV
+            ? desktopBackgroundHost(devBackgroundBridge(), DEV_FILE_PREFIX)
+            : undefined
+        }
       />
     </StrictMode>,
   );

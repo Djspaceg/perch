@@ -1,6 +1,6 @@
 # Cloud backgrounds - spec
 
-Thermalright's hosted videos, fetched at run time into a cache; never in the repo or an installer.
+Thermalright's videos, fetched at run time into a cache; never in the repo or an installer.
 
 ## Source and catalogue
 
@@ -22,7 +22,7 @@ the smaller area. The video covers the element, cropped centred, unless it says 
 | Target | Picks | Why |
 |---|---|---|
 | 1920x400 | 1920x440 | beats 1920x462 on area |
-| 400x1920 | 440x1920 | the same, portrait |
+| 400x1920 | 440x1920 | portrait |
 | 480x480 | 480x480 | exact |
 | 2560x720 | 1600x720 | none qualifies; 0.47 beats 1920x462's 0.73 |
 
@@ -65,9 +65,10 @@ An editor pick; a thumbnail scrolled into view; each page ensuring its layout's 
 
 ## Failure
 
-Offline, timeout, 5xx or 404: the other server. Both fail: `unreachable` or `not-found`, with
-the reason. Short, over the cap or bad magic: dropped, the other server tried. Only `.nopng` is a cached failure. The canvas
-shows `background unavailable: thermalright:a042 (<reason>)` in the rect; loading, it stays empty.
+Offline, timeout, 5xx or 404: the other server. Both fail: `unreachable`, or `not-found` ("not
+hosted at 1920x440": items are hosted per size, `a042` at 480x480 but not 1920x440; the rule is
+not relaxed, and the grid marks such cells). Short, over the cap, bad magic: dropped. Only
+`.nopng` is cached. The rect shows `background unavailable: <ref> (<reason>)`; loading, nothing.
 
 ## Renderer
 
@@ -85,14 +86,14 @@ frame. No ffmpeg. Cached too.
 
 `npm run dev`: the runtime's and editor's Vite servers mount the same cache at
 `/__perch/backgrounds/{ensure,preview,file/...}`, root `node_modules/.cache/perch/backgrounds`
-(`PERCH_BACKGROUNDS_DIR` moves it). A static build has no cache: the failure box says so.
+(`PERCH_BACKGROUNDS_DIR` moves it). A static build has none, and says so.
 
 ## Editor UX
 
 Media element, Content: a `background` row, its button naming the current one ("Gallery 42" or
 "none"), opens a popover: tabs Gallery / Tech / HUD / Light / Nature / Aesthetic, a grid whose
 cells take the layout's `aspect-ratio` W / H with the thumbnail covering the cell, lazily loaded
-as cells scroll in. Cells are options named "Gallery 42", the current one selected; arrows,
+as cells scroll in. Options are named "Gallery 42", the current one selected; arrows,
 Home/End move, Enter picks. A pick spins on the cell, downloads, then sets
 `src` as one undoable edit and closes; a failure stays open, saying why. The Add menu's
 "Background" inserts a full-canvas media element first in paint order, through the same browser.

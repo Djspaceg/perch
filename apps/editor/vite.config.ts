@@ -13,6 +13,7 @@
  *  3. **`PERCH_` reaches the page**, as it does the runtime's, for `PERCH_RELAY_URL`: the relay URL the
  *     dev stack hands the editor. See `src/main.tsx`.
  *  4. **A second page**, `settings.html`: the desktop app's Settings window. See `src/settings-main.tsx`.
+ *  5. **The background endpoint**, `tools/backgrounds-dev.mjs`, which the runtime's config mounts too.
  *
  * ## The save endpoint
  *
@@ -51,6 +52,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { perchAliases } from '../../vitest.aliases.js';
+import { backgroundsDevPlugin } from '../../tools/backgrounds-dev.mjs';
 import { LAYOUTS_DIRECTORY, resolveSaveTarget } from './src/save-target.ts';
 
 /** The repository root: two directories up from `apps/editor/`. */
@@ -225,7 +227,8 @@ function describeError(error: unknown): string {
 }
 
 export default defineConfig({
-  plugins: [react(), layoutSavePlugin()],
+  // The background endpoint serves `npm run dev` the desktop app's cache (docs/backgrounds.md).
+  plugins: [react(), layoutSavePlugin(), backgroundsDevPlugin()],
 
   /**
    * The same alias table Vitest uses, imported rather than restated, so the page and the tests

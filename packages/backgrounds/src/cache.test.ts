@@ -144,7 +144,9 @@ describe('ensure', () => {
     const got = await cache().ensure('thermalright:a042', TARGET);
 
     expect(got).toMatchObject({ ok: false, code: 'not-found' });
-    expect(!got.ok && got.reason).toMatch(/international: HTTP 404; china: HTTP 404/);
+    expect(!got.ok && got.reason).toBe(
+      'not hosted at 1920x440 (international: HTTP 404; china: HTTP 404)',
+    );
     expect(await leftovers()).toEqual([]);
   });
 

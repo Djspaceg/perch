@@ -18,12 +18,7 @@
  */
 
 import { join } from 'node:path';
-import {
-  serveCachedFile,
-  type BackgroundCache,
-  type EnsureResult,
-  type PreviewResult,
-} from '@perch/backgrounds/node';
+import { serveCachedFile, toPageAnswer, type BackgroundCache } from '@perch/backgrounds/node';
 
 export const CACHE_SCHEME = 'perch-cache';
 
@@ -76,15 +71,8 @@ export async function serveCacheRequest(
   return serveCachedFile(path, request.method, request.headers.get('range'));
 }
 
-/** What a page is told: the URL or the failure, never the file's path or which server sent it. */
-export type PageBackgroundResult =
-  | { readonly ok: true; readonly url: string }
-  | { readonly ok: true; readonly kind: 'image' | 'video'; readonly url: string }
-  | { readonly ok: false; readonly code: string; readonly reason: string };
-
-export function forPage(result: EnsureResult | PreviewResult): PageBackgroundResult {
-  if (!result.ok) return { ok: false, code: result.code, reason: result.reason };
-  return 'kind' in result
-    ? { ok: true, kind: result.kind, url: result.url }
-    : { ok: true, url: result.url };
-}
+/**
+ * What a page is told: the URL or the failure, never the file's path or which server sent it. The
+ * package's, so the dev server's endpoint tells its pages exactly the same.
+ */
+export const forPage = toPageAnswer;

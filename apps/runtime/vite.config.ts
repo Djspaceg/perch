@@ -14,9 +14,11 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { perchAliases } from '../../vitest.aliases.js';
+import { backgroundsDevPlugin } from '../../tools/backgrounds-dev.mjs';
 
 export default defineConfig({
-  plugins: [react()],
+  // The background endpoint serves `npm run dev` the desktop app's cache (docs/backgrounds.md).
+  plugins: [react(), backgroundsDevPlugin()],
 
   /**
    * The same alias table Vitest uses, imported rather than restated.

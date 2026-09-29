@@ -17,3 +17,10 @@ export {
   type BackgroundCategory,
   type HostedSize,
 } from './catalogue.js';
+
+export {
+  DEV_BACKGROUNDS_PREFIX,
+  DEV_FILE_PREFIX,
+  devBackgroundBridge,
+  type DevBackgroundBridge,
+} from './dev-client.js';

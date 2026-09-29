@@ -268,8 +268,19 @@ export function BackgroundBrowser({
   );
 }
 
-/** A thumbnail covering its cell: the image, or the video's first frame, or nothing yet. */
+/**
+ * A thumbnail covering its cell: the image, or the video's first frame, nothing yet, or a word saying
+ * there is none. Thermalright hosts each item at some sizes only, so on a given panel some cells have
+ * nothing to show, and the cell says so rather than looking like one still loading.
+ */
 function CellThumbnail({ thumbnail }: { readonly thumbnail: CellState | undefined }): ReactNode {
+  if (thumbnail?.status === 'failed') {
+    return (
+      <span className="perch-backgrounds__none" title={thumbnail.reason}>
+        {thumbnail.reason.startsWith('not hosted') ? 'not at this size' : 'no preview'}
+      </span>
+    );
+  }
   if (thumbnail?.status !== 'ready') return null;
   if (thumbnail.kind === 'image') {
     return <img className="perch-backgrounds__thumb" src={thumbnail.url} alt="" decoding="async" />;
@@ -427,6 +438,15 @@ export const BACKGROUND_PICKER_STYLES = `
   animation: perch-backgrounds-spin 0.8s linear infinite;
 }
 @keyframes perch-backgrounds-spin { to { transform: rotate(360deg); } }
+.perch-backgrounds__none {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--ed-font-small);
+  color: var(--ed-faint);
+}
 .perch-backgrounds__foot { padding: 0 8px; }
 .perch-backgrounds__note { margin: 0; font-size: var(--ed-font-small); color: var(--ed-quiet); }
 .perch-backgrounds__note--error { color: var(--ed-danger); }

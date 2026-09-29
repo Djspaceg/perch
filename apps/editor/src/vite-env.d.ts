@@ -10,6 +10,8 @@ interface ImportMetaEnv {
    * to the port the relay reported binding. Unset means no relay: the preview shows sample data.
    */
   readonly PERCH_RELAY_URL?: string;
+  /** Vite's own: `true` under the dev server, which has the background endpoint. */
+  readonly DEV: boolean;
 }
 
 interface ImportMeta {

@@ -56,6 +56,7 @@ import {
   createMqttSource,
   resolveBrokerUrl,
 } from '@perch/sensor-sources';
+import { DEV_FILE_PREFIX, devBackgroundBridge } from '@perch/backgrounds';
 import type { SensorSource } from '@perch/sensor-contract';
 import type { EnsureBackground } from '@perch/ui-kit';
 import { Dashboard, type LiveSourceIdentity } from './app.js';
@@ -162,7 +163,15 @@ if (bridge === null) {
   // The request is read once at startup, not watched. Changing `?layout=` is a navigation, and a
   // full reload is the honest way to switch: it rebuilds the store, so no reading from the previous
   // layout's topics can survive into the next one's tiles.
-  renderPage(source, identity, LAYOUT_CATALOGUE, parsePageRequest(window.location.search));
+  // Under `npm run dev` the Vite server has the background endpoint; a static build has no server,
+  // so a background there paints as unavailable, saying why.
+  renderPage(
+    source,
+    identity,
+    LAYOUT_CATALOGUE,
+    parsePageRequest(window.location.search),
+    import.meta.env.DEV ? desktopBackgrounds(devBackgroundBridge(), DEV_FILE_PREFIX) : undefined,
+  );
 } else {
   startInDesktop(bridge).catch((error: unknown) => {
     // The runner forwards the page's console to its own log, which is where this is read.

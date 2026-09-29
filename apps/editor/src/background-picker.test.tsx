@@ -292,3 +292,21 @@ describe('<BackgroundField>', () => {
     expect(button).toHaveAttribute('title', expect.stringMatching(/no background cache/));
   });
 });
+
+describe('<BackgroundBrowser> — an item not hosted at this size', () => {
+  it('says so in the cell, keeping the reason for the tooltip', async () => {
+    const reason = 'not hosted at 1920x440 (international: HTTP 404; china: HTTP 404)';
+    const host = hostWith({
+      preview: vi.fn(() => Promise.resolve<Thumbnail>({ status: 'failed', reason })),
+    });
+    mount(host);
+    reveal('Gallery 42');
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const cell = screen.getByRole('option', { name: 'Gallery 42' });
+    expect(cell).toHaveAttribute('data-state', 'failed');
+    expect(within(cell).getByText('not at this size')).toHaveAttribute('title', reason);
+  });
+});
