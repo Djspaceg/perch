@@ -149,3 +149,6 @@ evidence/
 
 # Local-only Claude Code settings; .claude/settings.json IS tracked
 .claude/settings.local.json
+
+# Desktop packages (npm run package:mac / :win / :linux): installers and unpacked apps.
+apps/desktop/release/

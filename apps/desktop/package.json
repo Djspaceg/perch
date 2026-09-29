@@ -12,7 +12,10 @@
     "clean": "tsc -b --clean",
     "start": "electron .",
     "test": "vitest run",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "package:mac": "electron-builder --mac --config electron-builder.config.mjs",
+    "package:win": "electron-builder --win --config electron-builder.config.mjs",
+    "package:linux": "electron-builder --linux --config electron-builder.config.mjs"
   },
   "dependencies": {
     "@perch/agent": "0.0.0"

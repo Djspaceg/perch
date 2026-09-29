@@ -52,6 +52,8 @@ export interface RunnerOptions {
   readonly env: Env;
   readonly documentsPath: string;
   readonly userDataPath: string;
+  /** The packaged app's resources folder, or `null` in a run from the repository (`paths.ts`). */
+  readonly resources: string | null;
   readonly log: (line: string) => void;
   /** Whether the editor window is open, for the dock icon. */
   readonly editorOpen: () => boolean;
@@ -100,11 +102,12 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
   };
 
   const folder = layoutsFolder(env, options.documentsPath);
-  const prepared = await prepareLayoutsFolder(folder, seedLayoutsFolder());
+  const seed = seedLayoutsFolder(options.resources);
+  const prepared = await prepareLayoutsFolder(folder, seed);
   log(
     `layouts folder: ${folder}${prepared.created ? ' (created)' : ''}` +
       (prepared.seeded.length > 0
-        ? `; seeded ${String(prepared.seeded.length)} files from ${seedLayoutsFolder()}`
+        ? `; seeded ${String(prepared.seeded.length)} files from ${seed}`
         : ''),
   );
 

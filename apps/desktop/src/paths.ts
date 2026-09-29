@@ -11,9 +11,13 @@
  *
  * The first two exist so a test launch never touches the human's real folder or settings, and a
  * first real launch is a genuine first run. userData also scopes the single-instance lock, so a
- * launch with its own userData never hands off to, or collides with, a perch already running. The page and the seed are found relative to this
- * file's compiled location, `apps/desktop/dist/`, which holds while the app runs from the
- * repository; packaging will move both into the app's resources and replace these two defaults.
+ * launch with its own userData never hands off to, or collides with, a perch already running.
+ *
+ * The two pages and the seed layouts are found in one of two places, and `resources` says which:
+ * `null` in a run from the repository, where they sit relative to this file's compiled location,
+ * `apps/desktop/dist/`; `process.resourcesPath` in a packaged app, where the packaging config
+ * (`packaging.ts`) copied them, under the names in `RESOURCE_FOLDERS`. A packaged app never
+ * reaches back into a repository.
  */
 
 import { dirname, join, resolve } from 'node:path';
@@ -23,8 +27,23 @@ type Env = Readonly<Record<string, string | undefined>>;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-/** `apps/desktop/dist`'s place in the repository, for the two repository-relative defaults. */
+/** `apps/desktop/dist`'s place in the repository, for the repository-relative defaults. */
 const REPO_ROOT = resolve(HERE, '../../..');
+
+/** Where a packaged app keeps the pages and the seed: folders in its resources folder. */
+export const RESOURCE_FOLDERS = {
+  runtimePage: 'runtime-page',
+  editorPage: 'editor-page',
+  seedLayouts: 'layouts',
+} as const;
+
+/** The resources folder of a packaged app, or `null` for a run from the repository. */
+export function appResources(app: {
+  readonly isPackaged: boolean;
+  readonly resourcesPath: string;
+}): string | null {
+  return app.isPackaged ? app.resourcesPath : null;
+}
 
 export function layoutsFolder(env: Env, documentsPath: string): string {
   return nonEmpty(env['PERCH_LAYOUTS_DIR']) ?? join(documentsPath, 'perch', 'layouts');
@@ -43,21 +62,29 @@ export function userDataOverride(env: Env, argv: readonly string[] = []): string
   return nonEmpty(fromArgv) ?? nonEmpty(env['PERCH_USER_DATA_DIR']) ?? null;
 }
 
-export function runtimePageFolder(env: Env): string {
+export function runtimePageFolder(env: Env, resources: string | null): string {
   return (
-    nonEmpty(env['PERCH_RUNTIME_PAGE_DIR']) ?? join(REPO_ROOT, 'apps', 'runtime', 'dist', 'page')
+    nonEmpty(env['PERCH_RUNTIME_PAGE_DIR']) ??
+    (resources === null
+      ? join(REPO_ROOT, 'apps', 'runtime', 'dist', 'page')
+      : join(resources, RESOURCE_FOLDERS.runtimePage))
   );
 }
 
-export function editorPageFolder(env: Env): string {
+export function editorPageFolder(env: Env, resources: string | null): string {
   return (
-    nonEmpty(env['PERCH_EDITOR_PAGE_DIR']) ?? join(REPO_ROOT, 'apps', 'editor', 'dist', 'page')
+    nonEmpty(env['PERCH_EDITOR_PAGE_DIR']) ??
+    (resources === null
+      ? join(REPO_ROOT, 'apps', 'editor', 'dist', 'page')
+      : join(resources, RESOURCE_FOLDERS.editorPage))
   );
 }
 
-/** The repository's `layouts/`, which a first run copies from. */
-export function seedLayoutsFolder(): string {
-  return join(REPO_ROOT, 'layouts');
+/** The layouts a first run copies from: the repository's `layouts/`, or the packaged copy. */
+export function seedLayoutsFolder(resources: string | null): string {
+  return resources === null
+    ? join(REPO_ROOT, 'layouts')
+    : join(resources, RESOURCE_FOLDERS.seedLayouts);
 }
 
 /** The compiled preload. `.cjs`, because a sandboxed preload is a CommonJS script. */

@@ -31,7 +31,7 @@ import {
   secondInstanceAction,
   type LaunchIntent,
 } from './launch.js';
-import { editorPageFolder, runtimePageFolder, userDataOverride } from './paths.js';
+import { appResources, editorPageFolder, runtimePageFolder, userDataOverride } from './paths.js';
 import { startRunner, type Runner } from './runner.js';
 
 const log = (line: string): void => {
@@ -41,6 +41,12 @@ const log = (line: string): void => {
 // Before `ready`, and before anything reads `userData`: a test launch must never touch the real one.
 const userData = userDataOverride(process.env, process.argv);
 if (userData !== null) app.setPath('userData', userData);
+
+// The pages and the seed: the repository's in a dev run, the app's own resources when packaged.
+const resources = appResources({
+  isPackaged: app.isPackaged,
+  resourcesPath: process.resourcesPath,
+});
 
 // A privileged standard scheme, so the page has a real origin: module scripts load, `fetch` works,
 // and `'self'` in its policy means `app://runtime`. See `app-protocol.ts` for why not `file://`.
@@ -80,9 +86,9 @@ function denyPermissions(): void {
 
 async function serveApp(request: Request, runner: Runner, editor: Editor): Promise<Response> {
   const path = resolveAppRequest(request.url, {
-    runtime: runtimePageFolder(process.env),
+    runtime: runtimePageFolder(process.env, resources),
     document: runner.documentFolder(),
-    editor: editorPageFolder(process.env),
+    editor: editorPageFolder(process.env, resources),
     editorDocument: (key) => editor.documentFolder(key),
   });
   if (path === null) return new Response('not found', { status: 404 });
@@ -240,6 +246,7 @@ if (!app.requestSingleInstanceLock(handoffData(intent))) {
         env: process.env,
         documentsPath: app.getPath('documents'),
         userDataPath: app.getPath('userData'),
+        resources,
         log,
         editorOpen: () => editor?.isOpen() ?? false,
         openEditor: () => {
