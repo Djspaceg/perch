@@ -72,6 +72,15 @@ describe('<VideoBackground>', () => {
     expect(play).toHaveBeenCalledTimes(1);
   });
 
+  it('starts paused when the page is already hidden, since no change will ever say so', () => {
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    hidden = true;
+    render(<VideoBackground src={URL} />);
+
+    expect(pause).toHaveBeenCalledTimes(1);
+  });
+
   it('stops listening once it is gone', () => {
     const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
     const { unmount } = render(<VideoBackground src={URL} />);

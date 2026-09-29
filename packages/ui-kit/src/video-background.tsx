@@ -36,6 +36,9 @@ export function VideoBackground({ src, fit = 'cover' }: VideoBackgroundProps): R
       // A play refused (a policy, a source still loading) is retried by `autoplay` itself.
       else element.play().catch(() => undefined);
     };
+    // Mounted into a page that is already hidden (the runner's window behind the editor, or in the
+    // tray): no change will come to say so, and autoplay would run it unseen.
+    if (document.hidden) element.pause();
     document.addEventListener('visibilitychange', follow);
     return () => {
       document.removeEventListener('visibilitychange', follow);

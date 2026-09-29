@@ -37,11 +37,13 @@ export function cacheUrlFor(relative: string): string {
 
 /**
  * The cache name a `perch-cache://` URL asks for, or `null`. Decoded segment by segment, refusing a
- * query, a fragment, and any segment that decodes to a dot segment or holds a separator, before the
+ * query and any segment that decodes to a dot segment or holds a separator, before the
  * cache's own grammar is asked.
  */
 export function cacheName(url: string): string | null {
-  const match = /^perch-cache:\/\/backgrounds(\/[^?#]*)$/i.exec(url);
+  // A fragment is dropped, not refused: it is the page's (a thumbnail's `#t=0.1`), names no other
+  // file, and Electron passes it to the handler, where refusing it failed every thumbnail video.
+  const match = /^perch-cache:\/\/backgrounds(\/[^?#]*)(?:#.*)?$/i.exec(url);
   if (match === null) return null;
   const segments: string[] = [];
   for (const raw of (match[1] ?? '').split('/').slice(1)) {

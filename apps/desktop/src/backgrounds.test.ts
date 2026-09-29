@@ -55,6 +55,10 @@ describe('the cache scheme', () => {
     expect(cacheName('perch-cache://backgrounds/thermalright/1920x440/a042.mp4')).toBe(
       'thermalright/1920x440/a042.mp4',
     );
+    // A media fragment is the page's (a thumbnail asks for `#t=0.1`), and Electron hands it over.
+    expect(cacheName('perch-cache://backgrounds/thermalright/1920x440/a042.head.mp4#t=0.1')).toBe(
+      'thermalright/1920x440/a042.head.mp4',
+    );
     for (const bad of [
       'perch-cache://elsewhere/thermalright/1920x440/a042.mp4',
       'perch-cache://backgrounds/thermalright/%2e%2e/secret.txt',
