@@ -22,7 +22,9 @@ perch deliberately does *not* own:
   protocol. It produces pixels; something else moves them to a device.
 - **Not a message broker.** MQTT is transport. Perch speaks it; it does not
   implement it.
-- **Not a theme store.** Layouts are files in your repo, not cloud assets.
+- **Not a theme store.** Layouts are files in your repo, not cloud assets. A layout may *name*
+  one of Thermalright's hosted backgrounds (`thermalright:a042`); perch fetches it into a local
+  cache at run time and never hosts, commits or bundles it (docs/backgrounds.md).
 
 Everything in that list is an **adapter**. None of it is the product.
 
@@ -89,6 +91,7 @@ perch/
     layout-schema/SPEC.md         what a dashboard is
     ui-kit/README.md              the widgets, and the canvas that lays them out
     sensor-sources/README.md      where sensor data enters
+    backgrounds/README.md         cloud backgrounds: catalogue, size rule, download cache
   apps/                           deployables — nothing imports these
     runtime/README.md             renders a layout
     editor/SPEC.md                authors a layout
@@ -111,6 +114,7 @@ leaves" rule structural instead of a convention someone has to remember.
 | `layout-schema` | contract | layout format, validation, versioning, migration | — |
 | `ui-kit` | core | widgets: readout, gauge, sparkline; the widget catalogue; `LayoutCanvas`, which paints a whole layout | `sensor-contract`, `layout-schema` |
 | `sensor-sources` | adapter | implementations of that one interface: mock, mqtt, and later ones | `sensor-contract` |
+| `backgrounds` | adapter | Thermalright's background catalogue, the hosted-size rule, and a Node download cache (`./node`); see docs/backgrounds.md | `layout-schema` |
 
 ### `apps/` — deployables
 

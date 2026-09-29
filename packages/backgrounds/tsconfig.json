@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    // The Node half (`node.ts` and what it imports) runs in Electron's main process and in the Vite
+    // dev servers. The browser half (`index.ts`) imports no Node builtin, which a test asserts.
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"],
+  "references": [{ "path": "../layout-schema" }]
+}

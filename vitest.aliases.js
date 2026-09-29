@@ -22,4 +22,8 @@ export const perchAliases = {
   '@perch/layout-schema': src('./packages/layout-schema/src/index.ts'),
   '@perch/ui-kit': src('./packages/ui-kit/src/index.ts'),
   '@perch/sensor-sources': src('./packages/sensor-sources/src/index.ts'),
+  // The subpath before the bare name: an alias matches its key as a prefix, so the bare entry first
+  // would turn `@perch/backgrounds/node` into `src/index.ts/node`.
+  '@perch/backgrounds/node': src('./packages/backgrounds/src/node.ts'),
+  '@perch/backgrounds': src('./packages/backgrounds/src/index.ts'),
 };

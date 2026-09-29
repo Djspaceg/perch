@@ -1,0 +1,32 @@
+{
+  "name": "@perch/backgrounds",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cloud backgrounds: the static catalogue, the hosted-size picker, and a Node download cache.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "test": "vitest run",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@perch/layout-schema": "0.0.0"
+  }
+}

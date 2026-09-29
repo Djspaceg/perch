@@ -59,6 +59,14 @@ export { rectIntersectsCanvas, type Rect } from './geometry.js';
 
 export { MEDIA_FITS, type MediaFit } from './media.js';
 
+export {
+  BACKGROUND_PROVIDER,
+  backgroundRef,
+  isBackgroundRef,
+  parseBackgroundRef,
+  type BackgroundRef,
+} from './background.js';
+
 export { type Style, type ThemeTokens } from './theme.js';
 
 export {

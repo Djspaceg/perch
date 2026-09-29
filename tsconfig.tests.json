@@ -18,6 +18,8 @@
       "@perch/layout-schema": ["./packages/layout-schema/src/index.ts"],
       "@perch/ui-kit": ["./packages/ui-kit/src/index.ts"],
       "@perch/sensor-sources": ["./packages/sensor-sources/src/index.ts"],
+      "@perch/backgrounds": ["./packages/backgrounds/src/index.ts"],
+      "@perch/backgrounds/node": ["./packages/backgrounds/src/node.ts"],
       // An app, not a package: only `apps/desktop` may import it. See ARCHITECTURE.md.
       "@perch/agent": ["./apps/agent/src/index.ts"]
     }

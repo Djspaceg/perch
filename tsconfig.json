@@ -7,6 +7,7 @@
     { "path": "packages/layout-schema" },
     { "path": "packages/ui-kit" },
     { "path": "packages/sensor-sources" },
+    { "path": "packages/backgrounds" },
     { "path": "apps/runtime" },
     { "path": "apps/editor" },
     { "path": "apps/agent" },
