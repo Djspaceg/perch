@@ -31,7 +31,7 @@ type Layout = {
 type Element =
   | { kind: 'widget'; widget: string; topic: string; rect: Rect; style?: Style; range?: [number, number] }
   | { kind: 'text';   text: string;   rect: Rect; style?: Style }
-  | { kind: 'media';  src: string;    rect: Rect; fit?: 'cover' | 'contain' }
+  | { kind: 'media';  src: string;    rect: Rect; fit?: 'cover' | 'contain' }  // src: a path, or thermalright:<id>
   | { kind: 'chart';  widget: string; topic: string; rect: Rect; style?: Style; range?: [number, number];
       windowMs: number; gap?: 'break' | 'span' }
 
@@ -139,7 +139,12 @@ would make `earliestMigratableVersion` 2 and strand every version 1 file as
 1. **JSON-safe only.** Same rule as `sensor-contract`, same reason.
 2. **Media is referenced, never embedded.** `src` is a path relative to the layout
    file. The bundle build copies assets in. Base64 in a layout file makes it
-   undiffable and unreviewable.
+   undiffable and unreviewable. The one other spelling is a cloud background
+   reference, `thermalright:<id>` (a letter and three digits, not `000`), which a
+   host resolves through its download cache at render time (docs/backgrounds.md).
+   It is grammar only here, so the catalogue can grow without a schema change. It
+   took no version step, so no existing layout migrates; the cost is that a build
+   older than it reports such a `src` as a malformed media path, not as too new.
 3. **A layout must declare what it needs.** `target` exists so a mismatched output
    can be rejected cleanly and loudly, rather than rendering wrong and being
    discovered on the panel.

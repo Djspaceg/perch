@@ -57,8 +57,10 @@ import {
   resolveBrokerUrl,
 } from '@perch/sensor-sources';
 import type { SensorSource } from '@perch/sensor-contract';
+import type { EnsureBackground } from '@perch/ui-kit';
 import { Dashboard, type LiveSourceIdentity } from './app.js';
 import {
+  desktopBackgrounds,
   desktopCatalogue,
   desktopPageRequest,
   findDesktopBridge,
@@ -106,10 +108,17 @@ function renderPage(
   identity: LiveSourceIdentity,
   catalogue: LayoutCatalogue,
   request: PageRequest,
+  ensureBackground?: EnsureBackground,
 ): void {
   root.render(
     <StrictMode>
-      <Dashboard source={source} liveSource={identity} catalogue={catalogue} request={request} />
+      <Dashboard
+        source={source}
+        liveSource={identity}
+        catalogue={catalogue}
+        request={request}
+        ensureBackground={ensureBackground}
+      />
     </StrictMode>,
   );
 }
@@ -123,6 +132,8 @@ async function startInDesktop(bridge: DesktopBridge): Promise<void> {
   const { brokerUrl, document: opened } = await bridge.load();
   const source = createMqttSource({ url: brokerUrl, origin: 'config' });
   const identity: LiveSourceIdentity = { kind: 'mqtt', url: brokerUrl };
+  // Made once, so a re-render for a save does not look like a new host to the canvas.
+  const ensureBackground = desktopBackgrounds(bridge);
 
   const show = (shown: DesktopDocument | null): void => {
     renderPage(
@@ -132,6 +143,7 @@ async function startInDesktop(bridge: DesktopBridge): Promise<void> {
       shown === null
         ? parsePageRequest(window.location.search)
         : desktopPageRequest(window.location.search, shown),
+      ensureBackground,
     );
   };
 

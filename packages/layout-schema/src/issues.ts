@@ -65,6 +65,8 @@ export const LAYOUT_ISSUE_CODES = [
   'malformed-media-path',
   /** Media embedded in the layout instead of referenced by path. */
   'embedded-media',
+  /** A `thermalright:` media `src` that is not a background reference (`background.ts`). */
+  'malformed-background-ref',
   /** A rect that cannot paint a pixel on this layout's canvas. */
   'off-canvas',
 ] as const;

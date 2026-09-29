@@ -72,9 +72,10 @@ export interface TextElement {
   style?: Style;
 }
 
-/** An image or video, referenced by a path relative to the layout file. */
+/** An image or video, referenced by a path relative to the layout file, or a cloud background. */
 export interface MediaElement {
   kind: 'media';
+  /** A path relative to the layout file, or a background reference, `thermalright:a042`. */
   src: string;
   rect: Rect;
   fit?: MediaFit;

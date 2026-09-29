@@ -81,11 +81,7 @@ export {
   type ReadoutViewModel,
 } from './readout-view.js';
 
-export {
-  READOUT_STYLES,
-  Readout,
-  type ReadoutProps,
-} from './readout.js';
+export { READOUT_STYLES, Readout, type ReadoutProps } from './readout.js';
 
 export { TEXT_BLOCK_STYLES, TextBlock, type TextBlockProps } from './text-block.js';
 
@@ -96,6 +92,17 @@ export {
   type MediaFrameFit,
   type MediaFrameProps,
 } from './media-frame.js';
+export {
+  VIDEO_BACKGROUND_STYLES,
+  VideoBackground,
+  type VideoBackgroundProps,
+} from './video-background.js';
+export {
+  NO_BACKGROUND_HOST,
+  useBackgroundSources,
+  type BackgroundSource,
+  type EnsureBackground,
+} from './background-sources.js';
 
 export { PERCH_TOKENS, PERCH_TOKEN_DEFAULTS, token, type PerchToken } from './tokens.js';
 

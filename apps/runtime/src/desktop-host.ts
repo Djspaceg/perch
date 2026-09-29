@@ -13,6 +13,7 @@
  * imports an app. `DESKTOP_BRIDGE_GLOBAL` is pinned on the desktop side by its preload test.
  */
 
+import type { BackgroundSource, EnsureBackground } from '@perch/ui-kit';
 import { createLayoutCatalogue, type LayoutCatalogue } from './layout-catalogue.js';
 import { parsePageRequest, type PageRequest } from './viewport.js';
 
@@ -40,6 +41,46 @@ export interface DesktopBridge {
   load(): Promise<DesktopStart>;
   /** Called with the document every time it changes on disk. Returns an unsubscribe. */
   onDocument(listener: (document: DesktopDocument) => void): () => void;
+  /**
+   * A cloud background's cache URL, downloading it first: `{ ok, url }` or `{ ok: false, reason }`.
+   * Optional in the type so a bridge from an older runner is still found; the runner's has it.
+   */
+  ensureBackground?(ref: string, target: { width: number; height: number }): Promise<unknown>;
+}
+
+/** Where the runner serves its background cache; an answer naming anywhere else is refused. */
+const BACKGROUNDS_ORIGIN = 'perch-cache://backgrounds/';
+
+/**
+ * The runner's background cache, as the canvas asks it (`useBackgroundSources`), or `undefined`
+ * for a bridge without one. The answer arrives untyped over IPC, so it is checked: a URL outside
+ * the cache's origin is not played.
+ */
+export function desktopBackgrounds(
+  bridge: Pick<DesktopBridge, 'ensureBackground'>,
+): EnsureBackground | undefined {
+  const ask = bridge.ensureBackground?.bind(bridge);
+  if (ask === undefined) return undefined;
+
+  return async (ref, target) =>
+    backgroundAnswer(await ask(ref, { width: target.width, height: target.height }));
+}
+
+function backgroundAnswer(answer: unknown): BackgroundSource {
+  const record =
+    typeof answer === 'object' && answer !== null ? (answer as Record<string, unknown>) : {};
+  const url = record['url'];
+  if (record['ok'] === true && typeof url === 'string' && url.startsWith(BACKGROUNDS_ORIGIN)) {
+    return { status: 'ready', url };
+  }
+  const reason = record['reason'];
+  return {
+    status: 'failed',
+    reason:
+      record['ok'] === false && typeof reason === 'string'
+        ? reason
+        : 'the runner sent no usable answer',
+  };
 }
 
 /** The bridge, if this page is in the runner. Checked structurally, since it arrives untyped. */

@@ -3,12 +3,14 @@
  * over into the catalogue and request the page already takes.
  */
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { createMockSource } from '@perch/sensor-sources';
+import type { EnsureBackground } from '@perch/ui-kit';
 import { Dashboard } from './app.js';
 import {
   DESKTOP_BRIDGE_GLOBAL,
+  desktopBackgrounds,
   desktopCatalogue,
   desktopPageRequest,
   findDesktopBridge,
@@ -112,5 +114,90 @@ describe('the page, fed a document from disk', () => {
 
     expect(document.querySelector('[data-perch-problem="unknown-layout"]')).not.toBeNull();
     expect(screen.getAllByText(/desk/).length).toBeGreaterThan(0);
+  });
+});
+
+/** `desktopBackgrounds` for a bridge that has the call, which the tests below all give it. */
+function backgroundsOf(bridge: Parameters<typeof desktopBackgrounds>[0]): EnsureBackground {
+  const made = desktopBackgrounds(bridge);
+  if (made === undefined) throw new Error('expected a background host');
+  return made;
+}
+
+describe('desktopBackgrounds', () => {
+  it("turns the runner's answer into what the canvas reads", async () => {
+    const asked: unknown[][] = [];
+    const ensure = backgroundsOf({
+      ensureBackground: (...args: unknown[]) => {
+        asked.push(args);
+        return Promise.resolve(
+          args[0] === 'thermalright:a042'
+            ? { ok: true, url: 'perch-cache://backgrounds/thermalright/1920x440/a042.mp4' }
+            : { ok: false, code: 'not-found', reason: 'international: HTTP 404; china: HTTP 404' },
+        );
+      },
+    });
+
+    expect(await ensure('thermalright:a042', { width: 1920, height: 400 })).toEqual({
+      status: 'ready',
+      url: 'perch-cache://backgrounds/thermalright/1920x440/a042.mp4',
+    });
+    expect(await ensure('thermalright:a043', { width: 1920, height: 400 })).toEqual({
+      status: 'failed',
+      reason: 'international: HTTP 404; china: HTTP 404',
+    });
+    expect(asked[0]).toEqual(['thermalright:a042', { width: 1920, height: 400 }]);
+  });
+
+  it('refuses an answer that is not one, rather than playing whatever it names', async () => {
+    const ensure = backgroundsOf({
+      ensureBackground: () => Promise.resolve({ ok: true, url: 'https://elsewhere.test/x.mp4' }),
+    });
+
+    expect(await ensure('thermalright:a042', { width: 1920, height: 400 })).toMatchObject({
+      status: 'failed',
+    });
+  });
+
+  it('is absent for a bridge without the call', () => {
+    expect(desktopBackgrounds({})).toBeUndefined();
+  });
+});
+
+describe('the page, fed a document naming a cloud background', () => {
+  it('asks for it with the layout target, and plays what comes back', async () => {
+    const asked: unknown[][] = [];
+    const document: DesktopDocument = {
+      name: 'cloud',
+      text: JSON.stringify({
+        schemaVersion: 2,
+        target: { width: 1024, height: 768, frameRate: 30 },
+        theme: {},
+        elements: [
+          { kind: 'media', src: 'thermalright:a042', rect: { x: 0, y: 0, w: 1024, h: 768 } },
+        ],
+      }),
+      assets: {},
+    };
+    render(
+      <Dashboard
+        source={createMockSource({ seed: 1 })}
+        liveSource={{ kind: 'mqtt', url: 'ws://127.0.0.1:19001' }}
+        catalogue={desktopCatalogue(document)}
+        request={desktopPageRequest('', document)}
+        ensureBackground={(ref, target) => {
+          asked.push([ref, target]);
+          return Promise.resolve({ status: 'ready', url: 'perch-cache://backgrounds/v.mp4' });
+        }}
+      />,
+    );
+
+    const video = await waitFor(() => {
+      const found = window.document.querySelector('video');
+      if (found === null) throw new Error('no video yet');
+      return found;
+    });
+    expect(video.getAttribute('src')).toBe('perch-cache://backgrounds/v.mp4');
+    expect(asked).toEqual([['thermalright:a042', { width: 1024, height: 768 }]]);
   });
 });

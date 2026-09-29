@@ -22,7 +22,7 @@ import {
   type SensorSource,
   type SensorTopic,
 } from '@perch/sensor-contract';
-import { SensorProvider } from '@perch/ui-kit';
+import { SensorProvider, type BackgroundSource } from '@perch/ui-kit';
 import { LayoutCanvas } from './layout-canvas.js';
 import { WIDGET_REGISTRY } from './widget-catalogue.js';
 
@@ -253,6 +253,79 @@ describe('<LayoutCanvas> — the widget, text and media kinds', () => {
     });
 
     expect(elements()[0]?.querySelector('.perch-media')).toHaveAttribute('data-fit', 'cover');
+  });
+});
+
+describe('<LayoutCanvas> — a cloud background', () => {
+  const withBackground = (fit?: 'contain'): unknown => ({
+    ...ALL_KINDS,
+    elements: [
+      {
+        kind: 'media',
+        src: 'thermalright:a042',
+        rect: { x: 0, y: 0, w: 800, h: 400 },
+        ...(fit === undefined ? {} : { fit }),
+      },
+    ],
+  });
+
+  function mountWith(
+    resolveBackground: ((ref: string) => BackgroundSource) | undefined,
+    document: unknown = withBackground(),
+  ): void {
+    render(
+      <SensorProvider source={fakeSource()}>
+        <LayoutCanvas
+          layout={loadFixture(document)}
+          scale={1}
+          resolveAsset={() => {
+            throw new Error('a background reference is not an asset path');
+          }}
+          {...(resolveBackground === undefined ? {} : { resolveBackground })}
+        />
+      </SensorProvider>,
+    );
+  }
+
+  it('plays the resolved video in the media element, with the element’s fit', () => {
+    const asked: string[] = [];
+    mountWith((ref) => {
+      asked.push(ref);
+      return { status: 'ready', url: 'perch-cache://backgrounds/thermalright/800x480/a042.mp4' };
+    }, withBackground('contain'));
+
+    const [element] = elements();
+    expect(asked).toEqual(['thermalright:a042']);
+    expect(element?.querySelector('video')?.getAttribute('src')).toBe(
+      'perch-cache://backgrounds/thermalright/800x480/a042.mp4',
+    );
+    expect(element?.querySelector('img')).toBeNull();
+    expect(element?.querySelector('.perch-media')).toHaveAttribute('data-fit', 'contain');
+  });
+
+  it('leaves the rect empty while it is being fetched', () => {
+    mountWith(() => ({ status: 'loading' }));
+
+    const [element] = elements();
+    expect(element?.querySelector('video')).toBeNull();
+    expect(element?.querySelector('[data-perch-background="loading"]')).not.toBeNull();
+    expect(element?.textContent).toBe('');
+  });
+
+  it('says so in the rect when it could not be had, naming the reference and why', () => {
+    mountWith(() => ({ status: 'failed', reason: 'international: HTTP 404; china: HTTP 404' }));
+
+    expect(elements()[0]?.querySelector('.perch-element__failure')?.textContent).toBe(
+      'background unavailable: thermalright:a042 (international: HTTP 404; china: HTTP 404)',
+    );
+  });
+
+  it('fails visibly on a host that resolves no backgrounds at all', () => {
+    mountWith(undefined);
+
+    expect(elements()[0]?.querySelector('.perch-element__failure')?.textContent).toMatch(
+      /^background unavailable: thermalright:a042 \(/,
+    );
   });
 });
 

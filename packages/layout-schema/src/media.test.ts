@@ -90,3 +90,29 @@ describe('everything else that is not a relative path', () => {
     expect(found.message).toContain('512');
   });
 });
+
+describe('a cloud background reference, which is not a path and is still not embedded', () => {
+  it.each([['thermalright:a042'], ['thermalright:y010'], ['thermalright:z999']])(
+    'accepts %s unchanged, whatever the catalogue holds today',
+    (src) => {
+      expect(layoutOf(withSrc(src)).elements[0]).toMatchObject({ kind: 'media', src });
+    },
+  );
+
+  it.each([
+    ['an upper-case id', 'thermalright:A042'],
+    ['two digits', 'thermalright:a42'],
+    ['the zero id', 'thermalright:a000'],
+    ['a file extension', 'thermalright:a042.mp4'],
+    ['nothing after the colon', 'thermalright:'],
+  ])('rejects %s with its own code, showing the grammar', (_why, src) => {
+    const found = issue(src);
+
+    expect(found.code).toBe('malformed-background-ref');
+    expect(found.message).toContain('thermalright:a042');
+  });
+
+  it('still rejects every other scheme as a URL the bundle cannot copy', () => {
+    expect(issue('lianli:a042').code).toBe('malformed-media-path');
+  });
+});

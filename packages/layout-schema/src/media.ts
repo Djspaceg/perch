@@ -18,8 +18,16 @@
  *   are movable as a unit" and makes the bundle build's copy set unbounded.
  * - **A backslash, a `.` segment, an empty segment, a trailing slash** are second spellings of a
  *   path that already has one. A path is an identity, the same way a topic is.
+ *
+ * One exception to "a relative path", and it is not a way round the rule: a cloud background
+ * reference, `thermalright:a042` (`background.ts`). It embeds nothing and locates nothing; it names
+ * hosted media the host fetches into its own cache at render time, so the layout stays a small,
+ * diffable file that moves between machines. It is checked before the scheme rule, and anything
+ * after `thermalright:` that is not the grammar is its own issue, so the author is shown the
+ * spelling rather than told that URLs are not allowed.
  */
 
+import { BACKGROUND_PROVIDER, parseBackgroundRef } from './background.js';
 import { hasControlCharacter } from './checks.js';
 import { type IssueCollector } from './issues.js';
 
@@ -45,7 +53,10 @@ export function validateMediaPath(
   collect: IssueCollector,
   elementIndex: number,
 ): string | null {
-  const reject = (code: 'malformed-media-path' | 'embedded-media', message: string): null => {
+  const reject = (
+    code: 'malformed-media-path' | 'embedded-media' | 'malformed-background-ref',
+    message: string,
+  ): null => {
     collect.add(code, path, message, elementIndex);
     return null;
   };
@@ -55,6 +66,15 @@ export function validateMediaPath(
       'malformed-media-path',
       `media path must be at most ${MEDIA_PATH_MAX_LENGTH} characters, got ${src.length}`,
     );
+  }
+
+  if (src.startsWith(`${BACKGROUND_PROVIDER}:`)) {
+    return parseBackgroundRef(src) === null
+      ? reject(
+          'malformed-background-ref',
+          `a background reference is ${BACKGROUND_PROVIDER}: then a category letter and three digits, like thermalright:a042 — got ${JSON.stringify(src)}`,
+        )
+      : src;
   }
 
   // Drive letters first, so `C:/wallpaper.png` is reported as the absolute path it is rather

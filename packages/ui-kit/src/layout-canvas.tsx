@@ -66,6 +66,7 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 import {
+  isBackgroundRef,
   type ChartElement,
   type Layout,
   type LayoutElement,
@@ -77,9 +78,11 @@ import {
   type WidgetElement,
 } from '@perch/layout-schema';
 import { boxQuadCss, parseBoxToken, type BoxQuad } from './box-shorthand.js';
+import { NO_BACKGROUND_HOST, type BackgroundSource } from './background-sources.js';
 import { assertNever } from './exhaustive.js';
 import { MediaFrame, type MediaFrameFit } from './media-frame.js';
 import { TextBlock } from './text-block.js';
+import { VIDEO_BACKGROUND_STYLES, VideoBackground } from './video-background.js';
 import { PERCH_TOKEN_DEFAULTS, token, type PerchToken } from './tokens.js';
 import { widgetFor, type ContentBox } from './widget-catalogue.js';
 
@@ -118,9 +121,19 @@ export interface LayoutCanvasProps {
   readonly scale: number;
   /** A layout's media `src` as a URL, or `undefined` if the asset is missing from the bundle. */
   readonly resolveAsset: (src: string) => string | undefined;
+  /**
+   * Where a cloud background (`thermalright:a042`) is, from the host's cache: see
+   * `useBackgroundSources`. Absent, every background paints as unavailable, saying there is no cache.
+   */
+  readonly resolveBackground?: ((ref: string) => BackgroundSource) | undefined;
 }
 
-export function LayoutCanvas({ layout, scale, resolveAsset }: LayoutCanvasProps): ReactNode {
+export function LayoutCanvas({
+  layout,
+  scale,
+  resolveAsset,
+  resolveBackground = noBackgrounds,
+}: LayoutCanvasProps): ReactNode {
   return (
     <div
       className="perch-canvas"
@@ -144,7 +157,7 @@ export function LayoutCanvas({ layout, scale, resolveAsset }: LayoutCanvasProps)
             data-perch-element-index={index}
             style={elementStyle(element, style, content, layout.theme)}
           >
-            {renderElement(element, content, resolveAsset)}
+            {renderElement(element, content, resolveAsset, resolveBackground)}
           </div>
         );
       })}
@@ -165,6 +178,7 @@ function renderElement(
   element: LayoutElement,
   content: ContentBox,
   resolveAsset: (src: string) => string | undefined,
+  resolveBackground: (ref: string) => BackgroundSource,
 ): ReactNode {
   switch (element.kind) {
     case 'widget':
@@ -172,7 +186,9 @@ function renderElement(
     case 'text':
       return renderText(element);
     case 'media':
-      return renderMedia(element, resolveAsset);
+      return isBackgroundRef(element.src)
+        ? renderBackground(element, resolveBackground)
+        : renderMedia(element, resolveAsset);
     case 'chart':
       return renderChart(element, content);
     default:
@@ -259,6 +275,37 @@ function renderMedia(
   }
 
   return <MediaFrame src={url} fit={mediaFit(element.fit)} />;
+}
+
+/**
+ * A media element naming a cloud background: the video once the host has it.
+ *
+ * Three honest states. Ready plays it. Loading leaves the rect empty, since a download takes a
+ * moment and a failure box that flashes on every page load would teach a reader to ignore the real
+ * one. Failed says so in the rect, naming the reference and the host's reason, by the same rule as a
+ * missing asset: a blank rect on a panel reads as an element nobody finished.
+ */
+function renderBackground(
+  element: MediaElement,
+  resolveBackground: (ref: string) => BackgroundSource,
+): ReactNode {
+  const source = resolveBackground(element.src);
+  switch (source.status) {
+    case 'ready':
+      return <VideoBackground src={source.url} fit={mediaFit(element.fit)} />;
+    case 'loading':
+      return <div className="perch-media" data-perch-background="loading" />;
+    case 'failed':
+      return (
+        <span className="perch-element__failure">{`background unavailable: ${element.src} (${source.reason})`}</span>
+      );
+    default:
+      return assertNever(source, 'background source');
+  }
+}
+
+function noBackgrounds(): BackgroundSource {
+  return { status: 'failed', reason: NO_BACKGROUND_HOST };
 }
 
 /**
@@ -485,6 +532,7 @@ export const LAYOUT_CANVAS_STYLES = `
   background: ${canvasToken('--perch-canvas-bg')};
 }
 ${ELEMENT_BOX_STYLES}
+${VIDEO_BACKGROUND_STYLES}
 /*
  * A failure that must be seen. Every case it marks — an unregistered widget, a widget used on the
  * wrong element kind, a chart with no range, a missing asset — would otherwise paint nothing, and a

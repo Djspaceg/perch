@@ -56,8 +56,10 @@ import {
   TEXT_BLOCK_STYLES,
   WIDGET_REGISTRY,
   assertNever,
+  useBackgroundSources,
   useSensor,
   useSensorStatus,
+  type EnsureBackground,
 } from '@perch/ui-kit';
 import {
   LAYOUT_PROBLEM_STYLES,
@@ -145,9 +147,20 @@ export interface DashboardProps {
   readonly catalogue: LayoutCatalogue;
   /** What the URL asked for. */
   readonly request: PageRequest;
+  /**
+   * The host's background cache, for a layout naming a cloud background (`thermalright:a042`): the
+   * runner's bridge, or the dev server. Absent, such a background paints as unavailable.
+   */
+  readonly ensureBackground?: EnsureBackground | undefined;
 }
 
-export function Dashboard({ source, liveSource, catalogue, request }: DashboardProps): ReactNode {
+export function Dashboard({
+  source,
+  liveSource,
+  catalogue,
+  request,
+  ensureBackground,
+}: DashboardProps): ReactNode {
   return (
     <SensorProvider source={source}>
       {/*
@@ -180,7 +193,12 @@ export function Dashboard({ source, liveSource, catalogue, request }: DashboardP
         {PAGE_STYLES}
       </style>
 
-      <Page catalogue={catalogue} request={request} liveSource={liveSource} />
+      <Page
+        catalogue={catalogue}
+        request={request}
+        liveSource={liveSource}
+        ensureBackground={ensureBackground}
+      />
     </SensorProvider>
   );
 }
@@ -198,10 +216,12 @@ function Page({
   catalogue,
   request,
   liveSource,
+  ensureBackground,
 }: {
   readonly catalogue: LayoutCatalogue;
   readonly request: PageRequest;
   readonly liveSource: LiveSourceIdentity;
+  readonly ensureBackground: EnsureBackground | undefined;
 }): ReactNode {
   const viewport = useViewport();
   const heartbeat = useSensor(HEARTBEAT_TOPIC);
@@ -227,6 +247,12 @@ function Page({
   );
 
   const resolved = resolvePage(name, entry === undefined ? null : loaded, catalogue.names);
+  // Asked for on load, before the canvas paints: in the runner this is what caches the open
+  // layout's background. Every path runs the hook, as every other hook here.
+  const resolveBackground = useBackgroundSources(
+    resolved.ok ? resolved.layout : null,
+    ensureBackground,
+  );
   const fit = resolved.ok ? fitCanvas(resolved.layout.target, viewport, request.mode) : undefined;
 
   const problem: LayoutProblemProps | null = !resolved.ok
@@ -256,6 +282,7 @@ function Page({
             layout={resolved.layout}
             scale={fit.fit.scale}
             resolveAsset={catalogue.resolveAsset}
+            resolveBackground={resolveBackground}
           />
         </div>
       ) : problem === null ? null : (
