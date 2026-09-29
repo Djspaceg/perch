@@ -5014,3 +5014,38 @@ red-first.log; build/test/typecheck/lint logs; npm-install.log, lockfile-diff.lo
 ## Residuals
 
 The Windows installer and Linux packages were built and inspected (deb entries read), never installed or run. The dmg window was not looked at (no screenshots). The AppImage action relies on the desktop's AppImage integration rewriting its Exec. Signing and notarization have never run (no credentials); the launcher bundle does take an ad-hoc signature.
+
+# Desktop menus and Settings: the editor's toolbar moves to the menu bar - decisions
+
+Outcome: a Settings window (App menu Settings... Cmd+, on macOS, File > Settings Ctrl+, elsewhere, the tray, the editor's Mod+Comma and header indicator) holds the sensor host control. File gains Open preset (the folder, live) and Open recent; menu items enable as the editor says. The desktop header keeps a connection indicator; `npm run dev` is unchanged. Tray: Show/Hide preview, Settings....
+
+## Decisions to evaluate
+
+D1 Settings is `settings.html`, a second entry of the editor's Vite build, with a one-method preload; `npm run runner` now builds the editor too. Why: it reuses the editor's own control and chrome. If overruled: a page in apps/desktop restating the control.
+D2 Its store is in memory, seeded from the relay's target; it writes no localStorage (shared `app://editor` origin with the editor). The runner's settings remember the host. If overruled: persist the typed draft too.
+D3 The desktop editor header follows the relay's reported status and never requests a host. Why: one chooser; the header describes what the relay polls. If overruled: the editor keeps and re-requests its own choice.
+D4 The menu's Settings opens the window from main (works with no editor); the page's `app.settings` asks main for the same. If overruled: route it through the page, disabled with no editor.
+D5 Undo/Redo follow the page only while the editor is focused, and stay enabled while a text field is (macOS text undo is the menu's); Save is off when clean, on for an untitled document; Save As on while a document is open. If overruled: history only, breaking Cmd-Z in fields.
+D6 Open preset checks the editor's document (none while it is closed); picking one with the editor closed opens the editor on it. "No presets" is a disabled item inside the submenu, so it can be read. It does not switch the runner.
+D7 Open recent records each document the editor shows (the one it opens first too) and each save; missing files are hidden but kept; same-name files show their folder. macOS: Dock list kept, open-file opens in the editor.
+D8 The Window menu's "Show runner window" is "Show preview" too. If overruled: revert that label.
+D9 macOS shows the dock icon while Settings is open. Why: no dock icon means no menu bar, so no paste into the host field.
+D10 The folder watch lists again 250 ms after it starts. Why: FSEvents dropped the first change under load (red-first-watch.log).
+
+## Open questions
+
+Q1 The header had no Open or Save As buttons to remove; revert has no menu item. Default: revert stays in the header.
+Q2 Should Open preset also switch the runner's document? Default: no; the tray does.
+Q3 Anything else for Settings (start at login)? Default: only the sensor host.
+
+## Gate facts
+
+Nothing pushed; no review cut (GitHub repo, no CRUX; AutoSDE not run: off-host). No dependency; lockfile untouched. packages/*: none touched. Lanes: build.log, test.log, typecheck.log exit 0; lint.log clean on changed files; package-mac.log exit 0. Adversarial review rounds: 0 (standing rule 13, no code-review.md).
+
+## Evidence (under the worktree's .evidence/)
+
+red-first.log, red-first-watch.log; build/test/typecheck/lint logs; launch.log (temp folders, ports 0: Settings opened by Cmd+, and the indicator, one window for three opens, a Connect saved and resumed, the preset menu rebuilt on add/rename/remove, Open recent recorded the open, quit by PID); package-mac.log.
+
+## Residuals
+
+Native menu and tray clicks not driven (no GUI automation): templates, enabled state and submenus are unit-tested; Settings was driven over the DevTools protocol. Windows and Linux placement is unit-level only. The Dock list and open-file were not exercised. No screenshots (brief).
