@@ -42,6 +42,7 @@ import { createMockSource } from '@perch/sensor-sources';
 import { Editor } from './app.js';
 import type { RelayLink } from './connection-control.js';
 import {
+  desktopBackgroundHost,
   desktopLibrary,
   desktopSaveTransport,
   editorHostFrom,
@@ -79,6 +80,7 @@ function DesktopEditor({
   );
   const transport = useMemo(() => desktopSaveTransport(bridge), [bridge]);
   const host = useMemo(() => editorHostFrom(bridge), [bridge]);
+  const backgrounds = useMemo(() => desktopBackgroundHost(bridge), [bridge]);
 
   return (
     <Editor
@@ -89,6 +91,7 @@ function DesktopEditor({
       store={editorStore}
       transport={transport}
       host={host}
+      backgrounds={backgrounds}
       initialLayout={start.initial ?? undefined}
     />
   );

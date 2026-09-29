@@ -43,7 +43,7 @@ import {
   type LayoutTarget,
   type Rect,
 } from '@perch/layout-schema';
-import { LayoutCanvas, canvasToken } from '@perch/ui-kit';
+import { LayoutCanvas, canvasToken, type BackgroundSource } from '@perch/ui-kit';
 import type { ReactNode } from 'react';
 import { CanvasHandles } from './canvas-handles.js';
 import { NOTHING_SELECTED } from './inspector.js';
@@ -81,6 +81,8 @@ export interface LayoutPreviewProps {
   readonly layout: Layout;
   /** Passed straight to the canvas. Detached from the library, hence a property and not a method. */
   readonly resolveAsset: (src: string) => string | undefined;
+  /** Where each cloud background is (`useBackgroundSources`). Absent, they paint as unavailable. */
+  readonly resolveBackground?: ((ref: string) => BackgroundSource) | undefined;
   /** How much room there is. Measured once by the shell and passed down. */
   readonly viewport: PreviewViewport;
   /**
@@ -108,6 +110,7 @@ export interface LayoutPreviewProps {
 export function LayoutPreview({
   layout,
   resolveAsset,
+  resolveBackground,
   viewport,
   stale,
   selected,
@@ -144,7 +147,12 @@ export function LayoutPreview({
         }
       }}
     >
-      <LayoutCanvas layout={layout} scale={fit.scale} resolveAsset={resolveAsset} />
+      <LayoutCanvas
+        layout={layout}
+        scale={fit.scale}
+        resolveAsset={resolveAsset}
+        resolveBackground={resolveBackground}
+      />
       <CanvasHandles
         layout={layout}
         scale={fit.scale}

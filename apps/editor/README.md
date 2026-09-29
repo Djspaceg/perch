@@ -71,12 +71,18 @@ the connected source has published (the same picker backs the topic field); the
 selection header's trash can deletes, asking once inline, and the Delete or
 Backspace key asks the same way when the canvas has focus. **Undo and redo** cover
 every change to the layout (see [Undo](#undo)).
+**Cloud backgrounds** (docs/backgrounds.md): a media element's `background` row,
+and "+ Add" > Background (a full-canvas media element, first in paint order),
+open a browser of Thermalright's catalogue in tabs, its cells shaped like the
+canvas; a pick downloads into the host's cache, then sets `src` to
+`thermalright:<id>` as one undoable edit. It needs a host with a cache: the
+desktop app, or `npm run dev`.
 Escape, or a click on empty canvas, deselects. The sidebar's sections, the
 selected entity's controls, the element rows and the delete confirm slide open
 and shut rather than jumping (instant under `prefers-reduced-motion`).
 
-Deliberately **not** in this slice, and why it is safe to leave out: adding a
-media element (it needs an asset path), asset management, multi-layout
+Deliberately **not** in this slice, and why it is safe to leave out: adding an
+image media element (it needs an asset path), asset management, multi-layout
 projects, and templates. See `DECISIONS.md` for the full list —
 nothing here was missed, it was scoped out.
 

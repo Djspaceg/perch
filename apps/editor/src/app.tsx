@@ -92,6 +92,7 @@ import {
   SensorProvider,
   TEXT_BLOCK_STYLES,
   WIDGET_NAMES,
+  useBackgroundSources,
 } from '@perch/ui-kit';
 import type { LayoutElement, Rect } from '@perch/layout-schema';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -127,7 +128,15 @@ import {
 import { currentPlatform, type Platform } from './platform.js';
 import { INSPECTOR_STYLES, Inspector } from './inspector.js';
 import type { LayoutLibrary } from './layout-library.js';
-import { addElement, removeElement, setElementRect, type LayoutUpdate } from './layout-edits.js';
+import {
+  addElement,
+  insertElementFirst,
+  removeElement,
+  setElementRect,
+  type LayoutUpdate,
+} from './layout-edits.js';
+import { BACKGROUND_PICKER_STYLES } from './background-picker.js';
+import { BackgroundContext, type BackgroundHost } from './background-host.js';
 import { LAYOUT_PROBLEMS_STYLES, LayoutProblems } from './problems.js';
 import { LayoutPreview, PREVIEW_STYLES, describePreviewFit } from './preview.js';
 import { PROPERTY_VIEW_STYLES } from './property-view.js';
@@ -186,6 +195,11 @@ export interface EditorProps {
   readonly platform?: Platform | undefined;
   /** The desktop app's file dialogs, menu and close prompt. Absent in a browser. */
   readonly host?: EditorHost | undefined;
+  /**
+   * Where cloud backgrounds are downloaded and cached: the desktop app's main process, or the dev
+   * server. Absent, the background control is off and a layout's background paints as unavailable.
+   */
+  readonly backgrounds?: BackgroundHost | undefined;
 }
 
 export function Editor({
@@ -268,6 +282,7 @@ function ConnectedEditor({
   transport,
   relay,
   host,
+  backgrounds,
 }: Omit<EditorProps, 'store' | 'storage' | 'initialLayout' | 'platform'>): ReactNode {
   // In the desktop app the Settings window picks the host; this window follows the relay.
   const connection = useConnection(relay, { follow: host !== undefined });
@@ -318,6 +333,9 @@ function ConnectedEditor({
       <style href="perch-editor-sensor-picker" precedence="default">
         {SENSOR_PICKER_STYLES}
       </style>
+      <style href="perch-editor-background-picker" precedence="default">
+        {BACKGROUND_PICKER_STYLES}
+      </style>
       <style href="perch-editor-problems" precedence="default">
         {LAYOUT_PROBLEMS_STYLES}
       </style>
@@ -337,6 +355,7 @@ function ConnectedEditor({
         connection={connection}
         live={live}
         host={host}
+        backgrounds={backgrounds}
       />
     </SensorProvider>
   );
@@ -357,6 +376,7 @@ function EditorShell({
   connection,
   live,
   host,
+  backgrounds,
 }: Omit<EditorProps, 'source' | 'relay' | 'storage' | 'store' | 'initialLayout' | 'platform'> & {
   readonly connection: Connection;
   readonly live: boolean;
@@ -479,12 +499,16 @@ function EditorShell({
     [onEdit],
   );
 
-  /** A new element: appended through the same validated path, then selected. */
+  /**
+   * A new element: appended through the same validated path, then selected. A background (the Add
+   * menu's only media) goes first instead, under everything, since paint order is array order.
+   */
   const onAdd = useCallback(
     (element: LayoutElement) => {
       if (!opened.ok) return;
-      const index = opened.state.draft.elements.length;
-      onEdit(addElement(element));
+      const underneath = element.kind === 'media';
+      const index = underneath ? 0 : opened.state.draft.elements.length;
+      onEdit(underneath ? insertElementFirst(element) : addElement(element));
       select(index);
     },
     [opened, onEdit, select],
@@ -690,6 +714,23 @@ function EditorShell({
     (src: string) => library.resolveAsset(src, name),
     [library, name],
   );
+  // The preview's backgrounds, asked for as the draft names them: a pick is cached before it is set,
+  // so this is a cache hit then; a layout opened on a machine without its background downloads it.
+  const resolveBackground = useBackgroundSources(
+    opened.ok ? opened.state.rendered : null,
+    backgrounds?.ensure,
+  );
+  const backgroundTarget = opened.ok ? opened.state.rendered.target : undefined;
+  const backgroundContext = useMemo(
+    () => ({
+      host: backgrounds,
+      target: {
+        width: backgroundTarget?.width ?? 1920,
+        height: backgroundTarget?.height ?? 400,
+      },
+    }),
+    [backgrounds, backgroundTarget?.width, backgroundTarget?.height],
+  );
 
   /** The picker's options: every offered layout, plus the open one if it is not offered. */
   const choices = useMemo(
@@ -856,6 +897,7 @@ function EditorShell({
             <LayoutPreview
               layout={opened.state.rendered}
               resolveAsset={resolveAsset}
+              resolveBackground={resolveBackground}
               viewport={viewport}
               stale={opened.state.issues.length > 0}
               selected={selected}
@@ -875,18 +917,20 @@ function EditorShell({
             onSelectElement={select}
           />
           {opened.ok ? (
-            <Inspector
-              state={opened.state}
-              selected={selected}
-              onSelect={select}
-              onEdit={onEdit}
-              onAdd={onAdd}
-              onDelete={onDelete}
-              deleteAsked={deleteAsked}
-              onDeleteAsked={setDeleteAsked}
-              topics={topics}
-              widgets={WIDGET_NAMES}
-            />
+            <BackgroundContext.Provider value={backgroundContext}>
+              <Inspector
+                state={opened.state}
+                selected={selected}
+                onSelect={select}
+                onEdit={onEdit}
+                onAdd={onAdd}
+                onDelete={onDelete}
+                deleteAsked={deleteAsked}
+                onDeleteAsked={setDeleteAsked}
+                topics={topics}
+                widgets={WIDGET_NAMES}
+              />
+            </BackgroundContext.Provider>
           ) : null}
         </aside>
       </div>

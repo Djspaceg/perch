@@ -14,6 +14,7 @@
  * preload test.
  */
 
+import { sourceFromAnswer, thumbnailFromAnswer, type BackgroundHost } from './background-host.js';
 import type { EditorHost, HostMenuState, MenuBindings, RelayTarget } from './editor-host.js';
 import {
   createLayoutLibrary,
@@ -63,6 +64,35 @@ export interface EditorBridge {
   setMenuState(state: HostMenuState): void;
   openSettings(): void;
   onOpenDocument(listener: (document: DesktopEditorDocument) => void): () => void;
+  /**
+   * A cloud background's cache URL, downloading it first; a thumbnail's. Optional in the type, and
+   * not required by `findEditorBridge`, so the editor still starts under a main process without them.
+   */
+  ensureBackground?(ref: string, target: { width: number; height: number }): Promise<unknown>;
+  previewBackground?(ref: string, target: { width: number; height: number }): Promise<unknown>;
+}
+
+/** Where the main process serves its background cache; an answer naming anywhere else is refused. */
+const BACKGROUNDS_ORIGIN = 'perch-cache://backgrounds/';
+
+/** The main process's background cache, as the editor asks it, or `undefined` without one. */
+export function desktopBackgroundHost(
+  bridge: Pick<EditorBridge, 'ensureBackground' | 'previewBackground'>,
+): BackgroundHost | undefined {
+  const ensure = bridge.ensureBackground?.bind(bridge);
+  const preview = bridge.previewBackground?.bind(bridge);
+  if (ensure === undefined || preview === undefined) return undefined;
+  const size = (target: { readonly width: number; readonly height: number }) => ({
+    width: target.width,
+    height: target.height,
+  });
+
+  return {
+    ensure: async (ref, target) =>
+      sourceFromAnswer(await ensure(ref, size(target)), BACKGROUNDS_ORIGIN),
+    preview: async (ref, target) =>
+      thumbnailFromAnswer(await preview(ref, size(target)), BACKGROUNDS_ORIGIN),
+  };
 }
 
 const BRIDGE_METHODS = [

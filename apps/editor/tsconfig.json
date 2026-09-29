@@ -12,6 +12,7 @@
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"],
   "references": [
+    { "path": "../../packages/backgrounds" },
     { "path": "../../packages/sensor-contract" },
     { "path": "../../packages/layout-schema" },
     { "path": "../../packages/ui-kit" },

@@ -20,6 +20,7 @@ import {
 } from './controls/index.js';
 import { lengthStep, splitLength, type ControlSpec, type Property } from './descriptors.js';
 import type { LayoutUpdate } from './layout-edits.js';
+import { BackgroundField } from './background-picker.js';
 import { TopicField } from './sensor-picker.js';
 
 /** What scrubbing the row's label should drive for this spec, if anything. */
@@ -208,6 +209,9 @@ export function SpecControl({
           <TextControl ids={ids} value={value} onValue={onValue} mono />
         </TopicField>
       );
+
+    case 'background':
+      return <BackgroundField value={value} onValue={onValue} />;
 
     case 'text':
       return (

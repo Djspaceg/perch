@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   EDITOR_BRIDGE_GLOBAL,
+  desktopBackgroundHost,
   desktopLibrary,
   desktopSaveTransport,
   editorHostFrom,
@@ -175,5 +176,69 @@ describe('editorHostFrom', () => {
 
     expect(await host.open()).toBeNull();
     expect(await host.saveAs('desk')).toBeNull();
+  });
+});
+
+describe('desktopBackgroundHost', () => {
+  it("turns the main process's answers into the canvas's and the browser's, keeping to the cache", async () => {
+    const asked: unknown[][] = [];
+    const host = desktopBackgroundHost(
+      fakeBridge({
+        ensureBackground: (ref, target) => {
+          asked.push(['ensure', ref, target]);
+          return Promise.resolve({
+            ok: true,
+            url: 'perch-cache://backgrounds/thermalright/1920x440/a042.mp4',
+          });
+        },
+        previewBackground: (ref, target) => {
+          asked.push(['preview', ref, target]);
+          return Promise.resolve({
+            ok: true,
+            kind: 'video',
+            url: 'perch-cache://backgrounds/h.mp4',
+          });
+        },
+      }),
+    );
+    if (host === undefined) throw new Error('expected a background host');
+
+    expect(await host.ensure('thermalright:a042', { width: 1920, height: 400 })).toEqual({
+      status: 'ready',
+      url: 'perch-cache://backgrounds/thermalright/1920x440/a042.mp4',
+    });
+    expect(await host.preview('thermalright:a042', { width: 1920, height: 400 })).toEqual({
+      status: 'ready',
+      kind: 'video',
+      url: 'perch-cache://backgrounds/h.mp4',
+    });
+    expect(asked).toEqual([
+      ['ensure', 'thermalright:a042', { width: 1920, height: 400 }],
+      ['preview', 'thermalright:a042', { width: 1920, height: 400 }],
+    ]);
+  });
+
+  it('refuses a URL outside the cache, and passes a failure on with its reason', async () => {
+    const host = desktopBackgroundHost(
+      fakeBridge({
+        ensureBackground: () =>
+          Promise.resolve({ ok: true, url: 'http://www.czhorde.cc/tr/x.mp4' }),
+        previewBackground: () =>
+          Promise.resolve({ ok: false, code: 'unreachable', reason: 'offline' }),
+      }),
+    );
+    if (host === undefined) throw new Error('expected a background host');
+
+    expect((await host.ensure('thermalright:a042', { width: 1920, height: 400 })).status).toBe(
+      'failed',
+    );
+    expect(await host.preview('thermalright:a042', { width: 1920, height: 400 })).toEqual({
+      status: 'failed',
+      reason: 'offline',
+    });
+  });
+
+  it('is absent for a bridge from before backgrounds', () => {
+    expect(desktopBackgroundHost(fakeBridge())).toBeUndefined();
   });
 });

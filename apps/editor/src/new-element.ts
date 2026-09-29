@@ -52,6 +52,19 @@ const NEW_SIZE: Readonly<Record<AddableKind, { readonly w: number; readonly h: n
   text: { w: 360, h: 48 },
 };
 
+/**
+ * A new background: `ref` over the whole canvas, covering it. The Add menu's Background, once the
+ * pick is cached; `app.tsx` puts it first, under everything.
+ */
+export function newBackground(ref: string, target: LayoutTarget): LayoutElement {
+  return {
+    kind: 'media',
+    src: ref,
+    rect: { x: 0, y: 0, w: target.width, h: target.height },
+    fit: 'cover',
+  };
+}
+
 /** The rect a new element of `kind` gets: its size, clamped to the canvas, centred on it. */
 export function newRect(kind: AddableKind, target: LayoutTarget): Rect {
   const w = Math.max(1, Math.min(NEW_SIZE[kind].w, target.width));

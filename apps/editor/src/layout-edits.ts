@@ -235,6 +235,11 @@ export function addElement(element: LayoutElement): LayoutUpdate {
   return (layout) => ({ ...layout, elements: [...layout.elements, element] });
 }
 
+/** Put `element` first in paint order, under everything: where a background goes. */
+export function insertElementFirst(element: LayoutElement): LayoutUpdate {
+  return (layout) => ({ ...layout, elements: [element, ...layout.elements] });
+}
+
 /**
  * Remove the element at `index`; the ones after it move up one. A no-op for an index that names no
  * element, which is what "nothing selected" is.

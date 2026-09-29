@@ -14,6 +14,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@perch/backgrounds": "0.0.0",
     "@perch/layout-schema": "0.0.0",
     "@perch/sensor-contract": "0.0.0",
     "@perch/sensor-sources": "0.0.0",

@@ -45,7 +45,9 @@ import {
   type ReactNode,
 } from 'react';
 import { FilterBar, usePopover } from './controls/index.js';
-import { ADDABLE_KINDS, newElement, type AddableEntry } from './new-element.js';
+import { BackgroundBrowser } from './background-picker.js';
+import { BackgroundContext, NO_BACKGROUND_CACHE } from './background-host.js';
+import { ADDABLE_KINDS, newBackground, newElement, type AddableEntry } from './new-element.js';
 import {
   catalogueTopics,
   filterCatalogue,
@@ -340,12 +342,19 @@ export function AddMenu({
   const anchor = useRef<HTMLButtonElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const popover = usePopover(anchor, box);
-  const [kind, setKind] = useState<AddableEntry | null>(null);
+  /** The second step: a sensor for this kind, or a background from the browser. */
+  const [kind, setKind] = useState<AddableEntry | 'background' | null>(null);
+  const backgrounds = useContext(BackgroundContext);
 
   // The step changed inside an open popover, so the hook's focus-on-open does not run: the button
-  // that was pressed has gone, and focus follows the author into the search box.
+  // that was pressed has gone, and focus follows the author into the search box, or the grid.
   useEffect(() => {
-    if (kind !== null) box.current?.querySelector<HTMLElement>('input')?.focus();
+    if (kind === null) return;
+    box.current
+      ?.querySelector<HTMLElement>(
+        kind === 'background' ? '[role="option"][tabindex="0"]' : 'input',
+      )
+      ?.focus();
   }, [kind]);
 
   const finish = (element: LayoutElement): void => {
@@ -379,10 +388,20 @@ export function AddMenu({
         <div
           ref={box}
           id={popover.id}
-          className={`perch-popover${kind === null ? ' perch-popover--menu' : ' perch-popover--sensors'}`}
+          className={`perch-popover${
+            kind === null
+              ? ' perch-popover--menu'
+              : kind === 'background'
+                ? ' perch-popover--backgrounds'
+                : ' perch-popover--sensors'
+          }`}
           role="dialog"
           aria-label={
-            kind === null ? 'add an element' : `choose a sensor for the new ${kind.label}`
+            kind === null
+              ? 'add an element'
+              : kind === 'background'
+                ? 'choose a background'
+                : `choose a sensor for the new ${kind.label}`
           }
           style={popover.style}
         >
@@ -402,7 +421,44 @@ export function AddMenu({
                   <span className="perch-add__kind-hint">{entry.hint}</span>
                 </button>
               ))}
+              <button
+                type="button"
+                className="perch-add__kind"
+                disabled={backgrounds.host === undefined}
+                title={backgrounds.host === undefined ? NO_BACKGROUND_CACHE : undefined}
+                onClick={() => {
+                  setKind('background');
+                }}
+              >
+                <span className="perch-add__kind-label">Background</span>
+                <span className="perch-add__kind-hint">a cloud video under everything</span>
+              </button>
             </div>
+          ) : kind === 'background' ? (
+            backgrounds.host === undefined ? null : (
+              <>
+                <div className="perch-add__step">
+                  <button
+                    type="button"
+                    className="perch-add__back"
+                    onClick={() => {
+                      setKind(null);
+                    }}
+                  >
+                    <span aria-hidden="true">‹</span> kinds
+                  </button>
+                  <span className="perch-add__step-title">new background: choose one</span>
+                </div>
+                <BackgroundBrowser
+                  host={backgrounds.host}
+                  target={target}
+                  current=""
+                  onPicked={(ref) => {
+                    finish(newBackground(ref, target));
+                  }}
+                />
+              </>
+            )
           ) : (
             <>
               <div className="perch-add__step">

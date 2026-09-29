@@ -68,6 +68,8 @@ export type ControlSpec =
   | { readonly kind: 'colour'; readonly alpha: boolean }
   /** A sensor topic: the text of it, and the sensor picker (`sensor-picker.tsx`) beside it. */
   | { readonly kind: 'topic' }
+  /** A cloud background: its name, and the background browser (`background-picker.tsx`). */
+  | { readonly kind: 'background' }
   | {
       readonly kind: 'segmented';
       readonly options: readonly { readonly value: string; readonly label: string }[];
@@ -287,11 +289,26 @@ const TEXT: ScalarProperty<LayoutElement> = {
   write: (text, index) => setElementText(index, text),
 };
 
+/**
+ * A cloud background, chosen from Thermalright's catalogue: writes the media `src` as a reference.
+ * The same field `src` edits, shown by name; the text field below still takes a path or a reference.
+ */
+const BACKGROUND: ScalarProperty<LayoutElement> = {
+  kind: 'scalar',
+  id: 'background',
+  label: 'background',
+  description: 'A cloud video, downloaded and cached when picked, covering the rectangle.',
+  spec: { kind: 'background' },
+  get: (element) => (element.kind === 'media' ? element.src : ''),
+  write: (text, index) => setElementSrc(index, text),
+};
+
 const SRC: ScalarProperty<LayoutElement> = {
   kind: 'scalar',
   id: 'src',
   label: 'src',
-  description: 'The image file, relative to the layout.',
+  description:
+    'The image file, relative to the layout, or a background reference (thermalright:a042).',
   spec: { kind: 'text' },
   get: (element) => (element.kind === 'media' ? element.src : ''),
   write: (text, index) => setElementSrc(index, text),
@@ -393,7 +410,7 @@ export function entitySections(element: LayoutElement): readonly PropertySection
       content = [TEXT];
       break;
     case 'media':
-      content = [SRC, FIT];
+      content = [BACKGROUND, SRC, FIT];
       break;
     case 'widget':
       content = withRange([WIDGET, TOPIC]);
