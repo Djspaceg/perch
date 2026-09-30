@@ -162,7 +162,6 @@ export function SpecControl({
           id={ids.controlId}
           label={label}
           value={value}
-          alpha={spec.alpha}
           onValue={onValue}
           describedBy={ids.describedBy}
         />

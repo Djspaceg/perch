@@ -25,14 +25,21 @@ describe('tokenSpec', () => {
     });
   });
 
-  it('makes a colour a colour field, with alpha where the token takes alpha', () => {
+  it('makes every colour a colour field, alpha and all, whatever it holds', () => {
+    // The field shows any text, so a colour it cannot read is still on screen to be fixed, and a
+    // half-typed rgb( never swaps the control out from under the caret.
+    for (const value of [
+      '#00000000',
+      '#e8f1ff',
+      '#1a2b3c80',
+      'rgb(1, 2, 3)',
+      'rgb(1, 2',
+      'var(--x)',
+    ]) {
+      expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-fg'], value), value).toEqual({ kind: 'colour' });
+    }
     expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-box-bg'], '#00000000')).toEqual({
       kind: 'colour',
-      alpha: true,
-    });
-    expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-fg'], '#e8f1ff')).toEqual({
-      kind: 'colour',
-      alpha: false,
     });
   });
 
@@ -74,8 +81,6 @@ describe('tokenSpec', () => {
     expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-text-size'], 'clamp(1rem, 2vw, 3rem)')).toEqual({
       kind: 'text',
     });
-    expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-fg'], 'rgb(1, 2, 3)')).toEqual({ kind: 'text' });
-    expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-fg'], '#1a2b3c80')).toEqual({ kind: 'text' });
     // A unit, or a fifth value, is a token the canvas would paint as no radius: shown as it is.
     for (const value of ['6px', '1 2 3 4 5', '-2', '1.5']) {
       expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-box-radius'], value), value).toEqual({

@@ -65,7 +65,8 @@ export type ControlSpec =
       readonly min: number;
       readonly max: number;
     }
-  | { readonly kind: 'colour'; readonly alpha: boolean }
+  /** Every colour, alpha included: `ColorField`, which shows any text it is given. */
+  | { readonly kind: 'colour' }
   /** A sensor topic: the text of it, and the sensor picker (`sensor-picker.tsx`) beside it. */
   | { readonly kind: 'topic' }
   /** A cloud background: its name, and the background browser (`background-picker.tsx`). */
@@ -94,15 +95,6 @@ const STORED_SHORTHAND = /^\d+(?:\s+\d+){0,3}$/;
 /** Few enough options to lay out as segments in a row. */
 const MAX_SEGMENTS = 4;
 
-/** A `#rgb`/`#rrggbb` literal, or with alpha where the token takes it: what the picker can drive. */
-export function isHexColor(value: string, alpha = false): boolean {
-  const pattern = alpha
-    ? /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
-    : /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
-
-  return pattern.test(value.trim());
-}
-
 /** A number with a unit, split — `['1.25', 'rem']` — or `undefined` for anything else. */
 export function splitLength(value: string): readonly [string, string] | undefined {
   const match = /^(-?(?:\d+\.?\d*|\.\d+))([a-z%]+)$/.exec(value.trim());
@@ -123,18 +115,18 @@ export function optionLabel(entry: TokenLabel, value: string): string {
 /**
  * The control a token's label asks for, for the value it holds now.
  *
- * Falls back to a text box for a value the typed control cannot represent — `clamp(...)` in a size,
- * `rgb()` in a colour — because a control that cannot show the current value hides the very problem
+ * Falls back to a text box for a value the typed control cannot represent — `clamp(...)` in a size —
+ * because a control that cannot show the current value hides the very problem
  * the validator is reporting. `validateTokenMap` accepts any well-formed value, so these are legal.
  */
 export function tokenSpec(entry: TokenLabel, value: string): ControlSpec {
   const trimmed = value.trim();
 
   switch (entry.control) {
-    case 'colour': {
-      const alpha = entry.alpha === true;
-      return isHexColor(trimmed, alpha) ? { kind: 'colour', alpha } : { kind: 'text' };
-    }
+    case 'colour':
+      // Always the colour field, never a text-box fallback: the field is a text box too, so it can show
+      // a value it cannot paint, and swapping controls as a colour is typed would drop the caret.
+      return { kind: 'colour' };
     case 'pixels':
       if (entry.shorthand !== undefined) {
         return STORED_SHORTHAND.test(trimmed) && entry.range !== undefined

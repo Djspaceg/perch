@@ -1,50 +1,68 @@
 /**
- * ColorField: a slim swatch that opens the picker in a popover, then the hex literal as a text field.
+ * ColorField: a slim swatch that opens the picker in a popover, then the colour as a text field. The
+ * one colour control: every colour token, on the theme and on an element, is drawn with it.
  *
  * Colour first, notation second, as the pane has always ordered it. The picker does not sit open in
  * the list: it opens on demand, anchored to its swatch and placed to stay on screen (`popover.ts`),
  * and closes on Escape — focus back to the swatch — on a press anywhere outside it, or on the swatch
- * again; that behaviour is `usePopover`'s, shared with the sensor picker. For a colour that takes alpha, the popover carries an opacity field in percent beside the
- * picker's alpha strip, because a strip is for feel and "50%" is a number.
+ * again; that behaviour is `usePopover`'s, shared with the sensor picker.
+ *
+ * Every colour takes alpha. The picker is react-colorful's hex-and-alpha one, whose alpha strip is
+ * the slider, and the popover carries an opacity field in percent beside it, because a strip is for
+ * feel and "50%" is a number. The text field takes any spelling `colour.ts` reads — `#rgba`,
+ * `#rrggbbaa`, `rgb()`, `hsl()`, typed or pasted — and a finished functional colour is written as hex
+ * (`normaliseTyped`). Text it cannot read as a colour (`var(--x)`, a name, half of `rgb(`) is kept as
+ * typed, in the same field, and the swatch says it has no colour to show rather than the control
+ * turning into another one under the caret.
  *
  * The popover is rendered in place, `position: fixed`, rather than portalled: it stays next to its
  * swatch in the reading order, and the inspector has no transformed ancestor to trap a fixed box.
  */
 
 import { useRef, type ReactNode } from 'react';
-import { HexAlphaColorPicker, HexColorPicker } from 'react-colorful';
-import { alphaPercent, withAlphaPercent } from './colour.js';
+import { HexAlphaColorPicker } from 'react-colorful';
+import {
+  alphaPercent,
+  formatColour,
+  normaliseTyped,
+  parseColour,
+  withAlphaPercent,
+} from './colour.js';
 import { NumberField } from './number-field.js';
 import { usePopover } from './popover.js';
 
-/**
- * A swatch's fill. An alpha colour is laid over a checkerboard, because a translucent swatch over the
- * pane's own dark grey is indistinguishable from an opaque darker colour — and the alpha is exactly
- * what the author is looking at the swatch to judge.
- */
-export function swatchStyle(value: string, alpha: boolean): { background: string } {
-  const colour = value.trim();
+/** The checkerboard a swatch's colour is laid over. */
+const CHECKERBOARD = 'repeating-conic-gradient(#6b7889 0 25%, #262c36 0 50%) 0 0 / 8px 8px';
 
-  return {
-    background: alpha
-      ? `linear-gradient(${colour}, ${colour}), repeating-conic-gradient(#6b7889 0 25%, #262c36 0 50%) 0 0 / 8px 8px`
-      : colour,
-  };
+/**
+ * A swatch's fill: the colour over a checkerboard, because a translucent swatch over the pane's own
+ * dark grey is indistinguishable from an opaque darker colour — and the alpha is exactly what the
+ * author is looking at the swatch to judge. Every colour, since every colour may carry alpha. Text that
+ * is not a colour gets a struck-through empty swatch instead.
+ */
+export function swatchStyle(value: string): { background: string } {
+  const colour = parseColour(value);
+  if (colour === undefined) {
+    return {
+      background: `linear-gradient(to top right, transparent calc(50% - 1px), #d08770 50%, transparent calc(50% + 1px)), #151920`,
+    };
+  }
+  const hex = formatColour(colour);
+
+  return { background: `linear-gradient(${hex}, ${hex}), ${CHECKERBOARD}` };
 }
 
 export function ColorField({
   id,
   label,
   value,
-  alpha,
   onValue,
   describedBy,
 }: {
-  /** The hex input's id, which the row's label points at. */
+  /** The text input's id, which the row's label points at. */
   readonly id: string;
   readonly label: string;
   readonly value: string;
-  readonly alpha: boolean;
   readonly onValue: (value: string) => void;
   readonly describedBy?: string | undefined;
 }): ReactNode {
@@ -52,7 +70,9 @@ export function ColorField({
   const box = useRef<HTMLDivElement>(null);
   const popover = usePopover(swatch, box);
   const { open, close } = popover;
-  const Picker = alpha ? HexAlphaColorPicker : HexColorPicker;
+  const colour = parseColour(value);
+  // The picker drives hex; the text field keeps whatever spelling the document holds.
+  const hex = colour === undefined ? '#000000' : formatColour(colour);
   const verb = open ? 'close' : 'open';
 
   return (
@@ -67,7 +87,9 @@ export function ColorField({
         aria-expanded={open}
         aria-haspopup="dialog"
         {...(open ? { 'aria-controls': popover.id } : {})}
-        style={swatchStyle(value, alpha)}
+        {...(colour === undefined ? { 'data-perch-colour': 'none' } : {})}
+        disabled={colour === undefined && !open}
+        style={swatchStyle(value)}
         onClick={() => {
           if (open) close(false);
           else popover.setOpen(true);
@@ -83,7 +105,7 @@ export function ColorField({
         value={value}
         {...(describedBy === undefined ? {} : { 'aria-describedby': describedBy })}
         onChange={(event) => {
-          onValue(event.target.value);
+          onValue(normaliseTyped(event.target.value));
         }}
       />
       {open ? (
@@ -95,24 +117,28 @@ export function ColorField({
           aria-label={`${label} colour`}
           style={popover.style}
         >
-          <Picker className="perch-popover__picker" color={value.trim()} onChange={onValue} />
+          <HexAlphaColorPicker
+            className="perch-popover__picker"
+            color={hex}
+            onChange={(next) => {
+              onValue(normaliseTyped(next));
+            }}
+          />
           <div className="perch-popover__foot">
-            <span className="perch-popover__hex">{value.trim()}</span>
-            {alpha ? (
-              <NumberField
-                label="opacity"
-                value={String(alphaPercent(value))}
-                min={0}
-                max={100}
-                step={1}
-                unit="%"
-                bar
-                onChange={(text) => {
-                  const percent = text.trim() === '' ? Number.NaN : Number(text);
-                  if (Number.isFinite(percent)) onValue(withAlphaPercent(value, percent));
-                }}
-              />
-            ) : null}
+            <span className="perch-popover__hex">{hex}</span>
+            <NumberField
+              label="opacity"
+              value={String(alphaPercent(value))}
+              min={0}
+              max={100}
+              step={1}
+              unit="%"
+              bar
+              onChange={(text) => {
+                const percent = text.trim() === '' ? Number.NaN : Number(text);
+                if (Number.isFinite(percent)) onValue(withAlphaPercent(value, percent));
+              }}
+            />
           </div>
         </div>
       ) : null}
@@ -133,6 +159,7 @@ export const COLOR_FIELD_STYLES = `
   cursor: pointer;
 }
 .perch-color__swatch:hover { border-color: var(--ed-faint); }
+.perch-color__swatch:disabled { cursor: default; border-color: #2a303b; }
 .perch-color__swatch[aria-expanded='true'] { border-color: var(--ed-accent); }
 .perch-color__swatch:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 0; }
 .perch-color__hex { flex: 0 0 78px; }

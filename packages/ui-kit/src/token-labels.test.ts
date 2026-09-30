@@ -33,11 +33,8 @@ const DECLARED: readonly string[] = [
   ...Object.keys(CANVAS_TOKEN_DEFAULTS),
 ];
 
-/** A `#rgb` or `#rrggbb` literal: what a hex colour control can drive. */
-const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
-
-/** An `#rrggbbaa` or `#rgba` literal: what an alpha-capable colour control can drive. */
-const HEX_ALPHA = /^#([0-9a-fA-F]{4}|[0-9a-fA-F]{8})$/;
+/** A hex literal, with or without an alpha pair: what the colour control writes. */
+const HEX = /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
 /** The tokens read by each element's own box, rather than by the canvas or a widget. */
 const BOX_TOKENS = new Set<string>(['--perch-box-bg', '--perch-box-radius', '--perch-box-padding']);
@@ -166,9 +163,11 @@ describe('the labels table', () => {
     }
   });
 
-  it('gives the box background an alpha channel and nothing else one', () => {
+  it('flags no colour as taking alpha, because every colour does', () => {
+    // There was an `alpha` flag, set on the box background alone. Every colour control now takes
+    // alpha, so a flag on some would say the others could not.
     for (const name of PERCH_KNOWN_TOKENS) {
-      expect(PERCH_TOKEN_LABELS[name].alpha === true, name).toBe(name === '--perch-box-bg');
+      expect(Object.keys(PERCH_TOKEN_LABELS[name]), name).not.toContain('alpha');
     }
   });
 
@@ -240,7 +239,7 @@ describe('the labels table', () => {
 
       switch (entry.control) {
         case 'colour':
-          expect(declared, name).toMatch(entry.alpha === true ? HEX_ALPHA : HEX);
+          expect(declared, name).toMatch(HEX);
           break;
         case 'pixels':
           expect(declared, name).toMatch(/^\d+$/);

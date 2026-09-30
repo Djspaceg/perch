@@ -12,12 +12,17 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { CANVAS_RESOLVED_TOKENS, ELEMENT_BOX_STYLES } from './layout-canvas.js';
+import {
+  CANVAS_RESOLVED_TOKENS,
+  ELEMENT_BOX_STYLES,
+  LAYOUT_CANVAS_STYLES,
+} from './layout-canvas.js';
 import { LINE_CHART_STYLES } from './line-chart.js';
 import { MEDIA_FRAME_STYLES } from './media-frame.js';
 import { READOUT_GLYPH_PROPERTIES, READOUT_STYLES } from './readout.js';
 import { TEXT_BLOCK_STYLES } from './text-block.js';
 import { PERCH_TOKENS, PERCH_TOKEN_DEFAULTS, token, type PerchToken } from './tokens.js';
+import { PERCH_KNOWN_TOKENS, PERCH_TOKEN_LABELS } from './token-labels.js';
 
 /** Every sheet this package ships, so a new one is covered by being added here. */
 const SHEETS: Readonly<Record<string, string>> = {
@@ -122,5 +127,40 @@ describe('the vocabulary as a whole', () => {
     );
 
     expect(hexOutsideFallbacks).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+  });
+});
+
+/**
+ * A colour token may hold any alpha (the editor's colour control writes `#rrggbbaa` for every one), so
+ * every sheet must write it straight into a property that paints that alpha: never into a function
+ * that would need the channels apart, and never into something JavaScript reads back.
+ */
+describe('a translucent colour token', () => {
+  const COLOURS = new Set<string>(
+    PERCH_KNOWN_TOKENS.filter((name) => PERCH_TOKEN_LABELS[name].control === 'colour'),
+  );
+  /** The properties that take any `<color>`, alpha and all, and paint it. */
+  const PAINTS_ALPHA = new Set(['color', 'background', 'background-color', 'fill', 'stroke']);
+  const everySheet = `${ALL_SHEETS}\n${LAYOUT_CANVAS_STYLES}`;
+
+  it('is read somewhere, so the check below is not vacuous', () => {
+    const read = [...everySheet.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)/g)]
+      .map((match) => match[1] ?? '')
+      .filter((name) => COLOURS.has(name));
+
+    expect(new Set(read).size).toBeGreaterThan(10);
+  });
+
+  it('is written only as the whole value of a property that paints its alpha', () => {
+    for (const declaration of everySheet.matchAll(/([a-z-]+)\s*:\s*([^;{}]+);/g)) {
+      const [, property = '', value = ''] = declaration;
+      const colour = [...value.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)/g)].find((match) =>
+        COLOURS.has(match[1] ?? ''),
+      );
+      if (colour === undefined) continue;
+
+      expect(PAINTS_ALPHA.has(property), `${property}: ${value}`).toBe(true);
+      expect(value.trim().startsWith('var('), `${property}: ${value}`).toBe(true);
+    }
   });
 });

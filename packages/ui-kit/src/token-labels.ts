@@ -48,7 +48,8 @@ export type KnownToken = PerchToken | CanvasToken;
 /**
  * The kind of control a token's values want.
  *
- * Six, not one per token and not one for all: `colour` is a hex literal a picker can drive, `length`
+ * Six, not one per token and not one for all: `colour` is a colour a picker can drive, alpha and all
+ * (every colour control takes alpha, so no token is flagged as the one that does), `length`
  * is a number with a unit, `number` is unitless (a weight, an opacity, a line height), `pixels` is a
  * unitless whole count of layout pixels with a bounded `range` (a slider and a number, paired),
  * `choice` is a vocabulary closed in CSS itself, and `text` is everything that is legitimately open — a
@@ -114,8 +115,6 @@ export interface TokenLabel {
    * control — a grid where each cell sets both — so the pairing is data, not a naming convention.
    */
   readonly placement?: { readonly axis: 'across' | 'down'; readonly pair: KnownToken };
-  /** For `colour`: whether the value carries an alpha pair (`#rrggbbaa`). */
-  readonly alpha?: true;
   /**
    * For `pixels`: the value is a one-to-four-value CSS shorthand (`box-shorthand.ts`), of a box's four
    * sides (padding) or its four corners (radius). Absent means one number.
@@ -446,11 +445,10 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
   '--perch-box-bg': {
     label: 'Background',
     description:
-      'Behind this entity, filling its rectangle. The last hex pair is opacity: 00 clear, ff solid.',
+      'Behind this entity, filling its rectangle. Clear by default; its opacity sets how much shows through.',
     control: 'colour',
     group: 'appearance',
     scope: 'box',
-    alpha: true,
   },
   '--perch-box-radius': {
     label: 'Corner radius',

@@ -62,11 +62,10 @@ import {
   type TabSpec,
   type ValueSource,
 } from './controls/index.js';
-import { isHexColor, optionLabel, tokenSpec } from './descriptors.js';
+import { optionLabel, tokenSpec } from './descriptors.js';
+import { parseColour } from './controls/colour.js';
 import { SpecControl, TextControl, isGroupSpec, scrubFor } from './property-view.js';
 import { useEditorStore, type TokenTab } from './store.js';
-
-export { isHexColor } from './descriptors.js';
 
 /** A row at the top of one section that is a field of the element rather than a token. */
 export interface LeadRow {
@@ -716,7 +715,6 @@ function DeveloperRow({
   readonly onRemove: (name: string) => void;
 }): ReactNode {
   const entry = tokenLabel(name);
-  const alpha = entry?.alpha === true;
 
   return (
     <PropertyRow
@@ -754,13 +752,13 @@ function DeveloperRow({
     >
       {(ids) => (
         <>
-          {isHexColor(value, alpha) ? (
+          {parseColour(value) === undefined ? null : (
             <span
               className="perch-token-swatch"
               data-testid="perch-editor-swatch-static"
-              style={swatchStyle(value, alpha)}
+              style={swatchStyle(value)}
             />
-          ) : null}
+          )}
           <TextControl
             ids={ids}
             value={value}

@@ -20,6 +20,13 @@
  * is the only place a default is written. A token that is not in the record is a compile error at
  * the call site rather than a `var()` that quietly resolves to nothing.
  *
+ * ## Every colour may be translucent
+ *
+ * A colour token holds any CSS colour, and the editor's one colour control writes `#rrggbb`, or
+ * `#rrggbbaa` when the colour has alpha, for every one of them. So each sheet writes a colour token as
+ * the whole value of a property that paints alpha — `color`, `background`, `fill`, `stroke` — and never
+ * takes its channels apart; `tokens.test.ts` holds every sheet to that.
+ *
  * ## What is not here
  *
  * No colour is *derived* from another — no `color-mix`, no relative colour. A layout that sets
