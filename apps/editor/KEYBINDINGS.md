@@ -93,7 +93,7 @@ host enables its items to match (Undo and Redo always while a text entry has foc
 ## 6. Display
 
 - `formatBinding`: macOS writes glyphs in its menus' order, `⌃⌥⇧⌘`, then the key (`⌫ ⌦ ⎋ ↩ ⇥ ↑ ↓
-← →` for named keys); elsewhere words joined by `+`: `Ctrl+Shift+Z`.
+  ← →` for named keys); elsewhere words joined by `+`: `Ctrl+Shift+Z`.
 - `aria-keyshortcuts` names keys, not symbols, the same on every platform: `Control`, `Meta`,
   `Alt`, `Shift`, then the key, and one space between alternatives.
 - A tooltip is the label and its first binding, with any others as alternatives:
@@ -142,5 +142,5 @@ replaces that command's defaults on every platform. `[]` unbinds it; absence mea
 
 `selection.delete` asks first, through the selection header's confirm. `selection.clear` acts only
 while something is selected, and so do the four layer commands, which do nothing past the top or the
-bottom. Each move is one undo step, and the selection stays on the element that moved. `document.new`, `document.open`, `document.saveAs` and `app.settings`
-act only with a host (section 5a); `document.save` acts everywhere, and for New's untitled document is a Save As.
+bottom. Each move is one undo step, and the selection stays on the element that moved.
+`document.new`, `document.open`, `document.saveAs` and `app.settings` act only with a host (section 5a); `document.save` acts everywhere, and for New's untitled document is a Save As.

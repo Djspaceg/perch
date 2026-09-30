@@ -239,6 +239,77 @@ describe('dragging a row', () => {
   });
 });
 
+describe('a drag that is let go of, or overtaken', () => {
+  beforeEach(() => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
+  });
+
+  it('does not select the row it is released over after Escape let go of it', async () => {
+    const result = renderEditor();
+    layOut(result);
+
+    drag(row(result, 'c'), 90, false);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    // The author holds on a moment before letting go.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 5)));
+    fireEvent.pointerUp(window, { button: 0, pointerId: 1, clientX: 50, clientY: 90 });
+    // The click the release makes on the row it started on.
+    fireEvent.click(row(result, 'c'));
+
+    expect(result.queryByTestId('perch-editor-selection')).toBeNull();
+  });
+
+  it('lets go without moving anything when the list changes under it', () => {
+    const result = renderEditor();
+    layOut(result);
+    fireEvent.click(row(result, 'b'));
+    canvasKey(result, { key: ']', ctrlKey: true });
+    expect(listed(result)).toEqual(['d', 'b', 'c', 'a']);
+
+    drag(row(result, 'a'), 90, false);
+    // Undo, pressed mid-drag, puts the list back the way it was before the command.
+    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true });
+    expect(listed(result)).toEqual(['d', 'c', 'b', 'a']);
+    expect(rows(result).filter((button) => button.hasAttribute('data-perch-drop'))).toEqual([]);
+    fireEvent.pointerUp(window, { button: 0, pointerId: 1, clientX: 50, clientY: 90 });
+
+    expect(listed(result)).toEqual(['d', 'c', 'b', 'a']);
+  });
+
+  it('stops asking for frames at an edge it cannot scroll past', () => {
+    const result = renderEditor();
+    layOut(result);
+    const sidebar = result.getByTestId('perch-editor-inspector');
+    let scrollTop = 0;
+    Object.defineProperty(sidebar, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = Math.max(0, value);
+      },
+    });
+    vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      bottom: 400,
+      left: 0,
+      right: 300,
+      width: 300,
+      height: 400,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const frames = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
+    frames.mockClear();
+
+    // Already at the top: a pointer held at the top edge scrolls nothing and schedules nothing.
+    drag(row(result, 'd'), 3, false);
+    expect(scrollTop).toBe(0);
+    expect(frames).not.toHaveBeenCalled();
+    fireEvent.pointerUp(window, { button: 0, pointerId: 1, clientX: 50, clientY: 3 });
+  });
+});
+
 describe('the layer commands', () => {
   it.each([
     ['Mod+]', { key: ']', ctrlKey: true }, ['d', 'c', 'b', 'a'], 'b', ['d', 'b', 'c', 'a']],
@@ -284,6 +355,38 @@ describe('the layer commands', () => {
     expect(
       within(result.getByTestId('perch-editor-header')).getByRole('button', { name: 'undo' }),
     ).toBeDisabled();
+  });
+});
+
+describe('focus in the list', () => {
+  beforeEach(() => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 0);
+  });
+
+  it('goes with the element a layer command moved, from a focused row', () => {
+    const result = renderEditor();
+    fireEvent.click(row(result, 'b'));
+    row(result, 'b').focus();
+
+    fireEvent.keyDown(document.activeElement as HTMLElement, {
+      key: '}',
+      ctrlKey: true,
+      shiftKey: true,
+    });
+
+    expect(listed(result)).toEqual(['b', 'd', 'c', 'a']);
+    expect(document.activeElement).toBe(row(result, 'b'));
+  });
+
+  it('goes with the element a drop moved', () => {
+    const result = renderEditor();
+    layOut(result);
+    row(result, 'a').focus();
+
+    drag(row(result, 'a'), 90);
+
+    expect(listed(result)).toEqual(['a', 'd', 'c', 'b']);
+    expect(document.activeElement).toBe(row(result, 'a'));
   });
 });
 

@@ -5,8 +5,9 @@
  * click still selects. From there the row is held: the gap it would land in is read from the rows'
  * boxes on every move (`gapAt`) and shown by the list as a line between two rows, the sidebar scrolls
  * while the pointer is near its top or bottom edge, and letting go moves the element there in one
- * edit, which is one undo step. Escape, or a cancelled pointer, lets go without moving anything; so
- * does a drop either side of the row's own place.
+ * edit, which is one undo step. Escape, a cancelled pointer, or the list changing under the drag (an
+ * undo pressed mid-drag) lets go without moving anything; so does a drop either side of the row's
+ * own place.
  *
  * Listened to on `window`, as a scrub is (`controls/number-field.tsx`), so the drag carries on over
  * the rest of the page and past the list's ends. Not HTML5 drag and drop, which has no auto-scroll
@@ -39,9 +40,12 @@ export function useRowDrag(
   readonly begin: (event: ReactPointerEvent, from: number) => void;
   /** Whether the click that ends a drag should be ignored; answering clears it. */
   readonly swallowClick: () => boolean;
+  /** Let go of a drag in progress without moving anything: the list it was measuring has changed. */
+  readonly cancel: () => void;
 } {
   const [drag, setDrag] = useState<RowDrag | null>(null);
   const dragged = useRef(false);
+  const active = useRef<(() => void) | null>(null);
 
   const begin = useCallback(
     (event: ReactPointerEvent, from: number) => {
@@ -64,15 +68,19 @@ export function useRowDrag(
         );
         setDrag({ from, gap });
       };
-      /** One frame of scrolling, if the pointer is near an edge. Whether it scrolled. */
+      /**
+       * One frame of scrolling, if the pointer is near an edge. Whether it scrolled: at the top or the
+       * bottom already it does not, so a pointer held there stops asking for frames.
+       */
       const scroll = (): boolean => {
         if (scroller === null) return false;
         const box = scroller.getBoundingClientRect();
         const step = autoscrollStep(lastY, box.top, box.bottom);
         if (step === 0) return false;
-        scroller.scrollTop += step;
+        const before = scroller.scrollTop;
+        scroller.scrollTop = before + step;
 
-        return true;
+        return scroller.scrollTop !== before;
       };
       const tick = (): void => {
         frame = 0;
@@ -89,42 +97,62 @@ export function useRowDrag(
           document.body.classList.add('perch-dragging');
         }
         moved.preventDefault();
-        if (scroll() && frame === 0) frame = requestAnimationFrame(tick);
+        // The frame loop scrolls while it runs; a move only starts it, so moving is not faster.
+        if (frame === 0 && scroll()) frame = requestAnimationFrame(tick);
         track();
       };
-      const finish = (drop: boolean): void => {
+      /**
+       * The click a release on the row makes is the drag's, not a selection, so it is swallowed; one
+       * that never comes (released over another row) must not swallow the next real click either. Let
+       * go of before the release — Escape, or the list changing — it waits for the release.
+       */
+      const settle = (released: boolean): void => {
+        const clear = (): void => {
+          window.removeEventListener('pointerup', clear);
+          window.removeEventListener('pointercancel', clear);
+          setTimeout(() => {
+            dragged.current = false;
+          }, 0);
+        };
+        if (released) clear();
+        else {
+          window.addEventListener('pointerup', clear);
+          window.addEventListener('pointercancel', clear);
+        }
+      };
+      const finish = (drop: boolean, released: boolean): void => {
         window.removeEventListener('pointermove', move);
         window.removeEventListener('pointerup', up);
-        window.removeEventListener('pointercancel', cancel);
+        window.removeEventListener('pointercancel', lost);
         window.removeEventListener('keydown', key, true);
+        active.current = null;
         if (frame !== 0) cancelAnimationFrame(frame);
         document.body.classList.remove('perch-dragging');
         if (!dragging) return;
-        // The click a release on the row makes is the drag's, not a selection; one that never comes
-        // (released over another row) must not swallow the next real click either.
-        setTimeout(() => {
-          dragged.current = false;
-        }, 0);
+        settle(released);
         setDrag(null);
         const to = drop && gap !== null ? dropTarget(from, gap, count) : null;
         if (to !== null) onMove(from, to);
       };
       const up = (): void => {
-        finish(true);
+        finish(true, true);
       };
-      const cancel = (): void => {
-        finish(false);
+      const lost = (): void => {
+        finish(false, true);
       };
       const key = (pressed: KeyboardEvent): void => {
         if (pressed.key !== 'Escape' || !dragging) return;
         // Spent here: the same Escape must not also deselect.
         pressed.preventDefault();
-        finish(false);
+        finish(false, false);
       };
 
+      active.current = () => {
+        finish(false, false);
+      };
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up);
-      window.addEventListener('pointercancel', cancel);
+      window.addEventListener('pointercancel', lost);
       window.addEventListener('keydown', key, true);
     },
     [list, count, onMove],
@@ -137,5 +165,9 @@ export function useRowDrag(
     return swallow;
   }, []);
 
-  return { drag, begin, swallowClick };
+  const cancel = useCallback(() => {
+    active.current?.();
+  }, []);
+
+  return { drag, begin, swallowClick, cancel };
 }

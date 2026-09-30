@@ -171,7 +171,6 @@ function typedNoAscii(key: string): boolean {
   return isOneCharacter(key) && (key.codePointAt(0) ?? 0) > 0x7e;
 }
 
-/** The canonical key of a press: its `key`, else its physical letter or digit where section 3 says. */
 /**
  * The brackets Shift turns into braces on a US layout. With Shift held, `{` is also `[` and `}` also
  * `]`, so `Mod+Shift+]` is written the way every editor's menu writes it and still matches the `}`
@@ -179,6 +178,7 @@ function typedNoAscii(key: string): boolean {
  */
 const SHIFTED_BRACKETS: Readonly<Record<string, string>> = { '{': '[', '}': ']' };
 
+/** The canonical key of a press: its `key`, else its physical letter or digit where section 3 says. */
 function pressedKeys(press: KeyPress): readonly string[] {
   const own = press.key === ' ' ? 'Space' : (keyToken(press.key) ?? press.key);
   const bracket = press.shiftKey ? SHIFTED_BRACKETS[press.key] : undefined;

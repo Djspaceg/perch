@@ -567,7 +567,7 @@ function dropMark(drag: RowDrag | null, row: number, count: number): 'above' | '
  * problem panel agree on how to refer to an element.
  *
  * A row is dragged to reorder (`row-drag.ts`), with a line where it would land; Alt+Up and Alt+Down on
- * a focused row move it a layer, and focus stays on it. Each is one edit through `onMove`, which also
+ * a focused row move it a layer. After any reorder, focus in the list stays with the element. Each is one edit through `onMove`, which also
  * selects the element where it went. The four layer commands do the same from anywhere (`app.tsx`).
  *
  * Rows are keyed by the element rather than its index (`usePresence`), so a delete collapses the row
@@ -582,16 +582,23 @@ function ElementList({
   const { rows, exited } = usePresence(state.draft.elements);
   const count = state.draft.elements.length;
   const list = useRef<HTMLUListElement>(null);
-  const { drag, begin, swallowClick } = useRowDrag(list, count, onMove);
-  // The element a keyboard move sent somewhere, whose row takes focus once it is drawn there.
-  const follow = useRef<number | null>(null);
+  const { drag, begin, swallowClick, cancel } = useRowDrag(list, count, onMove);
+  // The element whose row has focus. A reorder keeps each row where it is and changes what it shows,
+  // so after one — a drop, Alt+Up, a layer command — focus is moved to where that element went.
+  const focused = useRef<LayoutElement | null>(null);
 
   useEffect(() => {
-    const index = follow.current;
-    if (index === null) return;
-    follow.current = null;
-    list.current?.querySelector<HTMLElement>(`[${LAYER_INDEX_ATTRIBUTE}="${index}"]`)?.focus();
-  }, [state.draft.elements]);
+    // A drag measures the list it began on; one that changed under it (an undo mid-drag) ends it.
+    cancel();
+    const element = focused.current;
+    const active = document.activeElement;
+    const rows = list.current;
+    if (element === null || rows?.contains(active) !== true) return;
+    const index = state.draft.elements.indexOf(element);
+    if (index === -1) return;
+    const row = rows.querySelector<HTMLElement>(`[${LAYER_INDEX_ATTRIBUTE}="${index}"]`);
+    if (row !== null && row !== active) row.focus();
+  }, [state.draft.elements, cancel]);
 
   // Top of the list first: the reverse of paint order.
   const shown = [...rows].reverse();
@@ -620,6 +627,12 @@ function ElementList({
             onPointerDown={(event) => {
               if (present) begin(event, index);
             }}
+            onFocus={() => {
+              focused.current = element;
+            }}
+            onBlur={() => {
+              focused.current = null;
+            }}
             onClick={() => {
               if (swallowClick()) return;
               onSelect(index);
@@ -637,9 +650,7 @@ function ElementList({
               if (move === null) return;
               event.preventDefault();
               const to = layerTarget(move, index, count);
-              if (to === null) return;
-              follow.current = to;
-              onMove(index, to);
+              if (to !== null) onMove(index, to);
             }}
           >
             <span className="perch-editor-element__index">{index}</span>
