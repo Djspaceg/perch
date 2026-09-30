@@ -45,6 +45,28 @@ export const COMMANDS = {
     keys: ['Delete', 'Backspace'],
   },
   'selection.clear': { label: 'Deselect', scope: ['canvas', 'sidebar'], keys: ['Escape'] },
+  // Paint order, on the brackets: Photoshop's and Illustrator's keys, and Figma's for one step. Front
+  // and back add Shift, as Photoshop and Illustrator do (Figma uses the bare bracket for those).
+  'selection.bringForward': {
+    label: 'Bring forward',
+    scope: ['canvas', 'sidebar'],
+    keys: ['Mod+]'],
+  },
+  'selection.sendBackward': {
+    label: 'Send backward',
+    scope: ['canvas', 'sidebar'],
+    keys: ['Mod+['],
+  },
+  'selection.bringToFront': {
+    label: 'Bring to front',
+    scope: ['canvas', 'sidebar'],
+    keys: ['Mod+Shift+]'],
+  },
+  'selection.sendToBack': {
+    label: 'Send to back',
+    scope: ['canvas', 'sidebar'],
+    keys: ['Mod+Shift+['],
+  },
 } as const satisfies Readonly<Record<string, CommandSpec>>;
 
 /** A command's id. Only the registry's: any other string is a compile error. */

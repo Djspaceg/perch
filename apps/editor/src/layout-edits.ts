@@ -269,6 +269,29 @@ export function removeElement(index: number): LayoutUpdate {
   });
 }
 
+/**
+ * Move the element at `from` so that it ends up at index `to`, the others closing up behind it: a
+ * reorder in paint order, which is z-order. `to` counts in the finished list, so `moveElement(0, 2)`
+ * of `[a, b, c]` is `[b, c, a]`.
+ *
+ * The same layout, not a copy, for a move that goes nowhere or names an index outside the list, so
+ * such a move records no undo step. Every element stays the same object, which is what lets the
+ * selection and the Elements list follow the one that moved (`history.ts`'s `followSelection`).
+ */
+export function moveElement(from: number, to: number): LayoutUpdate {
+  return (layout) => {
+    const count = layout.elements.length;
+    const inRange = (index: number): boolean =>
+      Number.isInteger(index) && index >= 0 && index < count;
+    if (from === to || !inRange(from) || !inRange(to)) return layout;
+    const moving = layout.elements[from];
+    if (moving === undefined) return layout;
+    const rest = layout.elements.filter((_element, at) => at !== from);
+
+    return { ...layout, elements: [...rest.slice(0, to), moving, ...rest.slice(to)] };
+  };
+}
+
 /** Replace the element at `index`, leaving every other element and every other field alone. */
 function mapElement(
   index: number,

@@ -77,6 +77,12 @@ open a browser of Thermalright's catalogue in tabs, its cells shaped like the
 canvas; a pick downloads into the host's cache, then sets `src` to
 `thermalright:<id>` as one undoable edit. It needs a host with a cache: the
 desktop app, or `npm run dev`.
+The **Elements** list is a layers panel: the topmost element first. Drag a row
+to reorder it (a line marks where it lands, and the sidebar scrolls at its
+edges), or press Alt+Up / Alt+Down on a row; Cmd/Ctrl+] and [ move the selection
+a layer, with Shift to the front or back (KEYBINDINGS.md). Each move is one undo
+step and keeps the element selected. Every element has an **Opacity**, first in
+its Appearance.
 Escape, or a click on empty canvas, deselects. The sidebar's sections, the
 selected entity's controls, the element rows and the delete confirm slide open
 and shut rather than jumping (instant under `prefers-reduced-motion`).

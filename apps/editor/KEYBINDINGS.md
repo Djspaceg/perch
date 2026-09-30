@@ -6,12 +6,14 @@ its tests, in the same commit. "MUST" and "MUST NOT" mean what they say.
 ## 1. Shortcuts and local keys
 
 A **shortcut** runs an editor command wherever its scope is active: new, open, save, save as, undo,
-redo, open Settings, delete the selection, deselect. Every shortcut MUST be a command in the registry (`commands.ts`) and MUST reach
+redo, open Settings, delete the selection, deselect, move the selection through the layers. Every shortcut MUST be a command in the registry (`commands.ts`) and MUST reach
 its handler through the one dispatcher (section 5). No component adds its own `keydown` listener
 for a shortcut.
 
 A **local key** is part of how one control works and means nothing outside it: arrows, Home/End and
-PageUp/PageDown in a number field, tab strip, segmented control or placement grid; Enter to commit
+PageUp/PageDown in a number field, tab strip, segmented control or placement grid; Alt+ArrowUp
+and Alt+ArrowDown on a row of the Elements list, which move that element a layer up or down the
+list (forward or backward in paint order) and keep focus on it; Enter to commit
 a field or connect; Escape to clear a search box, close a popover or back out of a delete confirm.
 Local keys stay in the control's own `onKeyDown` (or, for a popover, its own listener), are not in
 the registry and are not rebindable. A control that uses a key MUST `preventDefault` it, which is
@@ -47,6 +49,8 @@ named    = Escape Enter Tab Space Backspace Delete Insert Home End PageUp PageDo
   an ASCII character (`Dead`, `Unidentified`, or a non-ASCII character: a Cyrillic layout, a Mac's
   Option layer). Then `KeyZ` counts as `Z`. On a Latin layout `key` always wins, so AZERTY's Ctrl-W
   is never read as Ctrl-Z.
+- With Shift held, a brace also counts as its bracket: `{` as `[` and `}` as `]`. So `Mod+Shift+]`
+  is written as every editor's menu writes it and still matches the `}` a US layout reports.
 - An event already `defaultPrevented`, or typed during IME composition, is never a shortcut.
 
 ## 4. Scopes and precedence
@@ -89,7 +93,7 @@ host enables its items to match (Undo and Redo always while a text entry has foc
 ## 6. Display
 
 - `formatBinding`: macOS writes glyphs in its menus' order, `⌃⌥⇧⌘`, then the key (`⌫ ⌦ ⎋ ↩ ⇥ ↑ ↓
-  ← →` for named keys); elsewhere words joined by `+`: `Ctrl+Shift+Z`.
+← →` for named keys); elsewhere words joined by `+`: `Ctrl+Shift+Z`.
 - `aria-keyshortcuts` names keys, not symbols, the same on every platform: `Control`, `Meta`,
   `Alt`, `Shift`, then the key, and one space between alternatives.
 - A tooltip is the label and its first binding, with any others as alternatives:
@@ -120,18 +124,23 @@ replaces that command's defaults on every platform. `[]` unbinds it; absence mea
 
 ## 9. Commands
 
-| id                 | label                   | scope           | macOS         | Windows, Linux          |
-| ------------------ | ----------------------- | --------------- | ------------- | ----------------------- |
-| `document.new`     | New                     | global          | ⌘N            | Ctrl+N                  |
-| `document.open`    | Open                    | global          | ⌘O            | Ctrl+O                  |
-| `document.save`    | Save                    | global          | ⌘S            | Ctrl+S                  |
-| `document.saveAs`  | Save As                 | global          | ⇧⌘S           | Ctrl+Shift+S            |
-| `history.undo`     | Undo                    | global          | ⌘Z            | Ctrl+Z                  |
-| `history.redo`     | Redo                    | global          | ⇧⌘Z           | Ctrl+Shift+Z, Ctrl+Y    |
-| `app.settings`     | Settings                | global          | ⌘,            | Ctrl+,                  |
-| `selection.delete` | Delete selected element | canvas          | ⌦, ⌫          | Delete, Backspace       |
-| `selection.clear`  | Deselect                | canvas, sidebar | ⎋             | Escape                  |
+| id                       | label                   | scope           | macOS | Windows, Linux       |
+| ------------------------ | ----------------------- | --------------- | ----- | -------------------- |
+| `document.new`           | New                     | global          | ⌘N    | Ctrl+N               |
+| `document.open`          | Open                    | global          | ⌘O    | Ctrl+O               |
+| `document.save`          | Save                    | global          | ⌘S    | Ctrl+S               |
+| `document.saveAs`        | Save As                 | global          | ⇧⌘S   | Ctrl+Shift+S         |
+| `history.undo`           | Undo                    | global          | ⌘Z    | Ctrl+Z               |
+| `history.redo`           | Redo                    | global          | ⇧⌘Z   | Ctrl+Shift+Z, Ctrl+Y |
+| `app.settings`           | Settings                | global          | ⌘,    | Ctrl+,               |
+| `selection.delete`       | Delete selected element | canvas          | ⌦, ⌫  | Delete, Backspace    |
+| `selection.clear`        | Deselect                | canvas, sidebar | ⎋     | Escape               |
+| `selection.bringForward` | Bring forward           | canvas, sidebar | ⌘]    | Ctrl+]               |
+| `selection.sendBackward` | Send backward           | canvas, sidebar | ⌘[    | Ctrl+[               |
+| `selection.bringToFront` | Bring to front          | canvas, sidebar | ⇧⌘]   | Ctrl+Shift+]         |
+| `selection.sendToBack`   | Send to back            | canvas, sidebar | ⇧⌘[   | Ctrl+Shift+[         |
 
 `selection.delete` asks first, through the selection header's confirm. `selection.clear` acts only
-while something is selected. `document.new`, `document.open`, `document.saveAs` and `app.settings`
+while something is selected, and so do the four layer commands, which do nothing past the top or the
+bottom. Each move is one undo step, and the selection stays on the element that moved. `document.new`, `document.open`, `document.saveAs` and `app.settings`
 act only with a host (section 5a); `document.save` acts everywhere, and for New's untitled document is a Save As.

@@ -146,6 +146,24 @@ describe('matchesChord', () => {
     // AZERTY types w on the key where QWERTY has Z: that is Ctrl-W, never Ctrl-Z.
     expect(matchesChord(press({ key: 'w', code: 'KeyZ', ctrlKey: true }), undo)).toBe(false);
   });
+
+  it('reads Shift with a bracket as the bracket, whichever of the pair the browser reports', () => {
+    const front = chord('Mod+Shift+]', 'mac');
+    // Shift turns ] into } on a US layout, and that is what `key` says.
+    expect(matchesChord(press({ key: '}', metaKey: true, shiftKey: true }), front)).toBe(true);
+    expect(matchesChord(press({ key: ']', metaKey: true, shiftKey: true }), front)).toBe(true);
+    expect(
+      matchesChord(
+        press({ key: '{', ctrlKey: true, shiftKey: true }),
+        chord('Mod+Shift+[', 'other'),
+      ),
+    ).toBe(true);
+    // Only with Shift held: a brace typed without it is not a bracket.
+    expect(matchesChord(press({ key: '}', metaKey: true }), chord('Mod+]', 'mac'))).toBe(false);
+    expect(
+      matchesChord(press({ key: '}', metaKey: true, shiftKey: true }), chord('Mod+]', 'mac')),
+    ).toBe(false);
+  });
 });
 
 describe('formatChord and formatBinding', () => {

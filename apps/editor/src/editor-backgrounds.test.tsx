@@ -67,8 +67,11 @@ function renderEditor(backgrounds: BackgroundHost): ReturnType<typeof render> {
 }
 
 function selectElement(result: ReturnType<typeof render>, index: number): void {
-  const button = within(result.getByTestId('perch-editor-elements')).getAllByRole('button')[index];
-  if (button === undefined) throw new Error(`no element ${index}`);
+  // By its index in `elements`: the list draws the topmost element first.
+  const button = result
+    .getByTestId('perch-editor-elements')
+    .querySelector<HTMLElement>(`[data-perch-layer-index="${index}"]`);
+  if (button === null) throw new Error(`no element ${index}`);
   fireEvent.click(button);
 }
 

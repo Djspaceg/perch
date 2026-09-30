@@ -94,7 +94,9 @@ import {
   setThemeToken,
   type LayoutUpdate,
 } from './layout-edits.js';
+import { dropTarget, layerTarget, listRow } from './layers.js';
 import { PropertyView } from './property-view.js';
+import { LAYER_INDEX_ATTRIBUTE, useRowDrag, type RowDrag } from './row-drag.js';
 import { AddMenu, SensorCatalogueProvider } from './sensor-picker.js';
 import { NOTHING_SELECTED } from './store.js';
 import { TokenPane } from './token-pane.js';
@@ -113,6 +115,8 @@ export interface InspectorProps {
   readonly onAdd: (element: LayoutElement) => void;
   /** Delete the element at an index, once the author has confirmed it. */
   readonly onDelete: (index: number) => void;
+  /** Move the element at `from` to index `to` in paint order, and select it there: one edit. */
+  readonly onMove: (from: number, to: number) => void;
   /** Whether the selection header's delete is asking, for the Delete key on the canvas to open. */
   readonly deleteAsked: boolean;
   readonly onDeleteAsked: (asked: boolean) => void;
@@ -130,6 +134,7 @@ export function Inspector({
   onEdit,
   onAdd,
   onDelete,
+  onMove,
   deleteAsked,
   onDeleteAsked,
   topics,
@@ -228,10 +233,16 @@ export function Inspector({
           <Section
             id="entity/elements"
             title="Elements"
-            summary={`${state.draft.elements.length} · painted top to bottom`}
+            summary={`${state.draft.elements.length} · topmost first`}
           >
             {/* A different layout is a different list: it arrives whole, not row by row. */}
-            <ElementList key={state.name} state={state} selected={selected} onSelect={onSelect} />
+            <ElementList
+              key={state.name}
+              state={state}
+              selected={selected}
+              onSelect={onSelect}
+              onMove={onMove}
+            />
           </Section>
         </Group>
       </div>
@@ -541,23 +552,53 @@ function EntityPanes({
   );
 }
 
+/** Where a row of the list shows the drop line of a drag, if the drag would land beside it. */
+function dropMark(drag: RowDrag | null, row: number, count: number): 'above' | 'below' | undefined {
+  if (drag === null || dropTarget(drag.from, drag.gap, count) === null) return undefined;
+  if (drag.gap === row) return 'above';
+
+  return drag.gap === count && row === count - 1 ? 'below' : undefined;
+}
+
 /**
- * Every element, in paint order. The index is shown because it is what every issue path names —
- * `elements[3].rect.w` — so the list and the problem panel agree on how to refer to an element.
+ * Every element, as layers: the topmost — the last in `elements`, painted last — at the top of the
+ * list, and the one painted first at the bottom. The index shown is still the element's place in
+ * `elements`, because it is what every issue path names — `elements[3].rect.w` — so the list and the
+ * problem panel agree on how to refer to an element.
+ *
+ * A row is dragged to reorder (`row-drag.ts`), with a line where it would land; Alt+Up and Alt+Down on
+ * a focused row move it a layer, and focus stays on it. Each is one edit through `onMove`, which also
+ * selects the element where it went. The four layer commands do the same from anywhere (`app.tsx`).
  *
  * Rows are keyed by the element rather than its index (`usePresence`), so a delete collapses the row
- * that went, with the rows under it sliding up, and an add grows the new row in at the bottom.
+ * that went, with the rows around it closing up, and an add grows the new row in at the top.
  */
 function ElementList({
   state,
   selected,
   onSelect,
-}: Pick<InspectorProps, 'state' | 'selected' | 'onSelect'>): ReactNode {
+  onMove,
+}: Pick<InspectorProps, 'state' | 'selected' | 'onSelect' | 'onMove'>): ReactNode {
   const { rows, exited } = usePresence(state.draft.elements);
+  const count = state.draft.elements.length;
+  const list = useRef<HTMLUListElement>(null);
+  const { drag, begin, swallowClick } = useRowDrag(list, count, onMove);
+  // The element a keyboard move sent somewhere, whose row takes focus once it is drawn there.
+  const follow = useRef<number | null>(null);
+
+  useEffect(() => {
+    const index = follow.current;
+    if (index === null) return;
+    follow.current = null;
+    list.current?.querySelector<HTMLElement>(`[${LAYER_INDEX_ATTRIBUTE}="${index}"]`)?.focus();
+  }, [state.draft.elements]);
+
+  // Top of the list first: the reverse of paint order.
+  const shown = [...rows].reverse();
 
   return (
-    <ul className="perch-editor-elements" data-testid="perch-editor-elements">
-      {rows.map(({ key, item: element, index, present, arrived }) => (
+    <ul className="perch-editor-elements" data-testid="perch-editor-elements" ref={list}>
+      {shown.map(({ key, item: element, index, present, arrived }) => (
         <Collapse
           key={key}
           as="li"
@@ -571,9 +612,34 @@ function ElementList({
             type="button"
             className="perch-editor-element"
             aria-current={index === selected ? 'true' : undefined}
+            aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
             data-perch-selected={index === selected ? 'true' : 'false'}
+            {...(present ? { [LAYER_INDEX_ATTRIBUTE]: String(index) } : {})}
+            {...(drag?.from === index && present ? { 'data-perch-dragging': 'true' } : {})}
+            {...(present ? markOf(dropMark(drag, listRow(index, count), count)) : {})}
+            onPointerDown={(event) => {
+              if (present) begin(event, index);
+            }}
             onClick={() => {
+              if (swallowClick()) return;
               onSelect(index);
+            }}
+            onKeyDown={(event) => {
+              if (!present || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+                return;
+              }
+              const move =
+                event.key === 'ArrowUp'
+                  ? 'bringForward'
+                  : event.key === 'ArrowDown'
+                    ? 'sendBackward'
+                    : null;
+              if (move === null) return;
+              event.preventDefault();
+              const to = layerTarget(move, index, count);
+              if (to === null) return;
+              follow.current = to;
+              onMove(index, to);
             }}
           >
             <span className="perch-editor-element__index">{index}</span>
@@ -589,6 +655,11 @@ function ElementList({
       ))}
     </ul>
   );
+}
+
+/** A row's drop line as its attribute, or nothing. */
+function markOf(mark: 'above' | 'below' | undefined): Readonly<Record<string, string>> {
+  return mark === undefined ? {} : { 'data-perch-drop': mark };
 }
 
 /** A one-line description of an element, for the list. */
@@ -707,6 +778,23 @@ export const INSPECTOR_STYLES = `
 .perch-editor-element:hover { background: var(--ed-hover); color: var(--ed-text); }
 .perch-editor-element[data-perch-selected='true'] { background: var(--ed-accent-fill); color: var(--ed-text); }
 .perch-editor-element:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: -2px; }
+.perch-editor-element { position: relative; }
+.perch-editor-element[data-perch-dragging='true'] { opacity: 0.45; }
+/* The drop line: 2px of accent on the gap between two rows, drawn by the row below it (or, below the
+   last row, by that row), and never by the row being dragged. */
+.perch-editor-element[data-perch-drop]::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ed-accent);
+  pointer-events: none;
+}
+.perch-editor-element[data-perch-drop='above']::after { top: -1px; }
+.perch-editor-element[data-perch-drop='below']::after { bottom: -1px; }
+body.perch-dragging, body.perch-dragging * { cursor: grabbing !important; user-select: none; }
 .perch-editor-element__index { flex: 0 0 1.4em; text-align: right; font-variant-numeric: tabular-nums; color: var(--ed-faint); }
 .perch-editor-element__glyph { flex: 0 0 1em; color: var(--ed-quiet); text-align: center; }
 .perch-editor-element__kind { flex: 0 0 3.6em; color: var(--ed-quiet); }

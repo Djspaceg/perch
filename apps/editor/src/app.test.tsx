@@ -95,9 +95,11 @@ function renderEditor(library = testLibrary()): {
  * sees, and an element's fields appear only once one is chosen.
  */
 function selectElement(result: ReturnType<typeof render>, index: number): void {
-  const list = within(result.getByTestId('perch-editor-elements')).getAllByRole('button');
-  const button = list[index];
-  if (button === undefined) throw new Error(`no element ${index} in the list`);
+  // By its index in `elements`: the list draws the topmost element first.
+  const button = result
+    .getByTestId('perch-editor-elements')
+    .querySelector<HTMLElement>(`[data-perch-layer-index="${index}"]`);
+  if (button === null) throw new Error(`no element ${index} in the list`);
   fireEvent.click(button);
 }
 
@@ -985,7 +987,8 @@ describe('motion in the sidebar', () => {
     expect(leaving.closest('[aria-hidden="true"]')).not.toBeNull();
     const rows = result.getByTestId('perch-editor-elements').querySelectorAll('li');
     expect(rows).toHaveLength(2);
-    expect(rows[1]).toHaveAttribute('inert');
+    // Element 1 was the topmost, so its row is the list's first.
+    expect(rows[0]).toHaveAttribute('inert');
     expect(elementCount(result)).toBe(1);
     // Focus was on the confirm, now inert: it moves to the group rather than onto the page.
     expect(result.getByRole('region', { name: 'Selected entity' })).toHaveFocus();
@@ -1003,8 +1006,9 @@ describe('motion in the sidebar', () => {
 
     const rows = result.getByTestId('perch-editor-elements').querySelectorAll('li');
     expect(rows).toHaveLength(3);
-    expect(rows[2]).toHaveAttribute('data-perch-phase', 'opening');
-    expect(rows[0]).toHaveAttribute('data-perch-phase', 'open');
+    // Added on top of everything, so it grows in at the top of the list.
+    expect(rows[0]).toHaveAttribute('data-perch-phase', 'opening');
+    expect(rows[2]).toHaveAttribute('data-perch-phase', 'open');
     expect(result.getByTestId('perch-editor-preview').querySelector('.perch-collapse')).toBeNull();
   });
 });

@@ -5,7 +5,7 @@
 
 import { LAYOUT_SCHEMA_VERSION, type Layout, type LayoutElement } from '@perch/layout-schema';
 import { describe, expect, it } from 'vitest';
-import { addElement, removeElement } from './layout-edits.js';
+import { addElement, moveElement, removeElement } from './layout-edits.js';
 
 function layout(): Layout {
   return {
@@ -70,5 +70,33 @@ describe('removeElement', () => {
 
     expect(removeElement(-1)(before).elements).toEqual(before.elements);
     expect(removeElement(3)(before).elements).toEqual(before.elements);
+  });
+});
+
+describe('moveElement', () => {
+  const texts = (after: Layout): string[] =>
+    after.elements.map((element) => (element.kind === 'text' ? element.text : ''));
+
+  it('takes the element out and puts it back at the index it is to end up at', () => {
+    expect(texts(moveElement(0, 2)(layout()))).toEqual(['b', 'c', 'a']);
+    expect(texts(moveElement(2, 0)(layout()))).toEqual(['c', 'a', 'b']);
+    expect(texts(moveElement(1, 2)(layout()))).toEqual(['a', 'c', 'b']);
+  });
+
+  it('moves the element itself, and keeps every element the same object', () => {
+    const before = layout();
+    const after = moveElement(0, 2)(before);
+
+    expect(after.elements[2]).toBe(before.elements[0]);
+    expect(after.elements[0]).toBe(before.elements[1]);
+    expect(texts(before)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('hands back the same layout for a move that goes nowhere or names no element', () => {
+    const before = layout();
+
+    expect(moveElement(1, 1)(before)).toBe(before);
+    expect(moveElement(-1, 0)(before)).toBe(before);
+    expect(moveElement(0, 3)(before)).toBe(before);
   });
 });

@@ -144,9 +144,11 @@ type Result = ReturnType<typeof renderEditor>;
 const header = (result: Result) => within(result.getByTestId('perch-editor-header'));
 
 function makeDirty(result: Result): void {
-  const list = within(result.getByTestId('perch-editor-elements')).getAllByRole('button');
-  if (list[0] === undefined) throw new Error('no element');
-  fireEvent.click(list[0]);
+  const first = result
+    .getByTestId('perch-editor-elements')
+    .querySelector<HTMLElement>('[data-perch-layer-index="0"]');
+  if (first === null) throw new Error('no element');
+  fireEvent.click(first);
   fireEvent.change(result.getByLabelText('w'), { target: { value: '150' } });
 }
 
@@ -264,9 +266,11 @@ describe('the header in the desktop app, with a host', () => {
   it("offers Undo while a text field has focus, where the menu's Undo is the field's", () => {
     const { host, menuStates } = recordingHost();
     const result = renderEditor({ host });
-    const list = within(result.getByTestId('perch-editor-elements')).getAllByRole('button');
-    if (list[0] === undefined) throw new Error('no element');
-    fireEvent.click(list[0]);
+    const first = result
+      .getByTestId('perch-editor-elements')
+      .querySelector<HTMLElement>('[data-perch-layer-index="0"]');
+    if (first === null) throw new Error('no element');
+    fireEvent.click(first);
 
     const field = result.getByLabelText('w');
     act(() => {

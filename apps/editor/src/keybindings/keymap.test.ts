@@ -34,6 +34,17 @@ describe('the default keymap', () => {
     expect(boundCommand(other, 'selection.clear').scopes).toEqual(['canvas', 'sidebar']);
     expect(boundCommand(other, 'history.undo').scopes).toEqual(['global']);
   });
+
+  it('moves the selection through the layers on the brackets, as Photoshop and Illustrator do', () => {
+    for (const platform of ['mac', 'other'] as const) {
+      const keymap = resolveKeymap(COMMANDS, {}, platform);
+      expect(boundCommand(keymap, 'selection.bringForward').bindings).toEqual(['Mod+]']);
+      expect(boundCommand(keymap, 'selection.sendBackward').bindings).toEqual(['Mod+[']);
+      expect(boundCommand(keymap, 'selection.bringToFront').bindings).toEqual(['Mod+Shift+]']);
+      expect(boundCommand(keymap, 'selection.sendToBack').bindings).toEqual(['Mod+Shift+[']);
+      expect(boundCommand(keymap, 'selection.bringForward').scopes).toEqual(['canvas', 'sidebar']);
+    }
+  });
 });
 
 describe('overrides', () => {

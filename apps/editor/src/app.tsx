@@ -128,9 +128,11 @@ import {
 import { currentPlatform, type Platform } from './platform.js';
 import { INSPECTOR_STYLES, Inspector } from './inspector.js';
 import type { LayoutLibrary } from './layout-library.js';
+import { layerTarget, type LayerMove } from './layers.js';
 import {
   addElement,
   insertElementFirst,
+  moveElement,
   removeElement,
   setElementRect,
   type LayoutUpdate,
@@ -523,7 +525,55 @@ function EditorShell({
     [onEdit, select],
   );
 
+  /**
+   * A reorder, from the Elements list or a layer command: one edit, so one undo step, and the element
+   * stays selected where it went. A move that goes nowhere records nothing.
+   */
+  const onMove = useCallback(
+    (from: number, to: number) => {
+      if (from === to) return;
+      onEdit(moveElement(from, to));
+      select(to);
+    },
+    [onEdit, select],
+  );
+
   const hasSelection = opened.ok && opened.state.draft.elements[selected] !== undefined;
+  const count = opened.ok ? opened.state.draft.elements.length : 0;
+  const moveSelection = (move: LayerMove): void => {
+    const to = layerTarget(move, selected, count);
+    if (to !== null) onMove(selected, to);
+  };
+
+  /** Bring forward, send backward, to the front, to the back: the selected element's paint order. */
+  useCommand(
+    'selection.bringForward',
+    () => {
+      moveSelection('bringForward');
+    },
+    { enabled: hasSelection },
+  );
+  useCommand(
+    'selection.sendBackward',
+    () => {
+      moveSelection('sendBackward');
+    },
+    { enabled: hasSelection },
+  );
+  useCommand(
+    'selection.bringToFront',
+    () => {
+      moveSelection('bringToFront');
+    },
+    { enabled: hasSelection },
+  );
+  useCommand(
+    'selection.sendToBack',
+    () => {
+      moveSelection('sendToBack');
+    },
+    { enabled: hasSelection },
+  );
 
   /** Delete or Backspace with the canvas focused: ask, through the header's own confirm. */
   useCommand('selection.delete', () => {
@@ -925,6 +975,7 @@ function EditorShell({
                 onEdit={onEdit}
                 onAdd={onAdd}
                 onDelete={onDelete}
+                onMove={onMove}
                 deleteAsked={deleteAsked}
                 onDeleteAsked={setDeleteAsked}
                 topics={topics}
