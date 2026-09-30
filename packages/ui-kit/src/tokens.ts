@@ -91,9 +91,6 @@ export const PERCH_TOKEN_DEFAULTS = {
   /** Where a readout's column sits down its box: a `justify-content` value on that column. */
   '--perch-readout-anchor': 'start',
 
-  /** How strongly a media element paints. A background usually wants to sit under the numbers. */
-  '--perch-media-opacity': '1',
-
   /**
    * The element box: what every styled entity's own rectangle paints, read by `ELEMENT_BOX_STYLES`
    * in `layout-canvas.tsx` rather than by any widget.

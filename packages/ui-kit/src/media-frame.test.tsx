@@ -128,7 +128,7 @@ describe('MEDIA_FRAME_STYLES', () => {
     expect(MEDIA_FRAME_STYLES).not.toMatch(/animation/);
   });
 
-  it('lets a theme hold a background image back without a second asset', () => {
-    expect(MEDIA_FRAME_STYLES).toMatch(/opacity:\s*var\(--perch-media-opacity/);
+  it("sets no opacity of its own: an element's opacity is on its box, written by the canvas", () => {
+    expect(MEDIA_FRAME_STYLES).not.toMatch(/opacity/);
   });
 });

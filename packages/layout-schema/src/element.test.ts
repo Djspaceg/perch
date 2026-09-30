@@ -304,7 +304,7 @@ describe('media elements', () => {
 
 describe('unknown fields inside an element', () => {
   it('rejects one, printing the fields that kind defines', () => {
-    const issue = issueAt(oneElement(widget({ opacity: 0.5 })), 'elements[0].opacity');
+    const issue = issueAt(oneElement(widget({ visible: false })), 'elements[0].visible');
 
     expect(issue.code).toBe('unknown-field');
     expect(issue.message).toContain('"topic"');
@@ -315,5 +315,49 @@ describe('unknown fields inside an element', () => {
     expect(validateLayout(layoutWithElements([widget({ visible: false })]), options).ok).toBe(
       false,
     );
+  });
+});
+
+describe('opacity: one per element, on every kind', () => {
+  const chart = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
+    kind: 'chart',
+    widget: 'sparkline',
+    topic: 'sensors/cpu/0/load/0',
+    rect: { x: 0, y: 0, w: 480, h: 200 },
+    windowMs: 300_000,
+    range: [0, 100],
+    ...overrides,
+  });
+  const kinds = [
+    ['widget', widget],
+    ['text', text],
+    ['media', media],
+    ['chart', chart],
+  ] as const;
+
+  it.each(kinds)('accepts it on a %s element, from 0 to 1 inclusive', (_kind, make) => {
+    for (const opacity of [0, 0.55, 1]) {
+      const result = oneElement(make({ opacity }));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.layout.elements[0]?.opacity).toBe(opacity);
+    }
+  });
+
+  it.each(kinds)('leaves it absent on a %s element that does not set it', (_kind, make) => {
+    const result = oneElement(make());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.layout.elements[0]).not.toHaveProperty('opacity');
+  });
+
+  it.each([
+    ['below 0', -0.1, 'out-of-range'],
+    ['above 1', 1.5, 'out-of-range'],
+    ['a percentage written as a whole number', 55, 'out-of-range'],
+    ['a string', '0.5', 'wrong-type'],
+    ['NaN', Number.NaN, 'out-of-range'],
+  ])('rejects %s, naming the field', (_why, opacity, code) => {
+    expect(issueAt(oneElement(media({ opacity })), 'elements[0].opacity').code).toBe(code);
   });
 });

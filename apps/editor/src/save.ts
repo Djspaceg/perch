@@ -88,8 +88,8 @@ export type SaveTransport = (
  *
  * Refuses on outstanding issues and on a name that is not a legal save target, in that order, and in
  * both cases without contacting the server. A clean draft — one that validated and equals what is on
- * disk — is *not* refused: that is the case where a `schemaVersion` 1 file is being rewritten as 2
- * with no other change, which is a real save. Whether to *offer* the button is `canSave`'s call, which
+ * disk — is *not* refused: that is the case where an older `schemaVersion` file is being rewritten
+ * at the current one with no other change, which is a real save. Whether to *offer* the button is `canSave`'s call, which
  * does require a difference; this function's job is the safety property, not the UI's enablement.
  */
 export async function saveDraft(state: DraftState, transport: SaveTransport): Promise<SaveOutcome> {

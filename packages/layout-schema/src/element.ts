@@ -39,6 +39,18 @@ export const ELEMENT_KINDS = ['widget', 'text', 'media', 'chart'] as const;
 export type ElementKind = (typeof ELEMENT_KINDS)[number];
 
 /**
+ * How strongly an element paints, from 0 (not at all) to 1 (solid), the element and everything in it
+ * together: CSS `opacity` on its box.
+ *
+ * A field of every kind rather than a `style` token, because it is the one presentational property
+ * every kind has — media included, which carries no `style` — and because a number the format checks
+ * against its range is a better contract than a token string any value passes. Absent means 1; an
+ * editor removes it rather than writing 1, so an element nobody faded carries nothing. Added in
+ * schema version 3, which retired the theme-wide `--perch-media-opacity` it replaces (`migrate.ts`).
+ */
+export type Opacity = number;
+
+/**
  * The authored scale a widget draws, as `[min, max]`.
  *
  * A design decision, not a measurement. A sensor source reports only observed running extremes —
@@ -62,6 +74,7 @@ export interface WidgetElement {
   style?: Style;
   /** Required when the widget draws a scale, per its registry entry. */
   range?: Range;
+  opacity?: Opacity;
 }
 
 /** A literal string painted at a rect. */
@@ -70,6 +83,7 @@ export interface TextElement {
   text: string;
   rect: Rect;
   style?: Style;
+  opacity?: Opacity;
 }
 
 /** An image or video, referenced by a path relative to the layout file, or a cloud background. */
@@ -79,6 +93,7 @@ export interface MediaElement {
   src: string;
   rect: Rect;
   fit?: MediaFit;
+  opacity?: Opacity;
 }
 
 /**
@@ -127,6 +142,7 @@ export interface ChartElement {
   style?: Style;
   /** What to draw across a stretch of time with no readings. `DEFAULT_CHART_GAP` when absent. */
   gap?: ChartGap;
+  opacity?: Opacity;
 }
 
 /**
@@ -139,9 +155,9 @@ export interface ChartElement {
  */
 export type LayoutElement = WidgetElement | TextElement | MediaElement | ChartElement;
 
-const WIDGET_FIELDS = ['kind', 'widget', 'topic', 'rect', 'style', 'range'] as const;
-const TEXT_FIELDS = ['kind', 'text', 'rect', 'style'] as const;
-const MEDIA_FIELDS = ['kind', 'src', 'rect', 'fit'] as const;
+const WIDGET_FIELDS = ['kind', 'widget', 'topic', 'rect', 'style', 'range', 'opacity'] as const;
+const TEXT_FIELDS = ['kind', 'text', 'rect', 'style', 'opacity'] as const;
+const MEDIA_FIELDS = ['kind', 'src', 'rect', 'fit', 'opacity'] as const;
 const CHART_FIELDS = [
   'kind',
   'widget',
@@ -151,6 +167,7 @@ const CHART_FIELDS = [
   'style',
   'range',
   'gap',
+  'opacity',
 ] as const;
 
 type ElementValidator = (
@@ -232,6 +249,7 @@ function validateWidgetElement(
   const rect = validateRect(record, path, context.canvas, collect, index);
   const style = validateOptionalStyle(record, path, index, collect);
   const range = validateOptionalRange(record, path, index, collect);
+  const opacity = validateOptionalOpacity(record, path, index, collect);
   requireRangeIfScaled(record, widget, path, index, context, collect);
 
   if (collect.issues.length !== before) return null;
@@ -244,6 +262,7 @@ function validateWidgetElement(
     rect,
     ...(style === undefined ? {} : { style }),
     ...(range === undefined ? {} : { range }),
+    ...(opacity === undefined ? {} : { opacity }),
   };
 }
 
@@ -272,6 +291,7 @@ function validateChartElement(
   const style = validateOptionalStyle(record, path, index, collect);
   const range = validateOptionalRange(record, path, index, collect);
   const gap = validateOptionalChartGap(record, path, index, collect);
+  const opacity = validateOptionalOpacity(record, path, index, collect);
   requireRangeIfScaled(record, widget, path, index, context, collect);
 
   if (collect.issues.length !== before) return null;
@@ -286,6 +306,7 @@ function validateChartElement(
     ...(style === undefined ? {} : { style }),
     ...(range === undefined ? {} : { range }),
     ...(gap === undefined ? {} : { gap }),
+    ...(opacity === undefined ? {} : { opacity }),
   };
 }
 
@@ -339,11 +360,18 @@ function validateTextElement(
   const text = requireNonEmptyString(record, path, 'text', collect, index);
   const rect = validateRect(record, path, context.canvas, collect, index);
   const style = validateOptionalStyle(record, path, index, collect);
+  const opacity = validateOptionalOpacity(record, path, index, collect);
 
   if (collect.issues.length !== before) return null;
   if (text === null || rect === null) return null;
 
-  return { kind: 'text', text, rect, ...(style === undefined ? {} : { style }) };
+  return {
+    kind: 'text',
+    text,
+    rect,
+    ...(style === undefined ? {} : { style }),
+    ...(opacity === undefined ? {} : { opacity }),
+  };
 }
 
 function validateMediaElement(
@@ -360,11 +388,18 @@ function validateMediaElement(
   const src = raw === null ? null : validateMediaPath(raw, fieldPath(path, 'src'), collect, index);
   const rect = validateRect(record, path, context.canvas, collect, index);
   const fit = optionalLiteral(record, path, 'fit', MEDIA_FITS, collect, index);
+  const opacity = validateOptionalOpacity(record, path, index, collect);
 
   if (collect.issues.length !== before) return null;
   if (src === null || rect === null) return null;
 
-  return { kind: 'media', src, rect, ...(fit === undefined ? {} : { fit }) };
+  return {
+    kind: 'media',
+    src,
+    rect,
+    ...(fit === undefined ? {} : { fit }),
+    ...(opacity === undefined ? {} : { opacity }),
+  };
 }
 
 function validateWidgetIdentity(
@@ -440,6 +475,45 @@ function validateOptionalStyle(
   if (value === undefined) return undefined;
 
   return validateTokenMap(value, fieldPath(path, 'style'), 'style', collect, index) ?? undefined;
+}
+
+/**
+ * The element's opacity, or `undefined` for both "absent" and "rejected", on the same terms as
+ * `validateOptionalStyle`.
+ *
+ * A fraction, not a percentage: `55` is refused rather than read as 55%, because a format that took
+ * both would have two spellings of one value, and CSS reads `55` as solid.
+ */
+function validateOptionalOpacity(
+  record: Readonly<Record<string, unknown>>,
+  path: string,
+  index: number,
+  collect: IssueCollector,
+): Opacity | undefined {
+  const value = readField(record, 'opacity');
+  if (value === undefined) return undefined;
+
+  const where = fieldPath(path, 'opacity');
+  if (typeof value !== 'number') {
+    collect.add(
+      'wrong-type',
+      where,
+      `expected an opacity from 0 to 1, got ${describeValue(value)}`,
+      index,
+    );
+    return undefined;
+  }
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    collect.add(
+      'out-of-range',
+      where,
+      `expected an opacity from 0 (invisible) to 1 (solid), got ${value}; 55% is written 0.55`,
+      index,
+    );
+    return undefined;
+  }
+
+  return value;
 }
 
 /** The authored scale, or `undefined` for both "absent" and "rejected". */

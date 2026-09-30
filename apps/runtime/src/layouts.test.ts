@@ -106,10 +106,9 @@ describe.each(SHIPPED)('layouts/%s.json', (name) => {
     // `loadShipped` throws with the issue list if it does not, so reaching here is the assertion —
     // stated anyway so the failure names this property rather than appearing as a module error.
     //
-    // `LAYOUT_SCHEMA_VERSION`, not a literal: the files on disk are still `"schemaVersion": 1` and
-    // `loadShipped` migrates them, so what is asserted is "a loaded layout is at the current
-    // version" — which is the durable claim. Pinning the number instead is what made this fail when
-    // the chart element took the format to 2.
+    // `LAYOUT_SCHEMA_VERSION`, not a literal: what is asserted is "a loaded layout is at the current
+    // version", whatever the file on disk declares — which is the durable claim. Pinning the number
+    // is what made this fail when the chart element took the format to 2.
     expect(layout.schemaVersion).toBe(LAYOUT_SCHEMA_VERSION);
   });
 

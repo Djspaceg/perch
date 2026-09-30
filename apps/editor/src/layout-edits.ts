@@ -36,7 +36,7 @@
  *
  * ## Optional fields and `exactOptionalPropertyTypes`
  *
- * `style`, `range`, `fit` and `gap` are optional, and under `exactOptionalPropertyTypes` a key set to
+ * `style`, `range`, `fit`, `gap` and `opacity` are optional, and under `exactOptionalPropertyTypes` a key set to
  * `undefined` is a *different document* from an absent key — it survives `JSON.stringify` as nothing
  * at all, but it survives a `rejectUnknownFields` pass as a key that is there. So every rebuild below
  * uses the spread-or-nothing form `...(x === undefined ? {} : { x })` that `layout-schema`'s own
@@ -194,6 +194,21 @@ export function setElementRangeBound(
   });
 }
 
+/**
+ * Set an element's opacity, 0 to 1, on any kind; `undefined` removes it.
+ *
+ * 1 is removed too rather than written: an absent opacity is solid, so a key saying so is one the
+ * author did not need and one more difference between a layout opened and the same layout saved. A
+ * value outside 0-1, or `NaN` from a cleared field, is written as it is, for `validateLayout` to name.
+ */
+export function setElementOpacity(index: number, opacity: number | undefined): LayoutUpdate {
+  return mapElement(index, (element) => {
+    const rest = withoutOpacity(element);
+
+    return opacity === undefined || opacity === 1 ? rest : { ...rest, opacity };
+  });
+}
+
 /** Set one of an element's own style tokens, adding it if absent. A no-op on a media element. */
 export function setElementStyleToken(index: number, name: string, value: string): LayoutUpdate {
   return mapElement(index, (element) => {
@@ -281,6 +296,13 @@ function withoutStyle(element: LayoutElement): LayoutElement {
   if (element.kind === 'media') return element;
 
   const { style: _dropped, ...rest } = element;
+
+  return rest;
+}
+
+/** The element without its `opacity` key at all. */
+function withoutOpacity(element: LayoutElement): LayoutElement {
+  const { opacity: _dropped, ...rest } = element;
 
   return rest;
 }

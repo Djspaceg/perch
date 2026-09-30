@@ -5,8 +5,8 @@
  * video is a `<video>` that plays itself — `autoplay`, `muted` (which is also what lets autoplay
  * start without a gesture), `loop`, `playsinline`, and no controls, since nothing on a panel is
  * interacted with. It sits in the same `.perch-media` box as the image, so the element's rect, its
- * `fit` and `--perch-media-opacity` apply to it exactly as they do to an image; `cover` fills the
- * rect and crops centred, which is what a background is for.
+ * `fit` and its `opacity` apply to it exactly as they do to an image; `cover` fills the rect and
+ * crops centred, which is what a background is for.
  *
  * `src` is a URL the *caller* resolved from the layout's reference through its host's cache. This
  * component knows no reference, no cache and no network; see `background-sources.ts`.

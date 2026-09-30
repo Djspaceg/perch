@@ -203,6 +203,37 @@ describe('<LayoutCanvas> — element geometry', () => {
     expect(text?.style.getPropertyValue('--perch-text-size')).toBe('2rem');
     expect(widget?.style.getPropertyValue('--perch-dim')).toBe('#445566');
   });
+
+  it("writes an element's own opacity on its box, for every kind", () => {
+    mount({
+      schemaVersion: LAYOUT_SCHEMA_VERSION,
+      target: { width: 800, height: 400, frameRate: 30 },
+      theme: {},
+      elements: [
+        { kind: 'media', src: 'shipped.svg', rect: { x: 0, y: 0, w: 800, h: 400 }, opacity: 0.55 },
+        { kind: 'text', text: 'CPU', rect: { x: 0, y: 0, w: 100, h: 40 }, opacity: 0.25 },
+        {
+          kind: 'widget',
+          widget: 'readout',
+          topic: 'sensors/cpu/0/temperature/0',
+          rect: { x: 0, y: 40, w: 200, h: 100 },
+          opacity: 0,
+        },
+        {
+          kind: 'chart',
+          widget: 'line-chart',
+          topic: 'sensors/cpu/0/temperature/0',
+          rect: { x: 0, y: 200, w: 400, h: 160 },
+          windowMs: 60_000,
+          range: [0, 100],
+          opacity: 0.8,
+        },
+        { kind: 'text', text: 'solid', rect: { x: 400, y: 0, w: 100, h: 40 } },
+      ],
+    });
+
+    expect(elements().map((box) => box.style.opacity)).toEqual(['0.55', '0.25', '0', '0.8', '']);
+  });
 });
 
 describe('<LayoutCanvas> — the widget, text and media kinds', () => {

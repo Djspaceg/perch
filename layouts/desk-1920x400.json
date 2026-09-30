@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "target": { "width": 1920, "height": 400, "frameRate": 30 },
   "theme": {
     "--perch-canvas-bg": "#0b0e13",
@@ -13,15 +13,15 @@
     "--perch-value-size-max": "2.5rem",
     "--perch-unit-size": "1rem",
     "--perch-label-size": "0.8125rem",
-    "--perch-text-color": "#7f8da3",
-    "--perch-media-opacity": "0.55"
+    "--perch-text-color": "#7f8da3"
   },
   "elements": [
     {
       "kind": "media",
       "src": "desk-1920x400.assets/rails.svg",
       "rect": { "x": 0, "y": 0, "w": 1920, "h": 400 },
-      "fit": "cover"
+      "fit": "cover",
+      "opacity": 0.55
     },
     {
       "kind": "text",

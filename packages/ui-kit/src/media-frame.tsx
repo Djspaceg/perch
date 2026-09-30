@@ -27,7 +27,6 @@
  */
 
 import type { ReactNode } from 'react';
-import { token } from './tokens.js';
 
 /**
  * How the image fills its rect.
@@ -85,16 +84,15 @@ export function MediaFrame({ src, fit = 'cover', alt = '' }: MediaFrameProps): R
  * one description of how this element paints, and so the two fits can be asserted present the way
  * the readout's four states are.
  *
- * `--perch-media-opacity` exists because the common use of a media element is a *background* under
- * the numbers, and an author needs to hold it back without editing the asset — a 40%-opacity grid
- * is a theme decision that should not require a second PNG.
+ * No opacity here. Holding a background back under the numbers is the element's own `opacity`, which
+ * the canvas writes on the element's box (`layout-canvas.tsx`) for every kind alike; the theme-wide
+ * `--perch-media-opacity` this sheet once read was retired in layout schema version 3.
  */
 export const MEDIA_FRAME_STYLES = `
 .perch-media {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  opacity: ${token('--perch-media-opacity')};
 }
 .perch-media__image {
   display: block;

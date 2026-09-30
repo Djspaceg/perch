@@ -857,9 +857,9 @@ function EditorShell({
       </header>
 
       {/*
-       * The version bump, said out loud before it happens. Both shipped layouts are `schemaVersion` 1
-       * and a save writes 2; the migration rewrites no other field, but it is this editor that moves
-       * the number and an author should not find that in a diff. See `draft.ts`.
+       * The migration, said out loud before it is written. A file at an older `schemaVersion` is saved
+       * at the current one — from 2, with its media opacity moved off the theme onto the media — and
+       * an author should not find that in a diff. See `draft.ts`.
        */}
       {opened.ok && opened.state.migrations !== '' ? (
         <p className="perch-editor-bar" data-testid="perch-editor-migrations">

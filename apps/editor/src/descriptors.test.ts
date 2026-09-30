@@ -56,7 +56,7 @@ describe('tokenSpec', () => {
   });
 
   it('carries a unitless number’s range and step from the label', () => {
-    expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-media-opacity'], '0.85')).toEqual({
+    expect(tokenSpec(PERCH_TOKEN_LABELS['--perch-chart-area-opacity'], '0.85')).toEqual({
       kind: 'number',
       min: 0,
       max: 1,

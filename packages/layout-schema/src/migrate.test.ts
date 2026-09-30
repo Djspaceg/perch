@@ -80,9 +80,9 @@ const migrated = (result: MigrateLayoutResult): Record<string, unknown> => {
 const options: LoadLayoutOptions = { widgets: TEST_WIDGETS };
 
 describe('the production table', () => {
-  it('carries the step into the current version, and only that step', () => {
-    expect(LAYOUT_SCHEMA_VERSION).toBe(2);
-    expect(LAYOUT_MIGRATIONS.map((step) => `${step.from}->${step.to}`)).toEqual(['1->2']);
+  it('carries the steps into the current version, and only those steps', () => {
+    expect(LAYOUT_SCHEMA_VERSION).toBe(3);
+    expect(LAYOUT_MIGRATIONS.map((step) => `${step.from}->${step.to}`)).toEqual(['1->2', '2->3']);
   });
 
   it('is frozen, so nothing appends to it at runtime', () => {
@@ -510,19 +510,20 @@ describe('the version 1 to version 2 boundary: an old document in a new reader',
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.fromVersion).toBe(1);
-    expect(result.layout.schemaVersion).toBe(2);
-    expect(result.migrations.map((step) => `${step.from}->${step.to}`)).toEqual(['1->2']);
+    expect(result.layout.schemaVersion).toBe(3);
+    expect(result.migrations.map((step) => `${step.from}->${step.to}`)).toEqual(['1->2', '2->3']);
     expect(formatMigrationReport(result.migrations)).toContain('chart');
   });
 
   it('changes nothing in the document but the version, because version 2 only adds', () => {
+    // It has no media and no media opacity, so the 2 -> 3 step has nothing to move either.
     const before = v1LayoutDocument();
     const result = migrateLayoutDocument(before);
 
-    expect(migrated(result)).toEqual({ ...before, schemaVersion: 2 });
+    expect(migrated(result)).toEqual({ ...before, schemaVersion: 3 });
   });
 
-  it('reports no migration for a document already at version 2', () => {
+  it('reports no migration for a document already at the current version', () => {
     const result = loadLayout(validLayoutDocument(), options);
 
     expect(result.ok).toBe(true);
@@ -546,9 +547,10 @@ describe('the version 1 to version 2 boundary: an old document in a new reader',
 });
 
 describe('the version 1 to version 2 boundary: a chart layout in an old reader', () => {
-  /** A version 2 document with a chart in it — what a current editor writes. */
+  /** A version 2 document with a chart in it — what a version 2 editor wrote. */
   const chartDocument = (): Record<string, unknown> =>
     layoutWith({
+      schemaVersion: 2,
       elements: [
         {
           kind: 'chart',
@@ -612,12 +614,12 @@ describe('the version 1 to version 2 boundary: a chart layout in an old reader',
     ).toEqual(['unknown-element-kind']);
   });
 
-  it('accepts a chart at version 2 with no migration, which is the other half of the same gate', () => {
+  it('accepts a chart at version 2 with no change to it, which is the other half of the same gate', () => {
     const result = loadLayout(chartDocument(), options);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.migrations).toEqual([]);
+    expect(result.migrations.map((step) => `${step.from}->${step.to}`)).toEqual(['2->3']);
     expect(result.layout.elements[0]?.kind).toBe('chart');
   });
 
@@ -633,7 +635,87 @@ describe('the version 1 to version 2 boundary: a chart layout in an old reader',
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.fromVersion).toBe(1);
-    expect(result.layout.schemaVersion).toBe(2);
+    expect(result.layout.schemaVersion).toBe(3);
+  });
+});
+
+/**
+ * Version 2 to version 3: `--perch-media-opacity` retires, and each element carries its own `opacity`.
+ *
+ * The one step so far that rewrites a document. What it must preserve is how the file *looks*: a
+ * theme that held every media element back to 0.55 becomes media elements at 0.55 each, and nothing
+ * else moves.
+ */
+describe('the version 2 to version 3 boundary: media opacity moves onto the media', () => {
+  const v2 = (theme: Record<string, string>, elements: unknown[]): Record<string, unknown> => ({
+    schemaVersion: 2,
+    target: { width: 1920, height: 400, frameRate: 30 },
+    theme,
+    elements,
+  });
+  const image = { kind: 'media', src: 'a.assets/b.svg', rect: { x: 0, y: 0, w: 1920, h: 400 } };
+  const video = { kind: 'media', src: 'thermalright:a042', rect: { x: 0, y: 0, w: 960, h: 400 } };
+  const label = { kind: 'text', text: 'CPU', rect: { x: 48, y: 32, w: 200, h: 40 } };
+
+  it('moves the theme value onto every media element, image and video, and out of the theme', () => {
+    const before = v2({ '--perch-media-opacity': '0.55', '--perch-fg': '#e8f1ff' }, [
+      image,
+      label,
+      video,
+    ]);
+    const after = migrated(migrateLayoutDocument(before));
+
+    expect(after).toEqual({
+      schemaVersion: 3,
+      target: before['target'],
+      theme: { '--perch-fg': '#e8f1ff' },
+      elements: [{ ...image, opacity: 0.55 }, label, { ...video, opacity: 0.55 }],
+    });
+  });
+
+  it('keeps an opacity a media element already sets', () => {
+    const own = { ...image, opacity: 0.2 };
+    const after = migrated(migrateLayoutDocument(v2({ '--perch-media-opacity': '0.5' }, [own])));
+
+    expect(after['elements']).toEqual([own]);
+    expect(after['theme']).toEqual({});
+  });
+
+  it.each([
+    ['a percentage', '40%', 0.4],
+    ['a value above 1, as CSS clamps it', '3', undefined],
+    ['a value below 0, as CSS clamps it', '-1', 0],
+    ['exactly 1, which is the default and so is not written', '1', undefined],
+    ['a value CSS would reject, which painted solid', 'half', undefined],
+  ])('reads %s as the opacity it painted at', (_why, token, opacity) => {
+    const after = migrated(migrateLayoutDocument(v2({ '--perch-media-opacity': token }, [image])));
+
+    expect(after['elements']).toEqual([opacity === undefined ? image : { ...image, opacity }]);
+    expect(after['theme']).toEqual({});
+  });
+
+  it('changes nothing but the version in a document that never set the token', () => {
+    const before = v2({ '--perch-fg': '#e8f1ff' }, [image, label]);
+
+    expect(migrated(migrateLayoutDocument(before))).toEqual({ ...before, schemaVersion: 3 });
+  });
+
+  it('leaves a malformed document for the validator to name, rather than throwing', () => {
+    const result = loadLayout(
+      { ...v2({ '--perch-media-opacity': '0.5' }, []), elements: 'none' },
+      options,
+    );
+
+    expect(codesOf(result)).toEqual(['wrong-type']);
+  });
+
+  it('loads a migrated version 2 layout, and says what moved', () => {
+    const result = loadLayout(v2({ '--perch-media-opacity': '0.55' }, [image]), options);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.layout.elements[0]?.opacity).toBe(0.55);
+    expect(formatMigrationReport(result.migrations)).toContain('opacity');
   });
 });
 

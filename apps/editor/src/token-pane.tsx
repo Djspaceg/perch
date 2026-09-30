@@ -47,7 +47,7 @@ import {
   type TokenGroup,
   type TokenLabel,
 } from '@perch/ui-kit';
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import {
   AdvancedSection,
   AlignGrid,
@@ -68,6 +68,16 @@ import { useEditorStore, type TokenTab } from './store.js';
 
 export { isHexColor } from './descriptors.js';
 
+/** A row at the top of one section that is a field of the element rather than a token. */
+export interface LeadRow {
+  readonly group: TokenGroup;
+  readonly label: string;
+  readonly description: string;
+  /** Whether the document sets it here, for the section's "N set" count. */
+  readonly set: boolean;
+  readonly row: ReactNode;
+}
+
 /** Which surface the map belongs to: a layout's `theme`, or one element's `style`. */
 export type TokenScope = 'layout' | 'element';
 
@@ -87,6 +97,11 @@ export interface TokenPaneProps {
   readonly onRemove: (name: string) => void;
   /** Sections that are not tokens, shown first on the Customize tab: Target, or Content then Transform. */
   readonly leading?: ReactNode;
+  /**
+   * Rows that are not tokens but belong at the top of a token section: an element's own opacity, first
+   * in its Appearance. Searched by label and description like a token row, and counted when `set`.
+   */
+  readonly lead?: readonly LeadRow[];
   /** Category chips under the tabs, one per `TOKEN_GROUPS` entry. */
   readonly chips?: boolean;
   /** Which token sections start open: all (`true`, the default), none, or the ones named. */
@@ -193,6 +208,7 @@ export function TokenPane({
   onSet,
   onRemove,
   leading,
+  lead = [],
   chips = false,
   sectionsOpen = true,
   disclosureKey,
@@ -243,6 +259,7 @@ export function TokenPane({
               pane={id}
               scope={scope}
               known={known}
+              lead={lead}
               tokens={tokens}
               inherited={inherited}
               query={query}
@@ -279,6 +296,7 @@ function CustomizeSections({
   pane,
   scope,
   known,
+  lead,
   tokens,
   inherited,
   query,
@@ -291,6 +309,7 @@ function CustomizeSections({
   readonly pane: string;
   readonly scope: TokenScope;
   readonly known: readonly KnownToken[];
+  readonly lead: readonly LeadRow[];
   readonly tokens: Readonly<Record<string, string>>;
   readonly inherited: Readonly<Record<string, string>> | undefined;
   readonly query: string;
@@ -320,9 +339,13 @@ function CustomizeSections({
     const main = names.filter((name) => PERCH_TOKEN_LABELS[name].advanced !== true && hit(name));
     const advanced = names.filter((name) => PERCH_TOKEN_LABELS[name].advanced === true);
     const advancedShown = advanced.filter(hit);
-    if (main.length + advancedShown.length === 0) return [];
+    const leads = lead.filter((row) => row.group === group);
+    const leadShown = leads.filter((row) => matchesQuery(query, row.label, row.description, title));
+    if (leadShown.length + main.length + advancedShown.length === 0) return [];
 
-    const setCount = names.filter((name) => tokens[name] !== undefined).length;
+    const setCount =
+      names.filter((name) => tokens[name] !== undefined).length +
+      leads.filter((row) => row.set).length;
     const advancedSet = advanced.filter((name) => tokens[name] !== undefined).length;
 
     return [
@@ -340,7 +363,11 @@ function CustomizeSections({
           )
         }
         summaryActive={setCount > 0}
+        testId={scope === 'element' ? `perch-editor-${group}` : undefined}
       >
+        {leadShown.map((row) => (
+          <Fragment key={row.label}>{row.row}</Fragment>
+        ))}
         <TokenRows
           pane={pane}
           scope={scope}

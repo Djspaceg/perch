@@ -38,7 +38,7 @@ describe('<VideoBackground>', () => {
     expect(video).toHaveAttribute('aria-hidden', 'true');
   });
 
-  it("sits in the media element's box, so its fit and its opacity token apply", () => {
+  it("sits in the media element's box, so its fit applies", () => {
     const { container } = render(<VideoBackground src={URL} fit="contain" />);
     const box = container.querySelector('.perch-media');
 

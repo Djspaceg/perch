@@ -367,6 +367,11 @@ function canvasStyle(layout: Layout, scale: number): CSSProperties {
  * Radius and padding are written only when something set one — the element or the theme — and never
  * on media, which reads no box token. An element nobody styled carries exactly the declarations it
  * carried before the box tokens existed.
+ *
+ * The element's `opacity` is written here too, for every kind, media included: it is a field of the
+ * element rather than a token, so there is no `var()` for a sheet to read, and on the box it fades the
+ * element and everything inside it together — a readout's number with its background, a video with
+ * its frame. Absent, nothing is written, and the box paints solid.
  */
 function elementStyle(
   element: LayoutElement,
@@ -384,6 +389,7 @@ function elementStyle(
     ...(boxed && sets(BOX_PADDING, style, theme)
       ? { padding: boxQuadCss([top, right, bottom, left]) }
       : {}),
+    ...(element.opacity === undefined ? {} : { opacity: String(element.opacity) }),
     left: `${rect.x}px`,
     top: `${rect.y}px`,
     width: `${rect.w}px`,

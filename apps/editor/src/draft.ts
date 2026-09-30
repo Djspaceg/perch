@@ -39,12 +39,13 @@
  * everything after that is `validateLayout`, because the draft is already at
  * `LAYOUT_SCHEMA_VERSION` and a draft that failed to migrate is not a state a form can be bound to.
  *
- * That has a consequence worth stating plainly rather than discovering: **both shipped layouts are
- * `schemaVersion` 1, and saving one writes `schemaVersion` 2.** The migration from 1 to 2 changes no
- * field (it exists to make the version number carry the `chart` element kind), so nothing else in the
- * file moves — but the version line does, and it is the editor that moves it. `DraftState.migrations`
- * carries the report so the editor can say so on screen before the author saves, rather than the
- * author finding a version bump in a diff they did not ask for.
+ * That has a consequence worth stating plainly rather than discovering: **a layout on disk at an older
+ * `schemaVersion` is saved at the current one.** The 1 -> 2 step changes no field (it exists to make
+ * the version number carry the `chart` element kind); the 2 -> 3 step moves a theme's
+ * `--perch-media-opacity` onto each media element as its own `opacity`, so the file looks the same and
+ * reads differently. Either way it is the editor that moves the file, and only when the author saves:
+ * opening never writes. `DraftState.migrations` carries the report so the editor can say so on screen
+ * before the author saves, rather than the author finding the change in a diff they did not ask for.
  */
 
 import {

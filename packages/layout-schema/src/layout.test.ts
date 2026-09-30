@@ -111,7 +111,10 @@ describe('validateLayout: schemaVersion is mandatory and has no best-effort path
 
   it('rejects a version behind the target, pointing at loadLayout rather than guessing', () => {
     const issue = issueAt(
-      validateLayout(validLayoutDocument(), { ...options, targetVersion: 3 }),
+      validateLayout(validLayoutDocument(), {
+        ...options,
+        targetVersion: LAYOUT_SCHEMA_VERSION + 1,
+      }),
       'schemaVersion',
     );
 

@@ -16,9 +16,9 @@
  * tables: chaining, ordering, an unreachable old version, a future version, a step that throws,
  * and the no-op at the target.
  *
- * `LAYOUT_MIGRATIONS` now carries a real entry, and the synthetic tables are still there. They are
- * not redundant: the real table has one step, so only a synthetic one can exercise a chain, a
- * document joining a chain halfway, or a table that does not reach the target.
+ * `LAYOUT_MIGRATIONS` now carries two real entries, and the synthetic tables are still there. They
+ * are not redundant: only a synthetic table can exercise a step that throws, a step that forgets the
+ * version, or a table that does not reach the target.
  *
  * ## Adding a version
  *
@@ -90,11 +90,72 @@ const ADD_CHART_ELEMENT: LayoutMigration = {
   migrate: (document) => ({ ...document }),
 };
 
+/** The theme token version 3 retires. */
+const MEDIA_OPACITY_TOKEN = '--perch-media-opacity';
+
+/**
+ * Version 2 to version 3: opacity is each element's own, and the theme's media opacity retires.
+ *
+ * Up to version 2 one theme token, `--perch-media-opacity`, held back every media element at once,
+ * and nothing else could be faded. Version 3 gives every element kind an `opacity` field (`element.ts`)
+ * and ui-kit no longer reads the token. The step is what keeps a file looking the same across that:
+ * the token's value moves onto each media element — image and video alike, since both read it — that
+ * does not already carry an opacity, and leaves the theme.
+ *
+ * The value is read the way CSS read it, so what moves is what painted. A number or a percentage is
+ * clamped to 0-1; a value CSS would have rejected painted solid, as does 1, and neither is written,
+ * since an absent opacity is solid. Anything that is not a theme object or an element list is left
+ * exactly as it was, for the validator to name: a step is not a repair.
+ *
+ * A breaking step, unlike 1 -> 2: a version 2 build handed a version 3 file refuses it at the version,
+ * rather than dropping every element's opacity and painting the backgrounds solid.
+ */
+const RETIRE_MEDIA_OPACITY: LayoutMigration = {
+  from: 2,
+  to: 3,
+  description: `move the theme's ${MEDIA_OPACITY_TOKEN} onto each media element as its own opacity`,
+  migrate: (document) => {
+    const theme = asRecord(document['theme']);
+    if (theme === null || !(MEDIA_OPACITY_TOKEN in theme)) return { ...document };
+
+    const { [MEDIA_OPACITY_TOKEN]: token, ...rest } = theme;
+    const opacity = cssOpacity(token);
+    const elements = Array.isArray(document['elements'])
+      ? document['elements'].map((candidate: unknown) => {
+          const element = asRecord(candidate);
+          if (opacity === undefined || element?.['kind'] !== 'media') return candidate;
+          if (element['opacity'] !== undefined) return candidate;
+
+          return { ...element, opacity };
+        })
+      : document['elements'];
+
+    return { ...document, theme: rest, elements };
+  },
+};
+
+/**
+ * A token value as the opacity CSS painted it at, or `undefined` where that was solid: 1, above it, or
+ * a value `opacity` does not accept (which falls back to the initial value, 1).
+ */
+function cssOpacity(token: unknown): number | undefined {
+  if (typeof token !== 'string') return undefined;
+  const match = /^\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(%?)\s*$/i.exec(token);
+  if (match === null) return undefined;
+  const number = Number(match[1]) / (match[2] === '%' ? 100 : 1);
+  const clamped = Math.min(1, Math.max(0, number));
+
+  return clamped === 1 ? undefined : clamped;
+}
+
 /**
  * Every migration this build knows, in ascending order, contiguous, ending at
  * `LAYOUT_SCHEMA_VERSION`.
  */
-export const LAYOUT_MIGRATIONS: readonly LayoutMigration[] = Object.freeze([ADD_CHART_ELEMENT]);
+export const LAYOUT_MIGRATIONS: readonly LayoutMigration[] = Object.freeze([
+  ADD_CHART_ELEMENT,
+  RETIRE_MEDIA_OPACITY,
+]);
 
 /** Options for the migration runner. */
 export interface MigrateLayoutOptions {

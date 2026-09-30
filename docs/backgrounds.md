@@ -73,7 +73,7 @@ not relaxed, and the grid marks such cells). Short, over the cap, bad magic: dro
 ## Renderer
 
 ui-kit `VideoBackground`: `<video autoplay muted loop playsinline>`, no controls, in the media
-element's box and its opacity token, paused while the page is hidden. `LayoutCanvas` takes
+element's box and its opacity, paused while the page is hidden. `LayoutCanvas` takes
 `resolveBackground(ref)` (ready / loading / failed) beside `resolveAsset`; images are unchanged.
 `useBackgroundSources(layout, ensure)` holds the state; no network or Electron code in ui-kit.
 

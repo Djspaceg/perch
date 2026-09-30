@@ -115,7 +115,7 @@ describe('the Customize tab', () => {
     // pane where the only way to reach a token is to already have set it.
     expect(row('--perch-fg')).toBeInTheDocument();
     expect(row('--perch-dim')).toBeInTheDocument();
-    expect(screen.getAllByTestId(/^perch-editor-token-test---perch-/)).toHaveLength(36);
+    expect(screen.getAllByTestId(/^perch-editor-token-test---perch-/)).toHaveLength(35);
   });
 
   it('makes the label the primary text and keeps the token name out of the way', () => {

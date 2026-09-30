@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "target": { "width": 720, "height": 1280, "frameRate": 24 },
   "theme": {
     "--perch-canvas-bg": "#f4efe6",
@@ -16,15 +16,15 @@
     "--perch-value-size-max": "4rem",
     "--perch-unit-size": "1.5rem",
     "--perch-label-size": "1.125rem",
-    "--perch-text-color": "#6d6353",
-    "--perch-media-opacity": "0.5"
+    "--perch-text-color": "#6d6353"
   },
   "elements": [
     {
       "kind": "media",
       "src": "tower-720x1280.assets/weave.svg",
       "rect": { "x": 0, "y": 0, "w": 720, "h": 1280 },
-      "fit": "cover"
+      "fit": "cover",
+      "opacity": 0.5
     },
     {
       "kind": "text",

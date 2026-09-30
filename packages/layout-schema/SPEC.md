@@ -28,12 +28,13 @@ type Layout = {
   elements: Element[]             // paint order = array order
 }
 
-type Element =
+type Element = (
   | { kind: 'widget'; widget: string; topic: string; rect: Rect; style?: Style; range?: [number, number] }
   | { kind: 'text';   text: string;   rect: Rect; style?: Style }
   | { kind: 'media';  src: string;    rect: Rect; fit?: 'cover' | 'contain' }  // src: a path, or thermalright:<id>
   | { kind: 'chart';  widget: string; topic: string; rect: Rect; style?: Style; range?: [number, number];
       windowMs: number; gap?: 'break' | 'span' }
+) & { opacity?: number }  // 0-1, absent = 1: CSS opacity on the element's box (version 3)
 
 type Rect = { x: number; y: number; w: number; h: number }
 ```
@@ -115,7 +116,16 @@ migrated forward and the result reported; a layout from the future is rejected
 with its version named. There is no "best effort" path — silently ignoring an
 unknown field is how authored work gets destroyed.
 
-**Current version: 2.** The chart element is the only change from 1, and it is purely
+**Current version: 3.** Version 3 gives every element kind an `opacity` (0 to 1, absent
+meaning solid) and retires the theme token `--perch-media-opacity`, which until then was the
+only way to fade anything and faded every media element at once. The `2 -> 3` step moves
+that token's value onto each media element that does not set its own opacity and drops it
+from the theme, reading the value as CSS did (a percentage, clamped, and a value CSS
+rejected as solid), so a migrated file looks exactly as it did. Unlike `1 -> 2` it rewrites
+the document, and a version 2 build refuses a version 3 file at the version rather than
+painting its faded backgrounds solid.
+
+**Version 2.** The chart element is the only change from 1, and it is purely
 additive — no version 1 field changed meaning, and every valid version 1 document is a
 valid version 2 document with its version number stepped. So the `1 -> 2` migration
 rewrites nothing; what the version step buys is the two halves of the boundary being

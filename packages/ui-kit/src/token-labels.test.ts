@@ -109,7 +109,7 @@ describe('the labels table', () => {
     expect(PERCH_TOKEN_LABELS['--perch-text-transform'].group).toBe('typography');
     expect(PERCH_TOKEN_LABELS['--perch-text-align'].group).toBe('typography');
     expect(PERCH_TOKEN_LABELS['--perch-canvas-bg'].group).toBe('appearance');
-    expect(PERCH_TOKEN_LABELS['--perch-media-opacity'].group).toBe('appearance');
+    expect(PERCH_TOKEN_LABELS['--perch-chart-area-opacity'].group).toBe('appearance');
   });
 
   it('marks the rarely tuned tokens advanced, and keeps them in the group they belong to', () => {
@@ -123,7 +123,6 @@ describe('the labels table', () => {
         '--perch-chart-area-opacity',
         '--perch-chart-axis-size',
         '--perch-faint',
-        '--perch-media-opacity',
         '--perch-stale',
         '--perch-text-line-height',
         '--perch-text-tracking',
@@ -291,7 +290,7 @@ describe('the labels table', () => {
 
 describe('the numeric metadata', () => {
   it('bounds an opacity from 0 to 1 and a weight from 100 to 900, defaults inside', () => {
-    for (const name of ['--perch-media-opacity', '--perch-chart-area-opacity'] as const) {
+    for (const name of ['--perch-chart-area-opacity'] as const) {
       expect(PERCH_TOKEN_LABELS[name].range, name).toEqual({ min: 0, max: 1 });
     }
     for (const name of ['--perch-value-weight', '--perch-text-weight'] as const) {

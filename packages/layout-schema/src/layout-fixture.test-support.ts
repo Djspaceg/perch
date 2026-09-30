@@ -45,7 +45,7 @@ export function clone<T>(value: T): T {
  */
 export function validLayoutDocument(): Record<string, unknown> {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     target: { width: 1920, height: 400, frameRate: 30 },
     theme: {
       '--perch-fg': '#e6edf3',

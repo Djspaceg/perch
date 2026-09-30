@@ -2,7 +2,7 @@
  * What each token *means*, in words a person who is not holding this file can read.
  *
  * `tokens.ts` declares the widget vocabulary and `layout-canvas.tsx` the canvas' own two; between them
- * they are the 36 custom properties a layout's `theme` can set to any effect. Neither says
+ * they are the 35 custom properties a layout's `theme` can set to any effect. Neither says
  * `--perch-faint` is "the colour of a placeholder" anywhere a program can reach — the sentence exists,
  * but as a doc comment, which is to say as something only a reader of this package ever sees.
  *
@@ -383,17 +383,6 @@ export const PERCH_TOKEN_LABELS: Readonly<Record<KnownToken, TokenLabel>> = Obje
     optionLabels: DOWN,
     kinds: Object.freeze(['widget'] as const),
     placement: Object.freeze({ axis: 'down', pair: '--perch-readout-justify' } as const),
-  },
-
-  '--perch-media-opacity': {
-    label: 'Image opacity',
-    description: 'How strongly an image paints. 0 is invisible, 1 is solid.',
-    control: 'number',
-    group: 'appearance',
-    scope: 'widget',
-    range: Object.freeze({ min: 0, max: 1 }),
-    step: 0.05,
-    advanced: true,
   },
 
   '--perch-chart-series': {

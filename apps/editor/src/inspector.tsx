@@ -70,7 +70,14 @@
 import type { LayoutElement } from '@perch/layout-schema';
 import { assertNever } from '@perch/ui-kit';
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
-import { Collapse, ResetButton, Section, usePresence } from './controls/index.js';
+import {
+  Collapse,
+  NumberField,
+  PropertyRow,
+  ResetButton,
+  Section,
+  usePresence,
+} from './controls/index.js';
 import {
   WIDGET_LIST_ID,
   entitySections,
@@ -79,8 +86,10 @@ import {
 } from './descriptors.js';
 import type { DraftState } from './draft.js';
 import {
+  numberFromInput,
   removeElementStyleToken,
   removeThemeToken,
+  setElementOpacity,
   setElementStyleToken,
   setThemeToken,
   type LayoutUpdate,
@@ -362,10 +371,86 @@ function summarise(section: PropertySection<LayoutElement>, element: LayoutEleme
   return detail ?? name;
 }
 
+/** What the opacity row says it does. */
+const OPACITY_DESCRIPTION =
+  'How strongly this entity paints, everything in it together: 0% is invisible, 100% solid.';
+
+/** An opacity as the percentage the row shows: `0.55` is `55`. */
+function opacityPercent(opacity: number | undefined): string {
+  if (opacity === undefined) return '100';
+
+  return Number.isNaN(opacity) ? '' : String(Math.round(opacity * 10_000) / 100);
+}
+
+/**
+ * The element's own opacity, in percent, first in its Appearance.
+ *
+ * Not a token, so not stamped by the token pane: `opacity` is a field of every element kind in the
+ * format, media included. The same row, the same scrubbing label and the same bar-in-the-field as a
+ * token's number, and a reset where the element sets one. Typing 100 removes the field, as the reset
+ * does, since an absent opacity is solid.
+ */
+function OpacityRow({
+  element,
+  index,
+  onEdit,
+}: {
+  readonly element: LayoutElement;
+  readonly index: number;
+  readonly onEdit: (update: LayoutUpdate) => void;
+}): ReactNode {
+  const own = element.opacity !== undefined;
+  const value = opacityPercent(element.opacity);
+  const onValue = (text: string): void => {
+    onEdit(setElementOpacity(index, numberFromInput(text) / 100));
+  };
+
+  return (
+    <PropertyRow
+      label="Opacity"
+      description={OPACITY_DESCRIPTION}
+      source={own ? 'own' : 'default'}
+      sourceText={own ? 'set by this entity' : 'default'}
+      scrub={{ value, onChange: onValue, step: 1, min: 0, max: 100 }}
+      testId="perch-editor-prop-opacity"
+      attributes={{ 'data-perch-overridden': own ? 'true' : 'false' }}
+      end={
+        own ? (
+          <ResetButton
+            action="reset"
+            subject="Opacity"
+            returnsTo={{ source: 'default', value: '100%' }}
+            onReset={() => {
+              onEdit(setElementOpacity(index, undefined));
+            }}
+          />
+        ) : null
+      }
+    >
+      {(ids) => (
+        <NumberField
+          id={ids.controlId}
+          label="Opacity"
+          labelHidden
+          value={value}
+          onChange={onValue}
+          min={0}
+          max={100}
+          step={1}
+          unit="%"
+          bar
+          describedBy={ids.describedBy}
+        />
+      )}
+    </PropertyRow>
+  );
+}
+
 /**
  * One element's sections: Content and Transform from descriptors, then its style tokens in the
- * sections `ui-kit` groups them into. A media element carries no `style` in the format, so it gets
- * Content and Transform and a sentence saying why there is nothing else.
+ * sections `ui-kit` groups them into, with the element's opacity first in Appearance. A media element
+ * carries no `style` in the format, so it gets Content, Transform and an Appearance holding only its
+ * opacity, and a sentence saying why there is nothing else.
  *
  * The token pane is keyed by index so switching selection resets its tab and search rather than
  * carrying one element's into another's. Folded sections are remembered by name, not by index, so
@@ -401,10 +486,22 @@ function EntityPanes({
     </Section>
   ));
 
+  const opacity = <OpacityRow element={element} index={index} onEdit={onEdit} />;
+
   if (element.kind === 'media') {
     return (
       <>
         {sections}
+        {/* The id every element's Appearance folds under, so folding it here folds it there. */}
+        <Section
+          id="style/appearance"
+          title="Appearance"
+          testId="perch-editor-appearance"
+          summary={element.opacity === undefined ? undefined : '1 set'}
+          summaryActive={element.opacity !== undefined}
+        >
+          {opacity}
+        </Section>
         <p className="perch-editor-empty">
           a media element carries no style in the layout format, so it has no background, corner,
           padding or placement controls.
@@ -425,6 +522,15 @@ function EntityPanes({
       sectionsOpen={['appearance', 'placement']}
       disclosureKey="style"
       leading={sections}
+      lead={[
+        {
+          group: 'appearance',
+          label: 'Opacity',
+          description: OPACITY_DESCRIPTION,
+          set: element.opacity !== undefined,
+          row: opacity,
+        },
+      ]}
       onSet={(name, value) => {
         onEdit(setElementStyleToken(index, name, value));
       }}

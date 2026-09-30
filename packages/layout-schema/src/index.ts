@@ -42,6 +42,7 @@ export {
   type ElementKind,
   type LayoutElement,
   type MediaElement,
+  type Opacity,
   type Range,
   type TextElement,
   type WidgetElement,
