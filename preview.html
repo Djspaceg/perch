@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dense inspector panel: DESIGN.md preview</title>
+<!--
+  A static catalogue built only from DESIGN.md's front matter. Every colour, radius, spacing value
+  and type style below is a custom property generated from that file; component CSS reads only
+  these properties. No build, no framework, no network. The small script at the end demonstrates
+  disclosure, scrubbing, nudging, reset, the inline confirm, chips, tabs, segments, the colour
+  field, the popover and list reordering.
+-->
+<style>
+/* Generated from DESIGN.md front matter: 48 colours, 10 type styles, 7 radii, 13 spacing values. */
+:root {
+  --color-primary: #8fb7e8;
+  --color-on-primary: #eef5ff;
+  --color-primary-fill: #2a3f5c;
+  --color-primary-edge: #3b5f8c;
+  --color-canvas: #07080a;
+  --color-panel: #0f1217;
+  --color-panel-recessed: #0a0c10;
+  --color-bar: #171b23;
+  --color-bar-edge: #1f242e;
+  --color-bar-shadow: #0a0c10;
+  --color-field: #0a0c10;
+  --color-field-edge: #232933;
+  --color-field-edge-hover: #2e3542;
+  --color-hover: #1a1f28;
+  --color-row-hover: #12161c;
+  --color-popover: #151920;
+  --color-toolbar-edge: #1b2028;
+  --color-group-divider: #262c36;
+  --color-swatch-edge: #2a303b;
+  --color-ink: #e8f1ff;
+  --color-ink-2: #b7c2d2;
+  --color-heading: #dbe4f2;
+  --color-heading-hover: #ffffff;
+  --color-label: #8f9aab;
+  --color-quiet: #6b7889;
+  --color-faint: #4c586b;
+  --color-fill-bar: #22344d;
+  --color-own: #6f9fd8;
+  --color-own-text: #9cc2ee;
+  --color-inherited: #b8955c;
+  --color-inherited-text: #c9ad7d;
+  --color-danger: #e8a08f;
+  --color-danger-fill: #2a1414;
+  --color-danger-strong: #ffc2b4;
+  --color-danger-surface: #1a0e0e;
+  --color-danger-edge: #5e2323;
+  --color-success: #7ee2a8;
+  --color-success-fill: #10241a;
+  --color-success-edge: #23503a;
+  --color-warning: #e8c98f;
+  --color-warning-fill: #261e10;
+  --color-warning-edge: #5e4a23;
+  --color-checker-light: #6b7889;
+  --color-checker-dark: #262c36;
+  --color-scroll-thumb: #2e3542;
+  --color-scroll-track: #0a0c10;
+  --color-focus-ring: #8fb7e8;
+  --color-popover-shadow: rgba(0, 0, 0, 0.55);
+  --rounded-none: 0px;
+  --rounded-xs: 2px;
+  --rounded-sm: 3px;
+  --rounded-md: 4px;
+  --rounded-search: 9px;
+  --rounded-pill: 999px;
+  --rounded-full: 50%;
+  --spacing-xxs: 2px;
+  --spacing-xs: 3px;
+  --spacing-gap: 4px;
+  --spacing-sm: 6px;
+  --spacing-pad-x: 8px;
+  --spacing-md: 10px;
+  --spacing-lg: 12px;
+  --spacing-xl: 16px;
+  --spacing-control: 18px;
+  --spacing-field-height: 20px;
+  --spacing-row-height: 22px;
+  --spacing-label-column: 38%;
+  --spacing-sidebar-width: 420px;
+  --typography-group-title-fontSize: 10.5px;
+  --typography-section-title-fontSize: 11.5px;
+  --typography-body-fontSize: 11.5px;
+  --typography-number-fontSize: 11.5px;
+  --typography-caption-fontSize: 10.5px;
+  --typography-help-fontSize: 10.5px;
+  --typography-mono-fontSize: 10.5px;
+  --typography-title-fontSize: 13px;
+  --typography-toolbar-fontSize: 12px;
+  --typography-toolbar-strong-fontSize: 12px;
+}
+.t-group-title { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10.5px; font-weight: 700; line-height: normal; letter-spacing: 0.1em; }
+.t-section-title { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11.5px; font-weight: 600; line-height: normal; letter-spacing: normal; }
+.t-body { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11.5px; font-weight: 400; line-height: normal; letter-spacing: normal; }
+.t-number { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11.5px; font-weight: 400; line-height: normal; letter-spacing: normal; font-feature-settings: "tnum"; }
+.t-caption { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10.5px; font-weight: 400; line-height: normal; letter-spacing: normal; }
+.t-help { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10.5px; font-weight: 400; line-height: 1.45; letter-spacing: normal; }
+.t-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; font-weight: 400; line-height: normal; letter-spacing: normal; }
+.t-title { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13px; font-weight: 600; line-height: normal; letter-spacing: normal; }
+.t-toolbar { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 12px; font-weight: 400; line-height: normal; letter-spacing: normal; }
+.t-toolbar-strong { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 12px; font-weight: 600; line-height: normal; letter-spacing: normal; }
+@media (prefers-reduced-motion: reduce) { :root { --motion-duration: 0ms; } }
+:root { --motion-duration: 180ms; --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  scrollbar-color: var(--color-scroll-thumb) var(--color-scroll-track); scrollbar-width: thin; }
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; background: var(--color-canvas); color: var(--color-ink); }
+body { font-family: ui-sans-serif, system-ui, sans-serif; font-size: var(--typography-body-fontSize); padding: var(--spacing-xl); }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+.lede { color: var(--color-quiet); margin: 0 0 var(--spacing-xl); max-width: 70ch; line-height: 1.45; }
+.cat { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 24px; align-items: start; }
+.card { margin: 0 0 var(--spacing-xl); }
+.card > h2 { font-size: 12px; font-weight: 600; color: var(--color-ink-2); margin: 0 0 var(--spacing-sm); }
+.card > p { color: var(--color-quiet); margin: 0 0 var(--spacing-sm); font-size: var(--typography-caption-fontSize); }
+.strip { display: flex; flex-wrap: wrap; gap: var(--spacing-md); align-items: center; padding: var(--spacing-md); background: var(--color-panel); border: 1px solid var(--color-toolbar-edge); border-radius: var(--rounded-md); }
+.state { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.state > small { color: var(--color-faint); font-size: 10px; }
+
+/* swatches and type */
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--spacing-sm); }
+.chipc { display: flex; align-items: center; gap: var(--spacing-sm); font-size: var(--typography-caption-fontSize); color: var(--color-ink-2); }
+.chipc i { flex: none; width: 28px; height: 20px; border-radius: var(--rounded-sm); border: 1px solid var(--color-swatch-edge); }
+.chipc code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--color-quiet); }
+.types > div { display: grid; grid-template-columns: 150px 1fr; gap: var(--spacing-md); align-items: baseline; padding: 3px 0; border-bottom: 1px solid var(--color-bar-edge); }
+.types code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; color: var(--color-quiet); }
+
+/* panel */
+.panel { width: 420px; background: var(--color-panel); border-left: 1px solid var(--color-toolbar-edge); color: var(--color-ink); max-height: 900px; overflow-y: scroll; overflow-x: hidden; scrollbar-gutter: stable; }
+.group-bar { display: flex; align-items: baseline; gap: var(--spacing-pad-x); padding: 6px var(--spacing-pad-x) 5px; background: var(--color-panel-recessed); }
+.group-bar h2 { margin: 0; color: var(--color-ink-2); text-transform: uppercase; }
+.group-bar .hint { color: var(--color-faint); }
+.group-bar .push { margin-left: auto; }
+.group + .group { border-top: 1px solid var(--color-group-divider); }
+.section-bar { display: flex; align-items: center; gap: var(--spacing-sm); min-height: var(--spacing-row-height); padding-right: var(--spacing-pad-x); background: var(--color-bar); border-top: 1px solid var(--color-bar-edge); border-bottom: 1px solid var(--color-bar-shadow); }
+.section-bar h3 { flex: 1 0 auto; margin: 0; font: inherit; }
+.toggle { display: flex; align-items: center; gap: var(--spacing-sm); width: 100%; min-height: calc(var(--spacing-row-height) - 1px); border: 0; background: none; color: var(--color-heading); padding: 0 0 0 var(--spacing-sm); cursor: pointer; text-align: left; }
+.toggle::before { content: ''; width: 0; height: 0; border-style: solid; border-width: 4px 0 4px 6px; border-color: transparent transparent transparent var(--color-quiet); transition: transform 80ms ease-out; }
+.toggle[aria-expanded='true']::before { transform: rotate(90deg); }
+.toggle:hover, .toggle.is-hover { color: var(--color-heading-hover); }
+.summary { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-quiet); font-variant-numeric: tabular-nums; }
+.summary.set { color: var(--color-own-text); }
+.collapse { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--motion-duration) var(--motion-ease); }
+.collapse.shut { grid-template-rows: 0fr; }
+.collapse > .clip { min-height: 0; overflow: hidden; transition: opacity var(--motion-duration) var(--motion-ease); }
+.collapse.shut > .clip { opacity: 0; }
+.collapse.open > .clip { overflow: visible; }
+.body { display: flex; flex-direction: column; padding: 3px 0 5px; }
+
+/* row */
+.row { position: relative; display: grid; grid-template-columns: var(--spacing-label-column) minmax(0, 1fr) var(--spacing-control); column-gap: var(--spacing-sm); align-items: center; min-height: var(--spacing-row-height); padding: 1px var(--spacing-gap) 1px var(--spacing-pad-x); color: var(--color-label); }
+.row:hover, .row.is-hover { background: var(--color-row-hover); }
+.row .label { position: relative; display: flex; justify-content: flex-end; min-width: 0; padding-left: 10px; }
+.row .label span, .row .label label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .label.scrub { cursor: ew-resize; }
+.row[data-source='set'] .label { color: var(--color-own-text); }
+.row[data-source='inherited'] .label { color: var(--color-inherited-text); }
+.mark { position: absolute; left: 0; top: 50%; width: 6px; height: 6px; border-radius: var(--rounded-full); transform: translateY(-50%); }
+.row[data-source='set'] .mark { background: var(--color-own); }
+.row[data-source='inherited'] .mark { border: 1.5px solid var(--color-inherited); }
+.value { display: flex; align-items: center; gap: var(--spacing-gap); min-width: 0; }
+.end { display: flex; justify-content: center; }
+
+/* fields */
+.field { flex: 1 1 auto; min-width: 0; height: var(--spacing-field-height); border: 1px solid var(--color-field-edge); border-radius: var(--rounded-sm); background: var(--color-field); color: var(--color-ink); font: inherit; padding: 0 var(--spacing-sm); }
+.field:hover, .field.is-hover { border-color: var(--color-field-edge-hover); }
+.field:focus, .field.is-focus { outline: none; border-color: var(--color-primary); }
+.field[aria-invalid='true'] { border-color: var(--color-danger); }
+.field:disabled { color: var(--color-faint); border-color: var(--color-bar-edge); cursor: not-allowed; }
+.field.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--typography-mono-fontSize); }
+select.field { padding: 0 2px; }
+.reason { color: var(--color-danger); grid-column: 2 / 4; padding: 1px 0 2px; }
+.num { position: relative; flex: 1 1 0; display: flex; align-items: center; min-width: 0; height: var(--spacing-field-height); border: 1px solid var(--color-field-edge); border-radius: var(--rounded-sm); background: var(--color-field); overflow: hidden; }
+.num:hover { border-color: var(--color-field-edge-hover); }
+.num:focus-within { border-color: var(--color-primary); }
+.num.bar { background: linear-gradient(90deg, var(--color-fill-bar) 0 var(--fill, 0%), var(--color-field) var(--fill, 0%)); }
+.num input { flex: 1 1 auto; min-width: 0; height: 100%; border: 0; background: transparent; color: var(--color-ink); font: inherit; font-variant-numeric: tabular-nums; padding: 0 4px 0 6px; cursor: ew-resize; }
+.num input:focus { outline: none; cursor: text; }
+.num .unit { flex: none; padding-right: var(--spacing-sm); color: var(--color-faint); pointer-events: none; }
+body.scrubbing, body.scrubbing * { cursor: ew-resize !important; user-select: none !important; }
+
+/* segmented */
+.seg { flex: 1 1 auto; display: flex; min-width: 0; height: var(--spacing-field-height); border: 1px solid var(--color-field-edge); border-radius: var(--rounded-sm); background: var(--color-field); overflow: hidden; }
+.seg button { flex: 1 1 0; min-width: 0; border: 0; border-left: 1px solid var(--color-toolbar-edge); background: none; color: var(--color-label); font: inherit; padding: 0 var(--spacing-gap); cursor: pointer; }
+.seg button:first-child { border-left: 0; }
+.seg button:hover { background: var(--color-hover); color: var(--color-ink); }
+.seg button[aria-checked='true'] { background: var(--color-primary-fill); color: var(--color-on-primary); }
+.seg button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
+
+/* buttons */
+.btn { border: 1px solid var(--color-field-edge); border-radius: var(--rounded-sm); background: var(--color-bar); color: var(--color-ink-2); font: inherit; height: var(--spacing-field-height); padding: 0 var(--spacing-md); cursor: pointer; }
+.btn:hover, .btn.is-hover { color: var(--color-ink); border-color: var(--color-field-edge-hover); }
+.btn:disabled { color: var(--color-faint); cursor: not-allowed; border-color: var(--color-field-edge); }
+.btn.primary { background: var(--color-success-fill); color: var(--color-success); border-color: var(--color-success-edge); height: auto; padding: 3px var(--spacing-md); }
+.btn:focus-visible, .icon:focus-visible, .chip:focus-visible, .swatch:focus-visible, .word:focus-visible, .list button:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 0; }
+.icon { display: inline-flex; align-items: center; justify-content: center; width: var(--spacing-control); height: var(--spacing-control); border: 0; border-radius: var(--rounded-sm); background: none; padding: 0; cursor: pointer; color: var(--color-primary); font-size: 13px; line-height: 1; }
+.icon:hover, .icon.is-hover { background: var(--color-hover); color: var(--color-ink); }
+.icon.danger { color: var(--color-danger); }
+.icon.danger:hover, .icon.danger.is-hover { background: var(--color-danger-fill); color: var(--color-danger-strong); }
+.confirm-wrap { position: absolute; right: var(--spacing-gap); top: 50%; transform: translateY(-50%); z-index: 2; }
+.confirm { display: inline-flex; align-items: center; gap: var(--spacing-gap); padding: 1px 2px 1px var(--spacing-sm); border: 1px solid var(--color-danger-edge); border-radius: var(--rounded-sm); background: var(--color-danger-surface); color: var(--color-danger); white-space: nowrap; }
+.word { height: 16px; border: 1px solid var(--color-field-edge); border-radius: var(--rounded-sm); background: var(--color-bar); color: var(--color-ink-2); font: inherit; padding: 0 var(--spacing-sm); cursor: pointer; }
+.word.del { border-color: var(--color-danger-edge); background: var(--color-danger-fill); color: var(--color-danger); }
+
+/* chips and search */
+.search { width: 100%; max-width: 180px; height: var(--spacing-control); border: 1px solid var(--color-field-edge); border-radius: var(--rounded-search); background: var(--color-field); color: var(--color-ink); font: inherit; padding: 0 var(--spacing-pad-x) 0 20px; }
+.search:focus { outline: none; border-color: var(--color-primary); }
+.searchwrap { position: relative; display: inline-flex; width: 180px; }
+.searchwrap svg { position: absolute; left: 7px; top: 50%; transform: translateY(-50%); color: var(--color-quiet); pointer-events: none; }
+.chips { display: flex; flex-wrap: wrap; gap: var(--spacing-xs); padding: 5px var(--spacing-pad-x) 4px; }
+.chip { height: var(--spacing-control); border: 1px solid var(--color-field-edge); border-radius: var(--rounded-sm); background: var(--color-bar); color: var(--color-label); font: inherit; padding: 0 var(--spacing-pad-x); cursor: pointer; }
+.chip:hover, .chip.is-hover { color: var(--color-ink); }
+.chip[aria-pressed='true'] { border-color: var(--color-primary-edge); background: var(--color-primary-fill); color: var(--color-on-primary); }
+
+/* swatch and popover */
+.swatch { flex: 1 1 auto; min-width: 28px; height: var(--spacing-field-height); border: 1px solid var(--color-swatch-edge); border-radius: var(--rounded-sm); padding: 0; cursor: pointer;
+  background: linear-gradient(var(--c), var(--c)), repeating-conic-gradient(var(--color-checker-light) 0 25%, var(--color-checker-dark) 0 50%) 0 0 / 8px 8px; }
+.swatch:hover, .swatch.is-hover { border-color: var(--color-faint); }
+.swatch[aria-expanded='true'] { border-color: var(--color-primary); }
+.swatch.none { background: linear-gradient(to top right, transparent calc(50% - 1px), var(--color-danger) 50%, transparent calc(50% + 1px)), var(--color-popover); cursor: default; }
+.hex { flex: 0 0 78px; }
+.popover { position: absolute; z-index: 50; display: flex; flex-direction: column; gap: var(--spacing-sm); width: 208px; padding: var(--spacing-pad-x); border: 1px solid var(--color-field-edge-hover); border-radius: var(--rounded-md); background: var(--color-popover); box-shadow: 0 8px 24px var(--color-popover-shadow); }
+.popover.static { position: relative; }
+.picker { height: 132px; border-radius: var(--rounded-sm); background: linear-gradient(to top, var(--color-canvas), transparent), linear-gradient(to right, var(--color-ink), var(--color-primary)); }
+.strip12 { height: 12px; border-radius: var(--rounded-sm); }
+.hue { background: linear-gradient(90deg, var(--color-danger), var(--color-warning), var(--color-success), var(--color-primary), var(--color-own), var(--color-danger)); }
+.alpha { background: linear-gradient(90deg, transparent, var(--color-primary)), repeating-conic-gradient(var(--color-checker-light) 0 25%, var(--color-checker-dark) 0 50%) 0 0 / 8px 8px; }
+.foot { display: flex; align-items: center; gap: var(--spacing-sm); }
+.foot code { flex: 1 1 auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--typography-mono-fontSize); color: var(--color-ink-2); }
+.foot .num { flex: 0 0 108px; }
+.anchor { position: relative; }
+
+/* list */
+.list { list-style: none; margin: 0; padding: 0 var(--spacing-gap); }
+.list button { position: relative; display: flex; align-items: center; gap: var(--spacing-sm); width: 100%; height: var(--spacing-field-height); border: 0; border-radius: var(--rounded-xs); background: none; color: var(--color-label); font: inherit; text-align: left; padding: 0 var(--spacing-sm); cursor: pointer; }
+.list button:hover, .list button.is-hover { background: var(--color-hover); color: var(--color-ink); }
+.list button[aria-current='true'] { background: var(--color-primary-fill); color: var(--color-ink); }
+.list button:focus-visible { outline-offset: -2px; }
+.list .ix { flex: 0 0 1.4em; text-align: right; font-variant-numeric: tabular-nums; color: var(--color-faint); }
+.list .kind { flex: 0 0 3.6em; color: var(--color-quiet); }
+.list .sum { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.list button.drop::after { content: ''; position: absolute; left: 2px; right: 2px; top: -1px; height: 2px; border-radius: 1px; background: var(--color-primary); }
+
+/* status */
+.status { display: inline-flex; align-items: center; gap: 5px; color: var(--color-ink-2); }
+.dot { width: 7px; height: 7px; border-radius: var(--rounded-full); background: var(--color-faint); }
+.dot.working { background: var(--color-inherited); } .dot.good { background: var(--color-success); } .dot.lost { background: var(--color-danger); }
+.status.lost { color: var(--color-danger); }
+.badge { border: 1px solid var(--color-warning-edge); border-radius: var(--rounded-pill); background: var(--color-warning-fill); color: var(--color-warning); padding: 1px var(--spacing-pad-x); }
+
+/* tabs */
+.tabs { display: flex; align-items: flex-end; gap: var(--spacing-pad-x); padding: 4px var(--spacing-pad-x) 0; background: var(--color-panel-recessed); border-bottom: 1px solid var(--color-field-edge); }
+.tabs [role='tablist'] { display: flex; gap: 1px; }
+.tab { margin-bottom: -1px; height: var(--spacing-row-height); border: 1px solid transparent; border-bottom: 0; border-radius: var(--rounded-sm) var(--rounded-sm) 0 0; background: transparent; color: var(--color-quiet); font: inherit; padding: 0 var(--spacing-lg); cursor: pointer; }
+.tab:hover { color: var(--color-ink-2); }
+.tab[aria-selected='true'] { height: calc(var(--spacing-row-height) + 1px); border-color: var(--color-field-edge); background: var(--color-panel); color: var(--color-ink); }
+.tab:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -3px; }
+.tabs .trail { flex: 1 1 auto; display: flex; justify-content: flex-end; padding-bottom: 3px; }
+.help { margin: 0; padding: 5px var(--spacing-pad-x); color: var(--color-quiet); }
+.toggle:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
+.sel { display: flex; align-items: center; gap: var(--spacing-pad-x); padding: 4px var(--spacing-pad-x) 6px; background: var(--color-panel-recessed); position: relative; }
+.sel .tile { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: var(--rounded-md); background: var(--color-primary-fill); }
+.sel .txt { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+.sel .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel .meta { color: var(--color-quiet); }
+</style>
+</head>
+<body>
+<h1>Dense inspector panel</h1>
+<p class="lede">The catalogue for <code>DESIGN.md</code>. Everything here is drawn from its tokens. Try dragging a row label or typing into fields, and use the arrow keys (hold Shift for ×10). Fold sections, press a reset (↺) or the trash can, click the chips, tabs and segments, or type a colour. Alt+Up and Alt+Down reorder the list.</p>
+
+<div class="cat">
+<!-- A composed panel -->
+<aside class="panel" aria-label="inspector">
+  <section class="group" aria-labelledby="g1">
+    <div class="group-bar"><h2 id="g1" class="t-group-title">Global</h2><span class="hint t-caption">the whole document</span></div>
+    <div class="tabs">
+      <div role="tablist" aria-label="token view" id="tabs">
+        <button role="tab" class="tab t-body" aria-selected="true" tabindex="0">Customize</button>
+        <button role="tab" class="tab t-body" aria-selected="false" tabindex="-1">Developer</button>
+      </div>
+      <div class="trail"><span class="searchwrap"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><circle cx="4" cy="4" r="3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6.3 6.3 9 9" stroke="currentColor" stroke-width="1.3"/></svg><input class="search t-caption" type="search" placeholder="Search" aria-label="search properties" id="search"></span></div>
+    </div>
+    <div class="chips" role="group" aria-label="filter by section" id="chips">
+      <button class="chip t-caption" aria-pressed="true">All</button><button class="chip t-caption" aria-pressed="false">Appearance</button><button class="chip t-caption" aria-pressed="false">Text</button><button class="chip t-caption" aria-pressed="false">Placement</button>
+    </div>
+
+    <section class="sect" aria-labelledby="s1h">
+      <div class="section-bar t-section-title"><h3 id="s1h"><button class="toggle t-section-title" aria-expanded="true" aria-controls="s1b">Appearance</button></h3><span class="summary set t-caption" title="2 set">2 set</span></div>
+      <div class="collapse open" id="s1b"><div class="clip"><div class="body">
+        <div class="row t-body" data-source="set" id="opacityRow">
+          <div class="label scrub" data-scrub="opacity"><i class="mark" aria-hidden="true"></i><label for="opacity" title="How strongly this paints: 0% is invisible, 100% solid.">Opacity</label><span class="sr" id="opacitySrc">set here</span></div>
+          <div class="value"><span class="num bar" id="opacityWrap"><input id="opacity" role="spinbutton" inputmode="decimal" value="55" aria-valuemin="0" aria-valuemax="100" aria-describedby="opacitySrc" data-min="0" data-max="100" data-step="1" class="t-number"><span class="unit t-caption" aria-hidden="true">%</span></span></div>
+          <div class="end"><button class="icon" id="opacityReset" aria-label="reset Opacity to the default 100%" title="reset Opacity to the default 100%"><span aria-hidden="true">↺</span></button></div>
+        </div>
+        <div class="row t-body" data-source="inherited">
+          <div class="label"><i class="mark" aria-hidden="true"></i><label for="fillHex">Fill</label><span class="sr" id="fillSrc">inherited from the parent</span></div>
+          <div class="value anchor">
+            <button class="swatch" id="fillSwatch" style="--c: #8fb7e880" aria-haspopup="dialog" aria-expanded="false" aria-label="open colour picker for Fill" title="open colour picker for Fill"></button>
+            <input class="field mono hex" id="fillHex" value="#8fb7e880" aria-describedby="fillSrc" spellcheck="false">
+            <div class="popover" id="fillPop" role="dialog" aria-label="Fill colour" hidden>
+              <div class="picker"></div><div class="strip12 hue"></div><div class="strip12 alpha"></div>
+              <div class="foot"><code id="fillPopHex">#8fb7e880</code><span class="num bar" style="--fill: 50%"><input aria-label="opacity" value="50" class="t-number"><span class="unit t-caption" aria-hidden="true">%</span></span></div>
+            </div>
+          </div>
+          <div class="end"></div>
+        </div>
+        <div class="row t-body" data-source="default">
+          <div class="label"><label for="lineHeight">Line height</label></div>
+          <div class="value"><span class="num"><input id="lineHeight" role="spinbutton" inputmode="decimal" value="1.25" data-step="0.01" class="t-number"></span></div>
+          <div class="end"></div>
+        </div>
+        <div class="row t-body" data-source="default">
+          <div class="label"><span id="fitLabel">Fit</span></div>
+          <div class="value"><div class="seg t-caption" role="radiogroup" aria-labelledby="fitLabel" id="seg"><button role="radio" aria-checked="true" tabindex="0">cover</button><button role="radio" aria-checked="false" tabindex="-1">contain</button><button role="radio" aria-checked="false" tabindex="-1">fill</button></div></div>
+          <div class="end"></div>
+        </div>
+      </div></div></div>
+    </section>
+
+    <section class="sect" aria-labelledby="s2h">
+      <div class="section-bar t-section-title"><h3 id="s2h"><button class="toggle t-section-title" aria-expanded="false" aria-controls="s2b">Transform</button></h3><span class="summary t-caption" title="10, 20 · 300 × 80">10, 20 · 300 × 80</span></div>
+      <div class="collapse shut" id="s2b" hidden inert aria-hidden="true"><div class="clip"><div class="body">
+        <div class="row t-body" data-source="default">
+          <div class="label scrub" data-scrub="x"><label for="x">X</label></div>
+          <div class="value"><span class="num"><input id="x" role="spinbutton" value="10" class="t-number"><span class="unit t-caption" aria-hidden="true">px</span></span></div><div class="end"></div>
+        </div>
+        <div class="row t-body" data-source="default">
+          <div class="label"><label for="name">Name</label></div>
+          <div class="value"><input class="field t-body" id="name" value="a long name that truncates rather than widening the panel" aria-invalid="false"></div><div class="end"></div>
+        </div>
+      </div></div></div>
+    </section>
+    <p class="help t-help"><span style="color: var(--color-own)">●</span> set here &nbsp; <span style="color: var(--color-inherited)">○</span> set by the parent &nbsp; ↺ resets to what is underneath</p>
+  </section>
+
+  <section class="group" aria-labelledby="g2">
+    <div class="group-bar"><h2 id="g2" class="t-group-title">Selected item</h2><span class="push"><button class="btn t-caption"><span style="color: var(--color-success); font-weight: 700">+</span> Add</button></span></div>
+    <div class="sel" id="selRow">
+      <span class="tile" aria-hidden="true">◧</span>
+      <span class="txt"><span class="name t-title">Temperature readout</span><span class="meta t-mono">widget · item 3</span></span>
+      <button class="icon danger" id="del" aria-label="delete Temperature readout. everything set on it goes." title="delete Temperature readout. everything set on it goes."><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.25h11"/><path d="M6 4.25V2.75a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 .75.75v1.5"/><path d="M3.75 4.25l.7 8.85a1 1 0 0 0 1 .9h5.1a1 1 0 0 0 1-.9l.7-8.85"/><path d="M6.75 7v4.25M9.25 7v4.25"/></svg></button>
+      <div class="confirm-wrap collapse shut" id="confirmWrap" hidden inert aria-hidden="true"><div class="clip"><span class="confirm t-caption" role="group" aria-label="delete Temperature readout?"><span>delete?</span><button class="word del t-caption" id="confirmDel">delete</button><button class="word t-caption" id="confirmKeep">keep</button></span></div></div>
+    </div>
+    <section class="sect" aria-labelledby="s3h">
+      <div class="section-bar t-section-title"><h3 id="s3h"><button class="toggle t-section-title" aria-expanded="true" aria-controls="s3b">Items</button></h3><span class="summary t-caption">4 · topmost first</span></div>
+      <div class="collapse open" id="s3b"><div class="clip"><div class="body">
+        <ul class="list t-caption" id="list">
+          <li><button data-i="3" aria-current="true" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"><span class="ix">3</span><span class="kind">widget</span><span class="sum">Temperature readout</span></button></li>
+          <li><button data-i="2" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"><span class="ix">2</span><span class="kind">chart</span><span class="sum">Load over the last minute</span></button></li>
+          <li><button data-i="1" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"><span class="ix">1</span><span class="kind">text</span><span class="sum">A title in the top left</span></button></li>
+          <li><button data-i="0" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"><span class="ix">0</span><span class="kind">media</span><span class="sum">background.mp4</span></button></li>
+        </ul>
+      </div></div></div>
+    </section>
+  </section>
+</aside>
+
+<!-- The catalogue -->
+<main>
+  <div class="card"><h2>Colours</h2><div class="swatches"><div class="chipc"><i style="background: var(--color-primary)"></i><span>primary<br><code>#8fb7e8</code></span></div>
+<div class="chipc"><i style="background: var(--color-on-primary)"></i><span>on-primary<br><code>#eef5ff</code></span></div>
+<div class="chipc"><i style="background: var(--color-primary-fill)"></i><span>primary-fill<br><code>#2a3f5c</code></span></div>
+<div class="chipc"><i style="background: var(--color-primary-edge)"></i><span>primary-edge<br><code>#3b5f8c</code></span></div>
+<div class="chipc"><i style="background: var(--color-canvas)"></i><span>canvas<br><code>#07080a</code></span></div>
+<div class="chipc"><i style="background: var(--color-panel)"></i><span>panel<br><code>#0f1217</code></span></div>
+<div class="chipc"><i style="background: var(--color-panel-recessed)"></i><span>panel-recessed<br><code>#0a0c10</code></span></div>
+<div class="chipc"><i style="background: var(--color-bar)"></i><span>bar<br><code>#171b23</code></span></div>
+<div class="chipc"><i style="background: var(--color-bar-edge)"></i><span>bar-edge<br><code>#1f242e</code></span></div>
+<div class="chipc"><i style="background: var(--color-bar-shadow)"></i><span>bar-shadow<br><code>#0a0c10</code></span></div>
+<div class="chipc"><i style="background: var(--color-field)"></i><span>field<br><code>#0a0c10</code></span></div>
+<div class="chipc"><i style="background: var(--color-field-edge)"></i><span>field-edge<br><code>#232933</code></span></div>
+<div class="chipc"><i style="background: var(--color-field-edge-hover)"></i><span>field-edge-hover<br><code>#2e3542</code></span></div>
+<div class="chipc"><i style="background: var(--color-hover)"></i><span>hover<br><code>#1a1f28</code></span></div>
+<div class="chipc"><i style="background: var(--color-row-hover)"></i><span>row-hover<br><code>#12161c</code></span></div>
+<div class="chipc"><i style="background: var(--color-popover)"></i><span>popover<br><code>#151920</code></span></div>
+<div class="chipc"><i style="background: var(--color-toolbar-edge)"></i><span>toolbar-edge<br><code>#1b2028</code></span></div>
+<div class="chipc"><i style="background: var(--color-group-divider)"></i><span>group-divider<br><code>#262c36</code></span></div>
+<div class="chipc"><i style="background: var(--color-swatch-edge)"></i><span>swatch-edge<br><code>#2a303b</code></span></div>
+<div class="chipc"><i style="background: var(--color-ink)"></i><span>ink<br><code>#e8f1ff</code></span></div>
+<div class="chipc"><i style="background: var(--color-ink-2)"></i><span>ink-2<br><code>#b7c2d2</code></span></div>
+<div class="chipc"><i style="background: var(--color-heading)"></i><span>heading<br><code>#dbe4f2</code></span></div>
+<div class="chipc"><i style="background: var(--color-heading-hover)"></i><span>heading-hover<br><code>#ffffff</code></span></div>
+<div class="chipc"><i style="background: var(--color-label)"></i><span>label<br><code>#8f9aab</code></span></div>
+<div class="chipc"><i style="background: var(--color-quiet)"></i><span>quiet<br><code>#6b7889</code></span></div>
+<div class="chipc"><i style="background: var(--color-faint)"></i><span>faint<br><code>#4c586b</code></span></div>
+<div class="chipc"><i style="background: var(--color-fill-bar)"></i><span>fill-bar<br><code>#22344d</code></span></div>
+<div class="chipc"><i style="background: var(--color-own)"></i><span>own<br><code>#6f9fd8</code></span></div>
+<div class="chipc"><i style="background: var(--color-own-text)"></i><span>own-text<br><code>#9cc2ee</code></span></div>
+<div class="chipc"><i style="background: var(--color-inherited)"></i><span>inherited<br><code>#b8955c</code></span></div>
+<div class="chipc"><i style="background: var(--color-inherited-text)"></i><span>inherited-text<br><code>#c9ad7d</code></span></div>
+<div class="chipc"><i style="background: var(--color-danger)"></i><span>danger<br><code>#e8a08f</code></span></div>
+<div class="chipc"><i style="background: var(--color-danger-fill)"></i><span>danger-fill<br><code>#2a1414</code></span></div>
+<div class="chipc"><i style="background: var(--color-danger-strong)"></i><span>danger-strong<br><code>#ffc2b4</code></span></div>
+<div class="chipc"><i style="background: var(--color-danger-surface)"></i><span>danger-surface<br><code>#1a0e0e</code></span></div>
+<div class="chipc"><i style="background: var(--color-danger-edge)"></i><span>danger-edge<br><code>#5e2323</code></span></div>
+<div class="chipc"><i style="background: var(--color-success)"></i><span>success<br><code>#7ee2a8</code></span></div>
+<div class="chipc"><i style="background: var(--color-success-fill)"></i><span>success-fill<br><code>#10241a</code></span></div>
+<div class="chipc"><i style="background: var(--color-success-edge)"></i><span>success-edge<br><code>#23503a</code></span></div>
+<div class="chipc"><i style="background: var(--color-warning)"></i><span>warning<br><code>#e8c98f</code></span></div>
+<div class="chipc"><i style="background: var(--color-warning-fill)"></i><span>warning-fill<br><code>#261e10</code></span></div>
+<div class="chipc"><i style="background: var(--color-warning-edge)"></i><span>warning-edge<br><code>#5e4a23</code></span></div>
+<div class="chipc"><i style="background: var(--color-checker-light)"></i><span>checker-light<br><code>#6b7889</code></span></div>
+<div class="chipc"><i style="background: var(--color-checker-dark)"></i><span>checker-dark<br><code>#262c36</code></span></div>
+<div class="chipc"><i style="background: var(--color-scroll-thumb)"></i><span>scroll-thumb<br><code>#2e3542</code></span></div>
+<div class="chipc"><i style="background: var(--color-scroll-track)"></i><span>scroll-track<br><code>#0a0c10</code></span></div>
+<div class="chipc"><i style="background: var(--color-focus-ring)"></i><span>focus-ring<br><code>#8fb7e8</code></span></div>
+<div class="chipc"><i style="background: var(--color-popover-shadow)"></i><span>popover-shadow<br><code>rgba(0, 0, 0, 0.55)</code></span></div></div></div>
+  <div class="card"><h2>Type</h2><div class="types"><div><code>group-title<br>10.5px / 700</code><span class="t-group-title" style="text-transform: uppercase">Opacity 55% · Selected item 0123456789</span></div>
+<div><code>section-title<br>11.5px / 600</code><span class="t-section-title">Opacity 55% · Selected item 0123456789</span></div>
+<div><code>body<br>11.5px / 400</code><span class="t-body">Opacity 55% · Selected item 0123456789</span></div>
+<div><code>number<br>11.5px / 400</code><span class="t-number">Opacity 55% · Selected item 0123456789</span></div>
+<div><code>caption<br>10.5px / 400</code><span class="t-caption">Opacity 55% · Selected item 0123456789</span></div>
+<div><code>help<br>10.5px / 400</code><span class="t-help">Opacity 55% · Selected item 0123456789</span></div>
+<div><code>mono<br>10.5px / 400</code><span class="t-mono">Opacity 55% · Selected item 0123456789</span></div>
+<div><code>title<br>13px / 600</code><span class="t-title">Opacity 55% · Selected item 0123456789</span></div>
+<div><code>toolbar<br>12px / 400</code><span class="t-toolbar">Opacity 55% · Selected item 0123456789</span></div>
+<div><code>toolbar-strong<br>12px / 600</code><span class="t-toolbar-strong">Opacity 55% · Selected item 0123456789</span></div></div></div>
+
+  <div class="card"><h2>Property row</h2><p>Default, hover, set here (filled mark and reset), inherited (hollow ring), invalid with a reason.</p>
+    <div class="panel" style="max-height: none; overflow: visible">
+      <div class="row t-body"><div class="label"><span>Default</span></div><div class="value"><input class="field t-body" value="plain" aria-label="default"></div><div class="end"></div></div>
+      <div class="row t-body is-hover"><div class="label"><span>Hover</span></div><div class="value"><input class="field t-body" value="row fills" aria-label="hover"></div><div class="end"></div></div>
+      <div class="row t-body" data-source="set"><div class="label"><i class="mark" aria-hidden="true"></i><span>Set here</span></div><div class="value"><input class="field t-body" value="12" aria-label="set here"></div><div class="end"><button class="icon" aria-label="reset to the default 0" title="reset to the default 0"><span aria-hidden="true">↺</span></button></div></div>
+      <div class="row t-body" data-source="inherited"><div class="label"><i class="mark" aria-hidden="true"></i><span>Inherited</span></div><div class="value"><input class="field t-body" value="8" aria-label="inherited"></div><div class="end"></div></div>
+      <div class="row t-body"><div class="label"><span>Invalid</span></div><div class="value"><input class="field t-body" value="12q" aria-invalid="true" aria-label="invalid" aria-describedby="why"></div><div class="end"></div><div class="reason t-caption" id="why">"12q" is not a number</div></div>
+    </div></div>
+
+  <div class="card"><h2>Text and number field</h2><div class="strip">
+    <div class="state"><small>default</small><input class="field t-body" value="text" aria-label="default field"></div>
+    <div class="state"><small>hover</small><input class="field t-body is-hover" value="text" aria-label="hover field"></div>
+    <div class="state"><small>focus</small><input class="field t-body is-focus" value="text" aria-label="focus field"></div>
+    <div class="state"><small>invalid</small><input class="field t-body" aria-invalid="true" value="12q" aria-label="invalid field"></div>
+    <div class="state"><small>disabled</small><input class="field t-body" disabled value="text" aria-label="disabled field"></div>
+    <div class="state"><small>mono</small><input class="field mono" value="#e8f1ff" aria-label="mono field"></div>
+    <div class="state" style="width: 120px"><small>number with range</small><span class="num bar" style="--fill: 30%"><input value="30" aria-label="ranged number" class="t-number"><span class="unit t-caption" aria-hidden="true">%</span></span></div>
+    <div class="state"><small>select</small><select class="field t-body" aria-label="select"><option>left</option><option>centre</option></select></div>
+  </div></div>
+
+  <div class="card"><h2>Buttons</h2><div class="strip">
+    <div class="state"><small>primary</small><button class="btn primary t-toolbar">save</button></div>
+    <div class="state"><small>quiet</small><button class="btn t-caption">add</button></div>
+    <div class="state"><small>quiet hover</small><button class="btn t-caption is-hover">add</button></div>
+    <div class="state"><small>disabled</small><button class="btn t-caption" disabled>add</button></div>
+    <div class="state"><small>icon</small><button class="icon" aria-label="reset"><span aria-hidden="true">↺</span></button></div>
+    <div class="state"><small>icon hover</small><button class="icon is-hover" aria-label="reset"><span aria-hidden="true">↺</span></button></div>
+    <div class="state"><small>destructive</small><button class="icon danger" aria-label="delete"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4.25h11M6 4.25V2.75h4v1.5M3.75 4.25l.7 9.75h7.1l.7-9.75"/></svg></button></div>
+    <div class="state"><small>destructive hover</small><button class="icon danger is-hover" aria-label="delete"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4.25h11M6 4.25V2.75h4v1.5M3.75 4.25l.7 9.75h7.1l.7-9.75"/></svg></button></div>
+    <div class="state"><small>inline confirm</small><span class="confirm t-caption"><span>delete?</span><button class="word del t-caption">delete</button><button class="word t-caption">keep</button></span></div>
+  </div></div>
+
+  <div class="card"><h2>Chips, search, segmented</h2><div class="strip">
+    <div class="state"><small>chip / hover / pressed</small><span style="display: flex; gap: 3px"><button class="chip t-caption" aria-pressed="false">Text</button><button class="chip t-caption is-hover" aria-pressed="false">Text</button><button class="chip t-caption" aria-pressed="true">Text</button></span></div>
+    <div class="state"><small>search</small><span class="searchwrap"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><circle cx="4" cy="4" r="3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6.3 6.3 9 9" stroke="currentColor" stroke-width="1.3"/></svg><input class="search t-caption" type="search" placeholder="Search" aria-label="search sample"></span></div>
+    <div class="state" style="width: 180px"><small>segmented</small><div class="seg t-caption" role="radiogroup" aria-label="sample"><button role="radio" aria-checked="false" tabindex="-1">left</button><button role="radio" aria-checked="true" tabindex="0">centre</button><button role="radio" aria-checked="false" tabindex="-1">right</button></div></div>
+  </div></div>
+
+  <div class="card"><h2>Swatch and popover</h2><div class="strip">
+    <div class="state"><small>solid</small><button class="swatch" style="--c: #7ee2a8; width: 40px" aria-label="solid swatch"></button></div>
+    <div class="state"><small>translucent</small><button class="swatch" style="--c: #8fb7e860; width: 40px" aria-label="translucent swatch"></button></div>
+    <div class="state"><small>hover</small><button class="swatch is-hover" style="--c: #e8a08f; width: 40px" aria-label="hover swatch"></button></div>
+    <div class="state"><small>open</small><button class="swatch" aria-expanded="true" style="--c: #e8c98f; width: 40px" aria-label="open swatch"></button></div>
+    <div class="state"><small>unreadable</small><button class="swatch none" disabled style="width: 40px" aria-label="no colour to show"></button></div>
+    <div class="state"><small>popover</small><div class="popover static" role="dialog" aria-label="sample colour"><div class="picker"></div><div class="strip12 hue"></div><div class="strip12 alpha"></div><div class="foot"><code>#8fb7e880</code><span class="num bar" style="--fill: 50%"><input aria-label="opacity" value="50" class="t-number"><span class="unit t-caption" aria-hidden="true">%</span></span></div></div></div>
+  </div></div>
+
+  <div class="card"><h2>List row, status, tabs</h2><div class="strip">
+    <div class="state" style="width: 260px"><small>default / hover / selected / drop line</small><ul class="list t-caption"><li><button><span class="ix">2</span><span class="kind">chart</span><span class="sum">default</span></button></li><li><button class="is-hover"><span class="ix">1</span><span class="kind">text</span><span class="sum">hover</span></button></li><li><button aria-current="true"><span class="ix">0</span><span class="kind">media</span><span class="sum">selected</span></button></li><li><button class="drop"><span class="ix">4</span><span class="kind">text</span><span class="sum">drop line above</span></button></li></ul></div>
+    <div class="state t-toolbar"><small>status</small><span class="status"><i class="dot"></i>idle</span><span class="status"><i class="dot working"></i>connecting</span><span class="status"><i class="dot good"></i>connected</span><span class="status lost"><i class="dot lost"></i>lost</span></div>
+    <div class="state"><small>badge</small><span class="badge t-toolbar-strong">unsaved changes</span></div>
+    <div class="state" style="width: 260px"><small>tabs</small><div class="tabs"><div role="tablist" aria-label="sample tabs"><button role="tab" class="tab t-body" aria-selected="true">Selected</button><button role="tab" class="tab t-body" aria-selected="false" tabindex="-1">Quiet</button></div></div></div>
+  </div></div>
+</main>
+</div>
+
+<script>
+'use strict';
+const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const ms = (el) => parseFloat(getComputedStyle(el).transitionDuration) * (getComputedStyle(el).transitionDuration.endsWith('ms') ? 1 : 1000) || 0;
+
+// Collapse: grid rows 0fr <-> 1fr, height and opacity, inert while leaving, instant under reduced motion.
+function setOpen(region, open, focusBack) {
+  if (open) {
+    region.hidden = false; region.inert = false; region.removeAttribute('aria-hidden');
+    region.classList.add('shut'); region.classList.remove('open');
+    void region.offsetHeight;
+    region.classList.remove('shut');
+    const done = () => region.classList.add('open');
+    if (reduced() || ms(region) === 0) done(); else setTimeout(done, ms(region) + 50);
+  } else {
+    if (region.contains(document.activeElement) && focusBack) focusBack.focus();
+    region.inert = true; region.setAttribute('aria-hidden', 'true');
+    region.classList.remove('open'); region.classList.add('shut');
+    const done = () => { if (region.classList.contains('shut')) region.hidden = true; };
+    if (reduced() || ms(region) === 0) done(); else setTimeout(done, ms(region) + 50);
+  }
+}
+for (const toggle of document.querySelectorAll('.toggle')) {
+  toggle.addEventListener('click', () => {
+    const open = toggle.getAttribute('aria-expanded') !== 'true';
+    toggle.setAttribute('aria-expanded', String(open));
+    setOpen(document.getElementById(toggle.getAttribute('aria-controls')), open, toggle);
+  });
+}
+
+// Number fields: arrows step, Shift or PageUp/PageDown x10, the step inferred from written precision.
+const stepOf = (text) => { const m = /\.(\d+)\s*$/.exec(text); return m ? Number((10 ** -m[1].length).toFixed(m[1].length)) : 1; };
+const decimals = (step) => (String(step).split('.')[1] || '').length;
+function clamp(input, v) {
+  const min = input.dataset.min, max = input.dataset.max;
+  if (min !== undefined && v < Number(min)) v = Number(min);
+  if (max !== undefined && v > Number(max)) v = Number(max);
+  return v;
+}
+function write(input, v) { input.value = String(v); input.dispatchEvent(new Event('input', { bubbles: true })); }
+for (const input of document.querySelectorAll('.num input')) {
+  input.addEventListener('keydown', (e) => {
+    let dir = 0, coarse = e.shiftKey;
+    if (e.key === 'ArrowUp') dir = 1; else if (e.key === 'ArrowDown') dir = -1;
+    else if (e.key === 'PageUp') { dir = 1; coarse = true; } else if (e.key === 'PageDown') { dir = -1; coarse = true; }
+    if (!dir) return;
+    e.preventDefault();
+    const step = Number(input.dataset.step || stepOf(input.value));
+    const start = Number(input.value) || Number(input.dataset.min || 0);
+    write(input, clamp(input, Number((start + dir * step * (coarse ? 10 : 1)).toFixed(decimals(step)))));
+  });
+  input.addEventListener('input', () => {
+    const wrap = input.closest('.num');
+    if (wrap.classList.contains('bar')) {
+      const min = Number(input.dataset.min || 0), max = Number(input.dataset.max || 100), v = Number(input.value);
+      wrap.style.setProperty('--fill', Number.isFinite(v) ? `${Math.min(100, Math.max(0, ((v - min) / (max - min)) * 100))}%` : '0%');
+    }
+    if (input.hasAttribute('role')) input.setAttribute('aria-valuenow', input.value);
+  });
+  input.dispatchEvent(new Event('input'));
+}
+
+// Scrub: drag a row label (or an unfocused field) sideways. 3px dead zone, 2px per step, Shift x10.
+function scrub(handle, input, fromField) {
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || (fromField && document.activeElement === input)) return;
+    if (fromField) e.preventDefault();
+    const x0 = e.clientX, start = Number(input.value) || 0, step = Number(input.dataset.step || stepOf(input.value));
+    let moving = false;
+    const move = (m) => {
+      const d = m.clientX - x0;
+      if (!moving && Math.abs(d) < 3) return;
+      moving = true; document.body.classList.add('scrubbing');
+      write(input, clamp(input, Number((start + Math.trunc(d / 2) * step * (m.shiftKey ? 10 : 1)).toFixed(decimals(step)))));
+    };
+    const up = () => {
+      removeEventListener('pointermove', move); removeEventListener('pointerup', up);
+      document.body.classList.remove('scrubbing');
+      if (!moving && fromField) { input.focus(); input.select(); }
+      if (moving && !fromField) handle.addEventListener('click', (c) => c.preventDefault(), { once: true, capture: true });
+    };
+    addEventListener('pointermove', move); addEventListener('pointerup', up);
+  });
+}
+for (const label of document.querySelectorAll('[data-scrub]')) scrub(label, document.getElementById(label.dataset.scrub), false);
+for (const input of document.querySelectorAll('.num input')) scrub(input, input, true);
+
+// Reset: only on a set row; it returns the value underneath and the row becomes default.
+const opacity = document.getElementById('opacity'), opacityRow = document.getElementById('opacityRow'), reset = document.getElementById('opacityReset');
+opacity.addEventListener('input', () => {
+  const set = opacity.value !== '100';
+  opacityRow.dataset.source = set ? 'set' : 'default';
+  reset.hidden = !set;
+  document.getElementById('opacitySrc').textContent = set ? 'set here' : 'default';
+});
+reset.addEventListener('click', () => { write(opacity, 100); opacity.focus(); });
+
+// Destructive: the trash can asks inline, focus on the confirm; Escape or keep backs out to the can.
+const del = document.getElementById('del'), wrap = document.getElementById('confirmWrap');
+del.addEventListener('click', () => { del.hidden = true; setOpen(wrap, true); document.getElementById('confirmDel').focus(); });
+const back = () => { setOpen(wrap, false); del.hidden = false; del.focus(); };
+document.getElementById('confirmKeep').addEventListener('click', back);
+document.getElementById('confirmDel').addEventListener('click', () => { back(); document.querySelector('#selRow .name').textContent = '(deleted: undo would bring it back)'; });
+wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); back(); } });
+
+// Chips: one pressed at a time. Search: Escape clears.
+const chips = document.getElementById('chips');
+chips.addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip'); if (!chip) return;
+  for (const c of chips.children) c.setAttribute('aria-pressed', String(c === chip));
+});
+for (const s of document.querySelectorAll('.search')) s.addEventListener('keydown', (e) => { if (e.key === 'Escape' && s.value) { e.preventDefault(); s.value = ''; } });
+
+// Roving tab stops: tabs and segments wrap and choose as they move.
+function roving(group, attr) {
+  const items = [...group.children];
+  group.addEventListener('keydown', (e) => {
+    const i = items.indexOf(document.activeElement); if (i === -1) return;
+    const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    const n = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : d === undefined ? -1 : (i + d + items.length) % items.length;
+    if (n === -1) return;
+    e.preventDefault(); pick(n);
+  });
+  group.addEventListener('click', (e) => { const i = items.indexOf(e.target.closest('[role]')); if (i !== -1) pick(i); });
+  function pick(n) { items.forEach((it, k) => { it.setAttribute(attr, String(k === n)); it.tabIndex = k === n ? 0 : -1; }); items[n].focus(); }
+}
+roving(document.getElementById('tabs'), 'aria-selected');
+roving(document.getElementById('seg'), 'aria-checked');
+
+// Colour field: the swatch opens a popover; the text takes hex (3, 4, 6, 8 digits) or rgb()/rgba(), and
+// keeps anything else as typed with an empty swatch. Escape closes and refocuses the swatch; a press outside closes.
+const swatch = document.getElementById('fillSwatch'), hex = document.getElementById('fillHex'), pop = document.getElementById('fillPop');
+function readable(t) {
+  t = t.trim();
+  if (/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(t) || /^rgba?\([^()]*\)$/i.test(t) || /^hsla?\([^()]*\)$/i.test(t) || t === 'transparent') return CSS.supports('color', t) ? t : null;
+  return null;
+}
+hex.addEventListener('input', () => {
+  const c = readable(hex.value);
+  swatch.classList.toggle('none', c === null); swatch.disabled = c === null && pop.hidden;
+  if (c !== null) swatch.style.setProperty('--c', c);
+  document.getElementById('fillPopHex').textContent = hex.value;
+});
+function openPop(open, refocus) {
+  pop.hidden = !open; swatch.setAttribute('aria-expanded', String(open));
+  const verb = open ? 'close' : 'open';
+  swatch.setAttribute('aria-label', `${verb} colour picker for Fill`); swatch.title = `${verb} colour picker for Fill`;
+  if (open) { pop.style.left = '0'; pop.style.top = `${swatch.offsetHeight + 4}px`; pop.querySelector('input').focus(); }
+  else if (refocus) swatch.focus();
+}
+swatch.addEventListener('click', () => openPop(pop.hidden, false));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pop.hidden && !e.defaultPrevented) { e.preventDefault(); openPop(false, true); } });
+document.addEventListener('pointerdown', (e) => { if (!pop.hidden && !pop.contains(e.target) && !swatch.contains(e.target)) openPop(false, false); }, true);
+
+// List: click selects; Alt+ArrowUp/ArrowDown moves the focused row a layer and focus stays with it.
+const list = document.getElementById('list');
+list.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  for (const x of list.querySelectorAll('button')) x.toggleAttribute('aria-current', x === b);
+  if (b.hasAttribute('aria-current')) b.setAttribute('aria-current', 'true');
+});
+list.addEventListener('keydown', (e) => {
+  if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+  const li = e.target.closest('li'); if (!li) return;
+  e.preventDefault();
+  const other = e.key === 'ArrowUp' ? li.previousElementSibling : li.nextElementSibling;
+  if (!other) return;
+  if (e.key === 'ArrowUp') list.insertBefore(li, other); else list.insertBefore(other, li);
+  const rows = [...list.children];
+  rows.forEach((row, k) => { row.querySelector('.ix').textContent = String(rows.length - 1 - k); });
+  li.querySelector('button').focus();
+});
+</script>
+</body>
+</html>
