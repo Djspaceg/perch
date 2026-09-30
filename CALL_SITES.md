@@ -637,3 +637,23 @@ moved — what follows is what now exists to be called, and what a change to it 
 - `backgrounds` (new): desktop `main.ts`, `backgrounds.ts`, `runner.ts`, `editor.ts` (Node half);
   runtime `main.tsx`, editor `main.tsx`, `background-picker.tsx` (browser half);
   `tools/backgrounds-dev.mjs`, mounted by both `vite.config.ts` (Node half, lazily).
+
+## Layers, per-element opacity and alpha colours: every call site of the `packages/*` symbols touched
+
+- `layout-schema` `LAYOUT_SCHEMA_VERSION` (2 -> 3): editor `editor-host.ts` `blankLayoutLike` (stamps
+  New); `validateLayout` / `loadLayout` defaults. Tests building documents use the constant.
+- `layout-schema` `LAYOUT_MIGRATIONS` (+ `2 -> 3`): reached only through `loadLayout`/`loadLayoutJson`:
+  runtime `app.tsx` (bundled layouts and the desktop document), editor `open-layout.ts`
+  (`openLayoutByName`, `openLayoutEntry`), runtime `layouts.test.ts`, `layout-opacity.test.tsx`. The
+  desktop main process never parses a layout. Saving writes v3 only on the author's save.
+- `layout-schema` element types (+ `opacity`) and `validateElement`: every `validateLayout` caller
+  (editor `draft.ts` on each edit, `save.ts`); readers of `opacity`: ui-kit `layout-canvas.tsx`
+  `elementStyle`, editor `inspector.tsx` `OpacityRow`, `layout-edits.ts` `setElementOpacity`.
+- `ui-kit` `LayoutCanvas` (writes `opacity` on the box): runtime `app.tsx` `Page`, editor `preview.tsx`
+  `LayoutPreview`. No other renderer.
+- `ui-kit` `MEDIA_FRAME_STYLES` (no opacity rule): runtime `app.tsx`, editor `app.tsx`.
+- `ui-kit` `PERCH_TOKEN_DEFAULTS` / `PERCH_TOKENS` / `PERCH_TOKEN_LABELS` / `PERCH_KNOWN_TOKENS`
+  (`--perch-media-opacity` removed): editor `token-pane.tsx` (`tokensFor`, `stateOf`, sections),
+  `descriptors.ts` (`tokenSpec`), ui-kit `layout-canvas.tsx` `resolveBoxToken`, `tokens.ts` `token()`.
+- `ui-kit` `TokenLabel` (`alpha` flag removed): editor `descriptors.ts` `tokenSpec`, `token-pane.tsx`
+  `DeveloperRow` (both read it before; neither does now). No other reader.

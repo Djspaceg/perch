@@ -5092,3 +5092,42 @@ File capture refused this worktree: logs are notes, the PNGs stay in .evidence/.
 ## Residuals
 
 The size probe sent two HEADs per size instead of one. Test traffic: about 18 HEADs, 5 whole videos, 35 thumbnail heads. Many first frames are black. A 404 video is not remembered, so reopening the browser asks those cells again. Keyboard use was synthetic events; no screen reader. Windows and Linux were not launched. A SIGTERM to the npm electron wrapper closed the editor but did not quit (pre-existing); the Electron child was signalled.
+
+# Layers, per-element opacity, alpha colours - decisions
+
+Outcome: every element has its own `opacity` (schema v3); `--perch-media-opacity` is retired and migrated onto media at load. The Elements list is a layers panel (topmost first), reordered by drag, Alt+Up/Down on a row, or four bracket commands, one undo step each. Every colour field takes alpha.
+
+## Decisions to evaluate
+
+D1 Opacity is a first-class element field, `opacity` 0-1 (absent = solid), on all four kinds, not a style token. Why: media carries no `style`, and a number the schema range-checks beats a token string. If overruled: an `--perch-element-opacity` token, and media gains `style`.
+D2 Schema v3 with a `2 -> 3` step: the theme token's value moves onto each image and video without its own opacity (CSS-parsed: %, clamped, invalid = solid) and leaves the theme; committed layouts equal `migrate(original)`. Opening never writes; saving does. If overruled: no version step, and a v2 build paints v3 backgrounds solid.
+D3 Opacity is on the element box, so a missing-asset failure box inside a faded media fades too. If overruled: exempt failure boxes.
+D4 Opacity row: percent 0-100, the bar-in-field and label scrub, reset; 100 removes the field. Media gets an Appearance section for it.
+D5 List rows keep the array index as their label (what problem paths name); order is reversed.
+D6 Keys: Mod+] / Mod+[ one layer, Mod+Shift+] / [ to front / back (Photoshop, Illustrator); canvas and sidebar scopes. With Shift a brace also matches its bracket. Alt+Up/Down reorders a focused row. If overruled: Figma's bare ] and [ for front and back.
+D7 Drag uses window pointer events, 4px threshold, a 2px accent line in the gap, autoscroll within 28px of the sidebar edges; Escape, pointercancel or the list changing lets go.
+D8 One colour control, always alpha: react-colorful's alpha picker plus the opacity %, checkerboard swatch; the `alpha` flag is gone from ui-kit's `TokenLabel`. Why: every colour took alpha. If overruled: restore the flag per token.
+D9 Colour text: finished rgb()/hsl() and `transparent` become hex, `#rrggbbff` loses its pair; `#abc`/`#abcd`/6/8-digit hex stay as typed. The picker and opacity write 6 digits solid, 8 otherwise. If overruled: normalise all hex on blur (an extra undo step).
+D10 A colour token is always the colour field (never a text-box fallback); unreadable text keeps its value and the swatch shows none. Why: swapping controls mid-typing dropped the caret.
+
+## Open questions
+
+Q1 Named colours (`red`) and `var()` in a colour token are kept but not pickable. Default: not parsed.
+Q2 A v2 `--perch-media-opacity` written as `var()`/`calc()` migrates as solid. Default: accept (shipped layouts use numbers).
+Q3 The desktop menu bar has no Arrange items for the layer commands. Default: keys only.
+
+## Gate facts
+
+Nothing pushed; no review cut (GitHub repo, no CRUX; AutoSDE not run: off-host). No dependency; lockfile untouched. packages/* call sites: the last section of CALL_SITES.md. Lanes, all exit 0: build-, typecheck-, test-, lint-{1..5}.log (5 = final HEAD). Adversarial review rounds: 1 (a self-review subagent; 4 low findings fixed in bb8921e, 2 deferred as Q2 and a residual; no code-review.md per standing rule 13).
+
+## Evidence (under the worktree's .evidence/)
+
+- red-first-{1..4}.log: each slice's new tests failing first (4 = the review fixes, run against the prior code).
+- opacity-before.log: painted opacity per element at 30e8511; layouts-migrated.log: committed files equal `migrate(original)`.
+- build-, typecheck-, test-, lint-{1..5}.log; lanes.sh runs them with per-lane exit codes.
+
+File capture refused this worktree: the captured notes summarise these logs.
+
+## Residuals
+
+Drag, autoscroll and focus were verified in jsdom with mocked layout, not in a browser (no screenshots, per the brief). The Opacity row cannot take a fractional percent as typed ("55." snaps to 55). Commits: f8570a0 (opacity + migration), d54ef2f (layers), 1788131 (alpha), bb8921e (review fixes), then this docs commit.

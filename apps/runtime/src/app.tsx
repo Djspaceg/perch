@@ -82,9 +82,9 @@ import type { LayoutCatalogue } from './layout-catalogue.js';
  * would refuse layouts the page can in fact render, and a looser one would let a layout validate and
  * then throw inside a widget.
  *
- * No `targetVersion`: production code leaves that alone. `LAYOUT_MIGRATIONS` is empty today, so the
- * migration half of `loadLayoutJson` is a pass-through — but it is called through the loader anyway,
- * so the first real migration needs no change here.
+ * No `targetVersion`: production code leaves that alone. The migration half of `loadLayoutJson`
+ * carries an older file forward (`LAYOUT_MIGRATIONS`: 1 -> 2 adds the chart kind, 2 -> 3 moves a
+ * theme's media opacity onto the media), so a file on disk is shown as it looked and never rewritten.
  */
 const LOAD_OPTIONS: LoadLayoutOptions = Object.freeze({
   widgets: WIDGET_REGISTRY,
@@ -340,8 +340,8 @@ function resolvePage(
     ok: true,
     name,
     layout: loaded.layout,
-    // Empty today — `LAYOUT_MIGRATIONS` has no entries — and reported rather than dropped, because an
-    // author whose file was rewritten under them is owed the list of what changed.
+    // Reported rather than dropped, because an author whose file was carried forward under them is
+    // owed the list of what changed.
     migrations:
       loaded.migrations.length === 0
         ? ''
