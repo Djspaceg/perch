@@ -9,7 +9,7 @@
  * Its console goes to the log, as the runner page's does.
  */
 
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, nativeTheme } from 'electron';
 import { EDITOR_PAGE_URL } from './app-protocol.js';
 
 export interface EditorWindowOptions {
@@ -26,7 +26,8 @@ export function createEditorWindow(options: EditorWindowOptions): BrowserWindow 
     minHeight: 560,
     title: 'perch editor',
     show: false,
-    backgroundColor: '#07080a',
+    // The editor's window colour in the scheme it will open in, so it does not flash the other one.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#07080a' : '#d5dae1',
     webPreferences: {
       preload: options.preload,
       contextIsolation: true,

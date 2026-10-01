@@ -67,7 +67,9 @@ function renderSettings(
   relay: RelayLink,
   target = { host: 'localhost', port: 8085, defaultPort: 8085 },
 ) {
-  const result = render(<SettingsPage relay={relay} target={target} />);
+  const result = render(
+    <SettingsPage relay={relay} target={target} scheme="system" onScheme={() => undefined} />,
+  );
   const control = within(result.getByTestId('perch-editor-connection'));
 
   return {
@@ -145,13 +147,39 @@ describe('the Settings window', () => {
   });
 });
 
+describe('the colour scheme', () => {
+  it('starts on the scheme the app has, and hands a pick to the app for every window', () => {
+    const picked: string[] = [];
+    const view = render(
+      <SettingsPage
+        relay={fakeRelay()}
+        target={{ host: 'localhost', port: 8085, defaultPort: 8085 }}
+        scheme="dark"
+        onScheme={(scheme) => {
+          picked.push(scheme);
+        }}
+      />,
+    );
+    const group = within(view.getByRole('radiogroup', { name: 'colour scheme' }));
+    expect(group.getByRole('radio', { name: 'Dark' })).toHaveAttribute('aria-checked', 'true');
+
+    fireEvent.click(group.getByRole('radio', { name: 'Light' }));
+    expect(picked).toEqual(['light']);
+    expect(group.getByRole('radio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true');
+
+    fireEvent.click(group.getByRole('radio', { name: 'System' }));
+    expect(picked).toEqual(['light', 'system']);
+  });
+});
+
 describe('findSettingsBridge', () => {
   it("finds the Settings window's bridge by its own global, and nobody else's", () => {
-    const bridge = { load: () => Promise.resolve(null) };
+    const bridge = { load: () => Promise.resolve(null), setScheme: () => Promise.resolve() };
 
     expect(SETTINGS_BRIDGE_GLOBAL).toBe('perchSettingsHost');
     expect(findSettingsBridge({ [SETTINGS_BRIDGE_GLOBAL]: bridge })).toBe(bridge);
     expect(findSettingsBridge({ perchEditorHost: bridge })).toBeNull();
     expect(findSettingsBridge({ [SETTINGS_BRIDGE_GLOBAL]: { load: 1 } })).toBeNull();
+    expect(findSettingsBridge({ [SETTINGS_BRIDGE_GLOBAL]: { load: bridge.load } })).toBeNull();
   });
 });

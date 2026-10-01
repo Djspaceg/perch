@@ -1,8 +1,9 @@
 /**
  * What the desktop app remembers between launches: which layout document was open, which
- * LibreHardwareMonitor host the relay was last told to poll, and the editor's recent documents.
+ * LibreHardwareMonitor host the relay was last told to poll, the editor's recent documents, and the
+ * colour scheme picked in the Settings window.
  *
- * One small JSON file in Electron's `userData`, rather than a settings library, because three fields
+ * One small JSON file in Electron's `userData`, rather than a settings library, because four fields
  * do not need one. Two properties matter and both are here:
  *
  * - **A write is atomic.** The new contents go to a temporary file beside the real one and are
@@ -27,6 +28,17 @@ export interface LhmHostSetting {
   readonly port: number;
 }
 
+/**
+ * The windows' colour scheme: the system's, or one picked in Settings. Applied as Electron's
+ * `nativeTheme.themeSource`, which is what `prefers-color-scheme` reports in every window, so the
+ * editor's chrome follows it with no message of its own.
+ */
+export type ColourScheme = 'system' | 'light' | 'dark';
+
+export function isColourScheme(candidate: unknown): candidate is ColourScheme {
+  return candidate === 'system' || candidate === 'light' || candidate === 'dark';
+}
+
 export interface DesktopSettings {
   /** Absolute path of the layout document open at last quit, or `null` before the first one. */
   readonly lastDocument: string | null;
@@ -34,12 +46,14 @@ export interface DesktopSettings {
   readonly lhm: LhmHostSetting | null;
   /** File > Open recent: absolute paths, newest first, at most `RECENT_LIMIT` (`recent.ts`). */
   readonly recent: readonly string[];
+  readonly scheme: ColourScheme;
 }
 
 export const DEFAULT_SETTINGS: DesktopSettings = Object.freeze({
   lastDocument: null,
   lhm: null,
   recent: Object.freeze([]),
+  scheme: 'system',
 });
 
 export interface SettingsRead {
@@ -68,10 +82,11 @@ export async function readSettings(file: string): Promise<SettingsRead> {
     return { settings: DEFAULT_SETTINGS, problem: `${file} is not a JSON object` };
   }
 
-  const { lastDocument, lhm, recent } = body as {
+  const { lastDocument, lhm, recent, scheme } = body as {
     lastDocument?: unknown;
     lhm?: unknown;
     recent?: unknown;
+    scheme?: unknown;
   };
   const bad: string[] = [];
 
@@ -89,11 +104,15 @@ export async function readSettings(file: string): Promise<SettingsRead> {
     bad.push('recent');
   }
 
+  const schemeOk = isColourScheme(scheme);
+  if (!schemeOk && scheme !== undefined) bad.push('scheme');
+
   return {
     settings: {
       lastDocument: lastOk ? lastDocument : null,
       lhm: lhmOk ? lhm : null,
       recent: paths.slice(0, RECENT_LIMIT),
+      scheme: schemeOk ? scheme : DEFAULT_SETTINGS.scheme,
     },
     problem: bad.length === 0 ? null : `${file}: ignored ${bad.join(', ')}, which did not parse`,
   };
@@ -112,6 +131,7 @@ export async function writeSettings(file: string, settings: DesktopSettings): Pr
     lastDocument: settings.lastDocument,
     lhm: settings.lhm,
     recent: settings.recent,
+    scheme: settings.scheme,
   };
 
   try {

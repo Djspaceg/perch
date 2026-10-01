@@ -10,10 +10,11 @@
  * (`runner.ts`), so the runner resumes with it and needs nothing from this window.
  */
 
-import { BrowserWindow, app, ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { BrowserWindow, app, ipcMain, nativeTheme, type IpcMainInvokeEvent } from 'electron';
 import { SETTINGS_PAGE_URL, isSettingsPage } from './app-protocol.js';
 import { settingsPreloadPath } from './paths.js';
 import type { Runner } from './runner.js';
+import { isColourScheme } from './settings.js';
 import { SETTINGS_CHANNELS } from './settings-channels.js';
 import { singleWindow } from './single-window.js';
 
@@ -49,18 +50,32 @@ export function createSettingsWindow(options: SettingsWindowOptions): SettingsWi
     },
   );
 
-  ipcMain.handle(SETTINGS_CHANNELS.load, (event: IpcMainInvokeEvent) => {
+  /** Whether `event` came from the Settings window's own page, and from nothing else. */
+  const fromSettings = (event: IpcMainInvokeEvent): boolean => {
     const window = settings.current();
-    if (
-      window?.webContents !== event.sender ||
-      event.senderFrame === null ||
-      !isSettingsPage(event.senderFrame.url)
-    ) {
+    return (
+      window?.webContents === event.sender &&
+      event.senderFrame !== null &&
+      isSettingsPage(event.senderFrame.url)
+    );
+  };
+
+  ipcMain.handle(SETTINGS_CHANNELS.load, (event: IpcMainInvokeEvent) => {
+    if (!fromSettings(event)) {
       throw new Error('perch: refused a settings load from outside the Settings window');
     }
     const relay = runner.relayTarget();
     log(`settings: loaded; relay ${runner.brokerUrl} polling ${relay.host}:${String(relay.port)}`);
-    return { brokerUrl: runner.brokerUrl, relay };
+    return { brokerUrl: runner.brokerUrl, relay, scheme: runner.scheme() };
+  });
+
+  // The windows' colour scheme. Checked here, not in the preload: the page's value is untrusted.
+  ipcMain.handle(SETTINGS_CHANNELS.scheme, (event: IpcMainInvokeEvent, scheme: unknown) => {
+    if (!fromSettings(event)) {
+      throw new Error('perch: refused a colour scheme from outside the Settings window');
+    }
+    if (!isColourScheme(scheme)) throw new Error('perch: refused a colour scheme it does not know');
+    runner.setScheme(scheme);
   });
 
   return {
@@ -70,6 +85,7 @@ export function createSettingsWindow(options: SettingsWindowOptions): SettingsWi
     isOpen: () => settings.current() !== null,
     stop: () => {
       ipcMain.removeHandler(SETTINGS_CHANNELS.load);
+      ipcMain.removeHandler(SETTINGS_CHANNELS.scheme);
     },
   };
 }
@@ -77,15 +93,16 @@ export function createSettingsWindow(options: SettingsWindowOptions): SettingsWi
 function createWindow(log: (line: string) => void): BrowserWindow {
   const window = new BrowserWindow({
     width: 560,
-    height: 250,
+    height: 330,
     minWidth: 460,
-    minHeight: 220,
+    minHeight: 300,
     title: 'perch settings',
     show: false,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    backgroundColor: '#0d1016',
+    // The page's header colour in the scheme it will open in, so it does not flash the other one.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0d1016' : '#e9ecf0',
     autoHideMenuBar: true,
     webPreferences: {
       preload: settingsPreloadPath(),

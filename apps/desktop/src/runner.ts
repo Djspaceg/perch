@@ -24,6 +24,7 @@ import {
   app,
   ipcMain,
   nativeImage,
+  nativeTheme,
   shell,
   type BrowserWindow,
   type IpcMainInvokeEvent,
@@ -50,7 +51,7 @@ import {
   RUNNER_LOAD_CHANNEL,
 } from './runner-channels.js';
 import { createRunnerWindow } from './runner-window.js';
-import { SETTINGS_FILENAME, createSettingsStore } from './settings.js';
+import { SETTINGS_FILENAME, createSettingsStore, type ColourScheme } from './settings.js';
 import { trayIconBitmap } from './tray-icon.js';
 import { trayMenuTemplate, type TrayState } from './tray-menu.js';
 
@@ -86,6 +87,10 @@ export interface Runner {
   currentDocument(): string | null;
   /** What the relay is polling now. */
   relayTarget(): RelayTarget;
+  /** The windows' colour scheme, as the settings remember it. */
+  scheme(): ColourScheme;
+  /** Apply `scheme` to every window (`nativeTheme`), and remember it. */
+  setScheme(scheme: ColourScheme): void;
   /** The layouts folder's documents, as last listed. */
   documents(): readonly LayoutDocument[];
   /** Called, debounced, whenever the layouts folder changes, once `documents` has the new listing. */
@@ -121,6 +126,9 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
       log(`settings: could not save ${settingsFile}: ${describe(error)}`);
     });
   };
+
+  // Before any window exists, so each opens in the scheme it will keep.
+  nativeTheme.themeSource = settings.current.scheme;
 
   const folder = layoutsFolder(env, options.documentsPath);
   const seed = seedLayoutsFolder(options.resources);
@@ -341,6 +349,13 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
     documentFolder: () => (current === null ? null : join(current.path, '..')),
     currentDocument: () => current?.path ?? null,
     relayTarget: () => relayTarget(service),
+    scheme: () => settings.current.scheme,
+    setScheme: (scheme) => {
+      nativeTheme.themeSource = scheme;
+      if (scheme === settings.current.scheme) return;
+      remember({ scheme });
+      log(`settings: colour scheme ${scheme}`);
+    },
     documents: () => documents,
     // File > Open recent, remembered in the settings; the Dock's list on macOS kept to match.
     recentDocuments: () => settings.current.recent,

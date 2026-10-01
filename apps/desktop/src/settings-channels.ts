@@ -12,4 +12,6 @@ export const SETTINGS_BRIDGE_GLOBAL = 'perchSettingsHost';
 export const SETTINGS_CHANNELS = {
   /** Invoked once at start: the relay's URL, and what it is polling. */
   load: 'perch:settings:load',
+  /** Invoked with a colour scheme the author picked: `system`, `light` or `dark`. */
+  scheme: 'perch:settings:scheme',
 } as const;

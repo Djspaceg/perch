@@ -56,7 +56,7 @@ describe('the Settings preload', () => {
     expect(loaded.required).toEqual(['electron']);
     expect(SETTINGS_BRIDGE_GLOBAL).toBe('perchSettingsHost');
     expect([...loaded.exposed.keys()]).toEqual([SETTINGS_BRIDGE_GLOBAL]);
-    expect(Object.keys(api)).toEqual(['load']);
+    expect(Object.keys(api)).toEqual(['load', 'setScheme']);
   });
 
   it('asks the main process on its channel, and passes nothing the page gives it', async () => {
@@ -67,5 +67,17 @@ describe('the Settings preload', () => {
 
     expect(SETTINGS_CHANNELS.load).toBe('perch:settings:load');
     expect(loaded.invoked).toEqual([[SETTINGS_CHANNELS.load]]);
+  });
+
+  it('hands a scheme to the main process on its own channel, as given, for main to check', async () => {
+    const loaded = await loadPreload();
+    const api = loaded.exposed.get(SETTINGS_BRIDGE_GLOBAL) as {
+      setScheme(...args: unknown[]): unknown;
+    };
+
+    await api.setScheme('light', 'ignored');
+
+    expect(SETTINGS_CHANNELS.scheme).toBe('perch:settings:scheme');
+    expect(loaded.invoked).toEqual([[SETTINGS_CHANNELS.scheme, 'light']]);
   });
 });

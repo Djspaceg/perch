@@ -62,7 +62,9 @@ per userData, so a launch with its own never hands off to a perch you already ha
   own refusal and the watch continues; a fixed save renders again. Switching documents in the tray
   reloads the page.
 - **Remembered:** the open document, the LHM host a client (the Settings window) last switched the
-  relay to, and File > Open recent's list, in `perch-desktop.json`, written atomically.
+  relay to, File > Open recent's list, and the colour scheme picked in the Settings window
+  (System, Light or Dark, applied to every window as Electron's `nativeTheme`), in
+  `perch-desktop.json`, written atomically.
 - **Cloud backgrounds** (docs/backgrounds.md) download into `<userData>/backgrounds` and are read
   back over `perch-cache://backgrounds/`, which serves only cache names, with byte ranges. The
   runtime page asks for its layout's references when it loads one; the editor's picker asks

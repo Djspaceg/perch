@@ -25,7 +25,12 @@ afterEach(async () => {
 describe('readSettings', () => {
   it('reads a missing file as the defaults, with nothing to report', async () => {
     expect(await readSettings(file)).toEqual({ settings: DEFAULT_SETTINGS, problem: null });
-    expect(DEFAULT_SETTINGS).toEqual({ lastDocument: null, lhm: null, recent: [] });
+    expect(DEFAULT_SETTINGS).toEqual({
+      lastDocument: null,
+      lhm: null,
+      recent: [],
+      scheme: 'system',
+    });
   });
 
   it('reads back what was written', async () => {
@@ -33,6 +38,7 @@ describe('readSettings', () => {
       lastDocument: '/somewhere/desk-1920x400.json',
       lhm: { host: '192.168.1.3', port: 8085 },
       recent: ['/somewhere/desk-1920x400.json', '/elsewhere/tower.json'],
+      scheme: 'light' as const,
     };
     await writeSettings(file, settings);
 
@@ -56,7 +62,12 @@ describe('readSettings', () => {
 
     const read = await readSettings(file);
 
-    expect(read.settings).toEqual({ lastDocument: '/a/b.json', lhm: null, recent: [] });
+    expect(read.settings).toEqual({
+      lastDocument: '/a/b.json',
+      lhm: null,
+      recent: [],
+      scheme: 'system',
+    });
     expect(read.problem).toContain('lhm');
   });
 
@@ -70,7 +81,7 @@ describe('readSettings', () => {
     await writeFile(file, JSON.stringify({ lastDocument: '/a.json', lhm: null }));
 
     expect(await readSettings(file)).toEqual({
-      settings: { lastDocument: '/a.json', lhm: null, recent: [] },
+      settings: { lastDocument: '/a.json', lhm: null, recent: [], scheme: 'system' },
       problem: null,
     });
   });
@@ -98,11 +109,22 @@ describe('readSettings', () => {
   });
 });
 
+describe('the colour scheme', () => {
+  it('is the system until one is picked, and anything else reads as the system, named', async () => {
+    await writeFile(file, JSON.stringify({ lastDocument: null, scheme: 'sepia' }));
+
+    const read = await readSettings(file);
+
+    expect(read.settings.scheme).toBe('system');
+    expect(read.problem).toContain('scheme');
+  });
+});
+
 describe('writeSettings', () => {
   it('is atomic: the file is complete JSON and no temporary file is left beside it', async () => {
     await writeFile(file, 'previous contents that are not JSON');
 
-    await writeSettings(file, { lastDocument: '/x.json', lhm: null, recent: [] });
+    await writeSettings(file, { ...DEFAULT_SETTINGS, lastDocument: '/x.json' });
 
     expect(JSON.parse(await readFile(file, 'utf8'))).toMatchObject({ lastDocument: '/x.json' });
     expect(await readdir(dir)).toEqual([SETTINGS_FILENAME]);
@@ -122,6 +144,7 @@ describe('createSettingsStore', () => {
       lastDocument: '/a.json',
       lhm: { host: 'pc', port: 8085 },
       recent: ['/a.json'],
+      scheme: 'dark',
     });
     const store = createSettingsStore(file);
 
@@ -132,6 +155,7 @@ describe('createSettingsStore', () => {
       lastDocument: '/b.json',
       lhm: { host: 'pc', port: 8085 },
       recent: ['/a.json'],
+      scheme: 'dark',
     });
     expect((await readSettings(file)).settings).toEqual(store.current);
   });

@@ -1,8 +1,9 @@
 /**
- * The Settings window's preload: the whole of what its page can ask of this app, which is one thing.
+ * The Settings window's preload: the whole of what its page can ask of this app, which is two things.
  *
  * ```ts
- * window.perchSettingsHost.load()   // -> { brokerUrl, relay }: the relay to dial, what it polls
+ * window.perchSettingsHost.load()            // -> { brokerUrl, relay, scheme }
+ * window.perchSettingsHost.setScheme(scheme)  // the windows' colour scheme; main checks the value
  * ```
  *
  * Everything else the page does, it does over the relay's own control path, as the editor's
@@ -22,7 +23,9 @@ const { contextBridge, ipcRenderer } = require('electron') as {
 
 const BRIDGE_GLOBAL = 'perchSettingsHost';
 const LOAD_CHANNEL = 'perch:settings:load';
+const SCHEME_CHANNEL = 'perch:settings:scheme';
 
 contextBridge.exposeInMainWorld(BRIDGE_GLOBAL, {
   load: (): Promise<unknown> => ipcRenderer.invoke(LOAD_CHANNEL),
+  setScheme: (scheme: unknown): Promise<unknown> => ipcRenderer.invoke(SCHEME_CHANNEL, scheme),
 });

@@ -25,7 +25,16 @@ if (bridge === null) {
     (start) => {
       createRoot(host).render(
         <StrictMode>
-          <SettingsPage relay={buildRelay(start.brokerUrl, 'config')} target={start.relay} />
+          <SettingsPage
+            relay={buildRelay(start.brokerUrl, 'config')}
+            target={start.relay}
+            scheme={start.scheme}
+            onScheme={(scheme) => {
+              bridge.setScheme(scheme).catch((error: unknown) => {
+                console.error('perch: the colour scheme was not applied', error);
+              });
+            }}
+          />
         </StrictMode>,
       );
     },
