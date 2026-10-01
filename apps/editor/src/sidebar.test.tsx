@@ -7,6 +7,7 @@
 import { LAYOUT_SCHEMA_VERSION, type Layout } from '@perch/layout-schema';
 import { createMockSource } from '@perch/sensor-sources';
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Editor } from './app.js';
 import { CONTROLS_STYLES } from './controls/index.js';
@@ -179,6 +180,25 @@ describe('the resize handle', () => {
 });
 
 describe('collapsing the sidebar', () => {
+  it('leaves focus alone when the page opens, StrictMode included', () => {
+    const source = createMockSource({ autoStart: false, seed: 1 });
+    render(
+      <StrictMode>
+        <Editor
+          library={createLayoutLibrary({ layouts: { 'desk-test': layoutText() } })}
+          source={source}
+          topics={source.topics}
+          transport={() =>
+            Promise.resolve({ ok: true, status: 204, text: () => Promise.resolve('') })
+          }
+          platform="other"
+        />
+      </StrictMode>,
+    );
+
+    expect(document.body).toHaveFocus();
+  });
+
   it('folds when a drag is let go well past the narrowest, keeping its width to come back at', () => {
     renderEditor();
     fireEvent.pointerDown(splitter(), { clientX: 600, pointerId: 1, button: 0 });

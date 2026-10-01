@@ -1126,13 +1126,12 @@ function useSidebar({
   });
 
   // Focus follows the fold: from inside the sidebar (or from nothing, once it is hidden) to the
-  // handle, and from the handle, gone, to the splitter. Not on the first render.
-  const first = useRef(true);
+  // handle, and from the handle, gone, to the splitter. Only when the fold changes, which a mount
+  // (or StrictMode's second run of this effect) is not.
+  const wasCollapsed = useRef(layout.collapsed);
   useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
+    if (wasCollapsed.current === layout.collapsed) return;
+    wasCollapsed.current = layout.collapsed;
     const active = document.activeElement;
     const lost = active === null || active === document.body;
     if (layout.collapsed) {
