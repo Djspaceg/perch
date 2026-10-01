@@ -81,13 +81,18 @@ export function PropertyRow({
   let labelNode: ReactNode;
   if (labelAs === 'group') {
     labelNode = (
-      <span className="perch-row__label-text" id={labelId} title={description}>
+      <span className="perch-row__label-text" id={labelId} data-perch-tip={description}>
         {label}
       </span>
     );
   } else if (scrub === undefined) {
     labelNode = (
-      <label className="perch-row__label-text" id={labelId} htmlFor={controlId} title={description}>
+      <label
+        className="perch-row__label-text"
+        id={labelId}
+        htmlFor={controlId}
+        data-perch-tip={description}
+      >
         {label}
       </label>
     );
@@ -97,7 +102,7 @@ export function PropertyRow({
         className="perch-row__label-text"
         id={labelId}
         htmlFor={controlId}
-        title={description}
+        tip={description}
         target={scrub}
       >
         {label}

@@ -56,7 +56,7 @@ export function AlignGrid({
               className="perch-align__cell"
               aria-checked={columnIndex === checkedColumn && rowIndex === checkedRow}
               aria-label={name}
-              title={name}
+              data-perch-tip={name}
               data-across={column.value}
               data-down={row.value}
               data-perch-stretch-across={columnIndex >= 3 ? 'true' : undefined}

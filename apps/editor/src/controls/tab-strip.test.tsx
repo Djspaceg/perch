@@ -58,7 +58,7 @@ describe('TabStrip', () => {
       'Third',
     ]);
     expect(screen.getByRole('tab', { name: 'Developer' })).toHaveAttribute(
-      'title',
+      'data-perch-tip',
       'what this document holds',
     );
   });

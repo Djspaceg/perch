@@ -50,7 +50,7 @@ export function SegmentedControl({
           className="perch-segmented__option"
           aria-checked={index === checked}
           aria-label={option.label}
-          title={option.label}
+          data-perch-tip={option.label}
           data-value={option.value}
           tabIndex={index === stop ? 0 : -1}
           onClick={() => {

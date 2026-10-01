@@ -64,7 +64,7 @@ export function Section({
         data-perch-active={summaryActive ? 'true' : 'false'}
         // A summary is one line that truncates, so the whole of it is the tooltip. Only for text: a
         // node has no string form worth showing.
-        {...(typeof summary === 'string' ? { title: summary } : {})}
+        {...(typeof summary === 'string' ? { 'data-perch-tip': summary } : {})}
       >
         {summary}
       </span>

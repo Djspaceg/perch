@@ -241,14 +241,15 @@ export function NumberField({
 export function ScrubLabel({
   htmlFor,
   id,
-  title,
+  tip,
   className,
   target,
   children,
 }: {
   readonly htmlFor: string;
   readonly id?: string | undefined;
-  readonly title?: string | undefined;
+  /** The label's tooltip (`tooltip.tsx`). */
+  readonly tip?: string | undefined;
   readonly className: string;
   readonly target: ScrubTarget;
   readonly children: ReactNode;
@@ -261,7 +262,7 @@ export function ScrubLabel({
       className={`${className} perch-number-handle`}
       htmlFor={htmlFor}
       id={id}
-      title={title}
+      data-perch-tip={tip}
       onPointerDown={(event) => {
         begin(event, false);
       }}

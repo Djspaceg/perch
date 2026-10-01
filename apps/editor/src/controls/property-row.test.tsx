@@ -17,7 +17,7 @@ describe('PropertyRow', () => {
     );
     const input = screen.getByLabelText('Reading colour');
 
-    expect(screen.getByText('Reading colour')).toHaveAttribute('title', 'The big number.');
+    expect(screen.getByText('Reading colour')).toHaveAttribute('data-perch-tip', 'The big number.');
     expect(input).toHaveAccessibleDescription(expect.stringContaining('The big number.'));
   });
 

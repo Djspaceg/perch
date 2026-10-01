@@ -330,14 +330,14 @@ function SelectionHeader({
         {KIND_GLYPH[element.kind]}
       </span>
       <span className="perch-selection__text">
-        <span className="perch-selection__name" title={name}>
+        <span className="perch-selection__name" data-perch-tip={name}>
           {name}
         </span>
         <span className="perch-selection__meta">
           <span className="perch-selection__kind">{element.kind}</span>
           <span>{`elements[${index}]`}</span>
           {detail === undefined ? null : (
-            <span className="perch-selection__detail" title={detail}>
+            <span className="perch-selection__detail" data-perch-tip={detail}>
               {detail}
             </span>
           )}
@@ -658,7 +658,10 @@ function ElementList({
               {KIND_GLYPH[element.kind]}
             </span>
             <span className="perch-editor-element__kind">{element.kind}</span>
-            <span className="perch-editor-element__summary" title={describeElement(element)}>
+            <span
+              className="perch-editor-element__summary"
+              data-perch-tip={describeElement(element)}
+            >
               {describeElement(element)}
             </span>
           </button>

@@ -41,7 +41,7 @@ describe('Section keeps a long summary inside its own bar', () => {
     const style = getComputedStyle(summary);
 
     expect(summary).toHaveClass('perch-section__summary');
-    expect(summary).toHaveAttribute('title', LONG);
+    expect(summary).toHaveAttribute('data-perch-tip', LONG);
     expect(style.overflow).toBe('hidden');
     expect(style.textOverflow).toBe('ellipsis');
     expect(style.whiteSpace).toBe('nowrap');
@@ -74,7 +74,7 @@ describe('Section keeps a long summary inside its own bar', () => {
     );
 
     expect(screen.getByText('two set').closest('.perch-section__summary')).not.toHaveAttribute(
-      'title',
+      'data-perch-tip',
     );
   });
 });

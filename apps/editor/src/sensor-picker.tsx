@@ -226,7 +226,7 @@ function SensorEntry({
       type="button"
       className="perch-sensors__entry"
       aria-current={current ? 'true' : undefined}
-      title={entry.topic}
+      data-perch-tip={entry.topic}
       onClick={() => {
         onChoose(entry.topic);
       }}
@@ -294,7 +294,7 @@ export function TopicField({
         type="button"
         className="perch-topic__choose"
         aria-label={name}
-        title={name}
+        data-perch-tip={name}
         aria-expanded={popover.open}
         aria-haspopup="dialog"
         {...(popover.open ? { 'aria-controls': popover.id } : {})}
@@ -370,7 +370,7 @@ export function AddMenu({
         type="button"
         className="perch-add"
         aria-label="add an element"
-        title="add an element"
+        data-perch-tip="add an element"
         aria-expanded={popover.open}
         aria-haspopup="dialog"
         {...(popover.open ? { 'aria-controls': popover.id } : {})}
@@ -425,7 +425,7 @@ export function AddMenu({
                 type="button"
                 className="perch-add__kind"
                 disabled={backgrounds.host === undefined}
-                title={backgrounds.host === undefined ? NO_BACKGROUND_CACHE : undefined}
+                data-perch-tip={backgrounds.host === undefined ? NO_BACKGROUND_CACHE : undefined}
                 onClick={() => {
                   setKind('background');
                 }}

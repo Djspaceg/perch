@@ -19,6 +19,7 @@ import { RESET_BUTTON_STYLES } from './reset-button.js';
 import { SECTION_STYLES } from './section.js';
 import { SEGMENTED_CONTROL_STYLES } from './segmented-control.js';
 import { TAB_STRIP_STYLES } from './tab-strip.js';
+import { TOOLTIP_STYLES } from './tooltip.js';
 import { VECTOR_FIELD_STYLES } from './vector-field.js';
 
 export { AlignGrid, type AlignAxis } from './align-grid.js';
@@ -38,6 +39,7 @@ export { ResetButton, type ResetButtonProps, type ReturnsTo } from './reset-butt
 export { AdvancedSection, Section } from './section.js';
 export { SegmentedControl, type SegmentOption } from './segmented-control.js';
 export { TabStrip, type TabSpec } from './tab-strip.js';
+export { TOOLTIP_DELAY, TooltipLayer } from './tooltip.js';
 export { VectorField, type VectorComponent } from './vector-field.js';
 export { matchesQuery, queryWords } from './filter.js';
 export { usePopover, type Popover } from './popover.js';
@@ -59,4 +61,5 @@ export const CONTROLS_STYLES = [
   RESET_BUTTON_STYLES,
   TAB_STRIP_STYLES,
   FILTER_BAR_STYLES,
+  TOOLTIP_STYLES,
 ].join('\n');

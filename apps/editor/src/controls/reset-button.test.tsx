@@ -24,7 +24,7 @@ describe('ResetButton', () => {
     const reset = screen.getByRole('button');
 
     expect(reset).toHaveAccessibleName('reset Reading colour to the layout theme value #e8f1ff');
-    expect(reset).toHaveAttribute('title', reset.getAttribute('aria-label'));
+    expect(reset).toHaveAttribute('data-perch-tip', reset.getAttribute('aria-label'));
     expect(screen.getByText('↺')).toHaveAttribute('aria-hidden', 'true');
   });
 
@@ -72,7 +72,7 @@ describe('ResetButton', () => {
     expect(destroy.querySelector('svg[data-perch-glyph="trash"]')).not.toBeNull();
     expect(destroy).not.toHaveTextContent('↺');
     expect(destroy).toHaveAccessibleName(/nothing takes over/);
-    expect(destroy).toHaveAttribute('title', destroy.getAttribute('aria-label'));
+    expect(destroy).toHaveAttribute('data-perch-tip', destroy.getAttribute('aria-label'));
 
     fireEvent.click(destroy);
     expect(onReset).not.toHaveBeenCalled();

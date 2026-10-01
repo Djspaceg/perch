@@ -114,7 +114,7 @@ import {
   type Connection,
   type RelayLink,
 } from './connection-control.js';
-import { CONTROLS_STYLES } from './controls/index.js';
+import { CONTROLS_STYLES, TooltipLayer } from './controls/index.js';
 import { canSave, isDirty, type DraftState } from './draft.js';
 import {
   blankLayoutLike,
@@ -402,6 +402,7 @@ function ConnectedEditor({
         host={host}
         backgrounds={backgrounds}
       />
+      <TooltipLayer />
     </SensorProvider>
   );
 }
@@ -889,7 +890,7 @@ function EditorShell({
             className="perch-editor-sample"
             data-testid="perch-editor-source"
             data-perch-source-kind="mock"
-            title={SAMPLE_PROVENANCE}
+            data-perch-tip={SAMPLE_PROVENANCE}
           >
             sample data
           </span>
@@ -1173,7 +1174,7 @@ function CommandButton({
       className="perch-editor-button"
       disabled={disabled}
       aria-keyshortcuts={shown.ariaKeyShortcuts}
-      title={shown.hint}
+      data-perch-tip={shown.hint}
       onClick={onClick}
     >
       {children}

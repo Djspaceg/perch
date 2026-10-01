@@ -72,6 +72,7 @@ export function FilterBar({
               className="perch-filter__chip"
               aria-pressed={entry.id === chip}
               data-perch-tip={entry.label}
+              data-perch-tip-when="truncated"
               onClick={() => {
                 if (entry.id !== chip) onChip?.(entry.id);
               }}

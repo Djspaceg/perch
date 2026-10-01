@@ -84,7 +84,7 @@ export function ColorField({
         className="perch-color__swatch"
         data-testid="perch-editor-swatch"
         aria-label={`${verb} colour picker for ${label}`}
-        title={`${verb} colour picker for ${label}`}
+        data-perch-tip={`${verb} colour picker for ${label}`}
         aria-expanded={open}
         aria-haspopup="dialog"
         {...(open ? { 'aria-controls': popover.id } : {})}

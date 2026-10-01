@@ -289,7 +289,7 @@ describe('<BackgroundField>', () => {
     field('', vi.fn(), null);
     const button = screen.getByRole('button', { name: /choose a background/ });
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', expect.stringMatching(/no background cache/));
+    expect(button).toHaveAttribute('data-perch-tip', expect.stringMatching(/no background cache/));
   });
 });
 
@@ -307,6 +307,6 @@ describe('<BackgroundBrowser> — an item not hosted at this size', () => {
 
     const cell = screen.getByRole('option', { name: 'Gallery 42' });
     expect(cell).toHaveAttribute('data-state', 'failed');
-    expect(within(cell).getByText('not at this size')).toHaveAttribute('title', reason);
+    expect(within(cell).getByText('not at this size')).toHaveAttribute('data-perch-tip', reason);
   });
 });

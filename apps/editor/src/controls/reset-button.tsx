@@ -84,7 +84,7 @@ export function ResetButton(props: ResetButtonProps): ReactNode {
         type="button"
         className="perch-reset perch-reset--revert"
         aria-label={name}
-        title={name}
+        data-perch-tip={name}
         onClick={props.onReset}
       >
         <span aria-hidden="true">↺</span>
@@ -103,7 +103,7 @@ export function ResetButton(props: ResetButtonProps): ReactNode {
           type="button"
           className="perch-reset perch-reset--delete"
           aria-label={ask}
-          title={ask}
+          data-perch-tip={ask}
           onClick={() => {
             setConfirming(true);
           }}
@@ -135,7 +135,7 @@ export function ResetButton(props: ResetButtonProps): ReactNode {
             type="button"
             className="perch-reset__word perch-reset__word--delete"
             aria-label={`confirm: ${ask}`}
-            title={`confirm: ${ask}`}
+            data-perch-tip={`confirm: ${ask}`}
             onClick={() => {
               setConfirming(false);
               onReset();
@@ -147,7 +147,7 @@ export function ResetButton(props: ResetButtonProps): ReactNode {
             type="button"
             className="perch-reset__word"
             aria-label={`keep ${subject}`}
-            title={`keep ${subject}`}
+            data-perch-tip={`keep ${subject}`}
             onClick={() => {
               setConfirming(false);
             }}

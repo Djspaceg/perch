@@ -23,7 +23,7 @@ import {
   type RelayLink,
 } from './connection-control.js';
 import type { ChromeScheme } from './controls/chrome.js';
-import { CONTROLS_STYLES, SegmentedControl } from './controls/index.js';
+import { CONTROLS_STYLES, SegmentedControl, TooltipLayer } from './controls/index.js';
 import { EDITOR_STYLES } from './app.js';
 import { choiceForRelay, type RelayTarget } from './editor-host.js';
 import { EditorStoreProvider, createEditorStore } from './store.js';
@@ -74,6 +74,7 @@ export function SettingsPage({ relay, target, scheme, onScheme }: SettingsPagePr
         </style>
         <SensorHost relay={relay} />
         <Appearance scheme={scheme} onScheme={onScheme} />
+        <TooltipLayer />
       </div>
     </EditorStoreProvider>
   );

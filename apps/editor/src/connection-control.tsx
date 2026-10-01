@@ -183,7 +183,9 @@ export function ConnectionControl({ connection }: { readonly connection: Connect
         disabled={mode !== 'remote'}
         value={draft}
         aria-invalid={invalid ? 'true' : 'false'}
-        title={!parsed.ok && invalid ? parsed.reason : 'a host, or host:port (8085 if omitted)'}
+        data-perch-tip={
+          !parsed.ok && invalid ? parsed.reason : 'a host, or host:port (8085 if omitted)'
+        }
         onChange={(event) => {
           connection.setDraft(event.target.value);
         }}
@@ -206,7 +208,7 @@ export function ConnectionControl({ connection }: { readonly connection: Connect
         data-testid="perch-editor-connection-status"
         data-perch-connection={state.phase}
         role="status"
-        title={words}
+        data-perch-tip={words}
       >
         <span className="perch-connection__dot" aria-hidden="true" />
         {words}
@@ -234,7 +236,7 @@ export function ConnectionIndicator({
       className="perch-connection__status perch-connection__indicator"
       data-testid="perch-editor-connection-indicator"
       data-perch-connection={state.phase}
-      title={`${describeState(state)}. Change the sensor host in Settings.`}
+      data-perch-tip={`${describeState(state)}. Change the sensor host in Settings.`}
       onClick={onOpenSettings}
     >
       <span className="perch-connection__dot" aria-hidden="true" />

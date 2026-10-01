@@ -671,7 +671,7 @@ describe('long text stays inside the sidebar', () => {
 
     const content = result.getByRole('region', { name: 'Content' });
     const summary = content.querySelector('.perch-section__summary');
-    expect(summary).toHaveAttribute('title', PROSE);
+    expect(summary).toHaveAttribute('data-perch-tip', PROSE);
     // The title is still the section's own heading, untouched by the summary beside it.
     expect(within(content).getByRole('heading', { name: 'Content' })).toHaveClass(
       'perch-section__heading',
@@ -681,7 +681,7 @@ describe('long text stays inside the sidebar', () => {
       .getByTestId('perch-editor-selection')
       .querySelector('.perch-selection__name');
     expect(name).toHaveTextContent(PROSE);
-    expect(name).toHaveAttribute('title', PROSE);
+    expect(name).toHaveAttribute('data-perch-tip', PROSE);
   });
 
   it('edits the prose in a textarea that grows a few rows, not a one-line input that clips it', () => {
@@ -943,7 +943,7 @@ describe('the element delete', () => {
     expect(destroy).toHaveAccessibleName(
       'delete elements[1]. the widget and everything set on it go. undo brings them back.',
     );
-    expect(destroy).toHaveAttribute('title', destroy.getAttribute('aria-label'));
+    expect(destroy).toHaveAttribute('data-perch-tip', destroy.getAttribute('aria-label'));
     expect(destroy).toHaveClass('perch-reset--delete');
     expect(destroy.querySelector('svg[data-perch-glyph="trash"]')).not.toBeNull();
     expect(result.queryByRole('button', { name: /^deselect/i })).toBeNull();

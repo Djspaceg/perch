@@ -272,8 +272,8 @@ describe('the keys on a Mac', () => {
   it('are shown as glyphs on the buttons', () => {
     const result = renderEditor('mac');
 
-    expect(undoButton(result)).toHaveAttribute('title', 'Undo (⌘Z)');
-    expect(redoButton(result)).toHaveAttribute('title', 'Redo (⇧⌘Z)');
+    expect(undoButton(result)).toHaveAttribute('data-perch-tip', 'Undo (⌘Z)');
+    expect(redoButton(result)).toHaveAttribute('data-perch-tip', 'Redo (⇧⌘Z)');
     expect(undoButton(result)).toHaveAttribute('aria-keyshortcuts', 'Meta+Z');
     expect(redoButton(result)).toHaveAttribute('aria-keyshortcuts', 'Meta+Shift+Z');
   });
@@ -312,8 +312,8 @@ describe('the keys on Windows and Linux', () => {
   it('are shown in words on the buttons, with Ctrl+Y as the alternative', () => {
     const result = renderEditor('other');
 
-    expect(undoButton(result)).toHaveAttribute('title', 'Undo (Ctrl+Z)');
-    expect(redoButton(result)).toHaveAttribute('title', 'Redo (Ctrl+Shift+Z or Ctrl+Y)');
+    expect(undoButton(result)).toHaveAttribute('data-perch-tip', 'Undo (Ctrl+Z)');
+    expect(redoButton(result)).toHaveAttribute('data-perch-tip', 'Redo (Ctrl+Shift+Z or Ctrl+Y)');
     expect(undoButton(result)).toHaveAttribute('aria-keyshortcuts', 'Control+Z');
     expect(redoButton(result)).toHaveAttribute('aria-keyshortcuts', 'Control+Shift+Z Control+Y');
   });

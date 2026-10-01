@@ -195,7 +195,7 @@ export function BoxDiagram({
           type="button"
           className="perch-box-diagram__link"
           aria-label={`${name(index)}, linked to ${positionName(follows)}`}
-          title={`linked to ${positionName(follows)}: click to give ${position} its own value`}
+          data-perch-tip={`linked to ${positionName(follows)}: click to give ${position} its own value`}
           onClick={() => {
             unlink(index);
           }}
@@ -228,7 +228,7 @@ export function BoxDiagram({
             type="button"
             className="perch-box-diagram__link perch-box-diagram__link--broken"
             aria-label={`relink ${name(index)} to ${positionName(relinkTarget(stored, unlinked, index))}`}
-            title={`clear ${position} and link it to ${positionName(relinkTarget(stored, unlinked, index))}`}
+            data-perch-tip={`clear ${position} and link it to ${positionName(relinkTarget(stored, unlinked, index))}`}
             onClick={() => {
               commit(relink(stored, unlinked, index));
               focusNext.current = linkId(index);
@@ -264,7 +264,7 @@ export function BoxDiagram({
         <span
           className="perch-box-diagram__unit"
           data-testid={`perch-box-unit-${base}`}
-          title="layout pixels"
+          data-perch-tip="layout pixels"
         >
           px
         </span>

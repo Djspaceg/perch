@@ -205,7 +205,7 @@ describe('the header in the desktop app, with a host', () => {
     expect(indicator.tagName).toBe('BUTTON');
     expect(indicator.getAttribute('data-perch-connection')).toBe('disconnected');
     expect(indicator.textContent).toBe('disconnected · localhost');
-    expect(indicator.getAttribute('title')).toMatch(/no relay/);
+    expect(indicator.getAttribute('data-perch-tip')).toMatch(/no relay/);
     expect(indicator.querySelector('.perch-connection__dot')).not.toBeNull();
 
     fireEvent.click(indicator);
@@ -235,7 +235,7 @@ describe('the header in the desktop app, with a host', () => {
       status: { host: '192.168.1.3', port: 8085, state: 'failed', reason: 'EHOSTUNREACH' },
     });
     expect(indicator().textContent).toBe('disconnected · 192.168.1.3:8085');
-    expect(indicator().getAttribute('title')).toContain('EHOSTUNREACH');
+    expect(indicator().getAttribute('data-perch-tip')).toContain('EHOSTUNREACH');
     expect(relay.requests).toEqual([]);
   });
 

@@ -276,7 +276,7 @@ export function BackgroundBrowser({
 function CellThumbnail({ thumbnail }: { readonly thumbnail: CellState | undefined }): ReactNode {
   if (thumbnail?.status === 'failed') {
     return (
-      <span className="perch-backgrounds__none" title={thumbnail.reason}>
+      <span className="perch-backgrounds__none" data-perch-tip={thumbnail.reason}>
         {thumbnail.reason.startsWith('not hosted') ? 'not at this size' : 'no preview'}
       </span>
     );
@@ -324,7 +324,7 @@ export function BackgroundField({
         type="button"
         className="perch-background-field__button"
         aria-label={`choose a background, now ${shown}`}
-        title={host === undefined ? NO_BACKGROUND_CACHE : 'choose a cloud background'}
+        data-perch-tip={host === undefined ? NO_BACKGROUND_CACHE : 'choose a cloud background'}
         disabled={host === undefined}
         aria-expanded={popover.open}
         aria-haspopup="dialog"

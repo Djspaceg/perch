@@ -50,7 +50,7 @@ export function TabStrip<Id extends string>({
             className="perch-tabs__tab"
             aria-selected={tab.id === selected}
             aria-controls={`${idBase}-panel`}
-            title={tab.title}
+            data-perch-tip={tab.title}
             tabIndex={tab.id === selected ? 0 : -1}
             onClick={() => {
               onSelect(tab.id);

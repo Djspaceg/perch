@@ -98,7 +98,7 @@ function precedes(first: Element, second: Element): boolean {
 /** Every `title` and `aria-label` string inside `scope`, for asserting what a row never says. */
 function annotations(scope: HTMLElement): string[] {
   return [...scope.querySelectorAll('[title], [aria-label]')].flatMap((el) => [
-    el.getAttribute('title') ?? '',
+    el.getAttribute('data-perch-tip') ?? '',
     el.getAttribute('aria-label') ?? '',
   ]);
 }
@@ -148,7 +148,7 @@ describe('the Customize tab', () => {
     const reset = within(row('--perch-fg')).getByRole('button', { name: /^reset/i });
 
     expect(reset).toHaveAccessibleName(expect.stringContaining('default #f2f4f8'));
-    expect(reset).toHaveAttribute('title', expect.stringContaining('default #f2f4f8'));
+    expect(reset).toHaveAttribute('data-perch-tip', expect.stringContaining('default #f2f4f8'));
     expect(within(row('--perch-dim')).queryByRole('button', { name: /default #/ })).toBeNull();
   });
 
@@ -179,7 +179,7 @@ describe('the Customize tab', () => {
 
     expect(within(reset).getByText('↺')).toHaveAttribute('aria-hidden', 'true');
     expect(reset).toHaveAccessibleName('reset Reading colour to the ui-kit default #f2f4f8');
-    expect(reset).toHaveAttribute('title', reset.getAttribute('aria-label'));
+    expect(reset).toHaveAttribute('data-perch-tip', reset.getAttribute('aria-label'));
     // And no `✕` anywhere on this tab: Customize cannot delete a token, so it must never show the
     // glyph that means one is about to go.
     expect(within(screen.getByRole('tabpanel')).queryByText('✕')).toBeNull();
@@ -314,7 +314,7 @@ describe('the Developer tab', () => {
     expect(revert.tagName).toBe('BUTTON');
     expect(revert).toHaveAccessibleName(expect.stringContaining('--perch-fg'));
     expect(revert).toHaveAccessibleName(expect.stringContaining('ui-kit default #f2f4f8'));
-    expect(revert).toHaveAttribute('title', revert.getAttribute('aria-label'));
+    expect(revert).toHaveAttribute('data-perch-tip', revert.getAttribute('aria-label'));
     // The glyph is decoration; the name comes from the label, so a screen reader reads a sentence
     // rather than the character.
     expect(within(revert).getByText('↺')).toHaveAttribute('aria-hidden', 'true');
@@ -341,7 +341,7 @@ describe('the Developer tab', () => {
     // The revert keeps its arrow: it means "back to the inherited value", not "destroy".
     expect(within(revert).getByText('↺')).toBeInTheDocument();
     expect(destroy).toHaveAccessibleName(/nothing|no default|gone/i);
-    expect(destroy).toHaveAttribute('title', destroy.getAttribute('aria-label'));
+    expect(destroy).toHaveAttribute('data-perch-tip', destroy.getAttribute('aria-label'));
   });
 
   it('asks once before deleting a token nothing takes over from', () => {
@@ -491,7 +491,10 @@ describe('an element style map under a layout theme', () => {
     const reset = within(fg).getByRole('button', { name: /^reset/i });
 
     expect(reset).toHaveAccessibleName(expect.stringContaining('layout theme value #e8f1ff'));
-    expect(reset).toHaveAttribute('title', expect.stringContaining('layout theme value #e8f1ff'));
+    expect(reset).toHaveAttribute(
+      'data-perch-tip',
+      expect.stringContaining('layout theme value #e8f1ff'),
+    );
     expect(reset).not.toHaveAccessibleName(expect.stringContaining('#f2f4f8'));
     expect(within(fg).queryByText(/#f2f4f8/)).toBeNull();
   });
@@ -819,7 +822,7 @@ describe('the element box rows', () => {
     const padReset = within(row('--perch-box-padding')).getByRole('button', { name: /^reset/i });
 
     expect(bgReset).toHaveAccessibleName(`reset ${BOX_BG} to the layout theme value #10131880`);
-    expect(bgReset).toHaveAttribute('title', bgReset.getAttribute('aria-label'));
+    expect(bgReset).toHaveAttribute('data-perch-tip', bgReset.getAttribute('aria-label'));
     expect(padReset).toHaveAccessibleName(`reset ${PADDING} to the ui-kit default 0`);
 
     fireEvent.click(bgReset);
@@ -836,7 +839,7 @@ describe('the element box rows', () => {
     expect(destroy).toHaveAccessibleName(
       'delete --brand-hue. ui-kit declares no default for it, so nothing takes over: the value is gone.',
     );
-    expect(destroy).toHaveAttribute('title', destroy.getAttribute('aria-label'));
+    expect(destroy).toHaveAttribute('data-perch-tip', destroy.getAttribute('aria-label'));
   });
 });
 
@@ -869,7 +872,7 @@ describe('the tabs', () => {
     const tabs = screen.getAllByRole('tab');
 
     expect(tabs.map((tab) => tab.textContent)).toEqual(['Customize', 'Developer']);
-    expect(tabs.every((tab) => (tab.getAttribute('title') ?? '') !== '')).toBe(true);
+    expect(tabs.every((tab) => (tab.getAttribute('data-perch-tip') ?? '') !== '')).toBe(true);
   });
 
   it('say inside the Developer panel what that tab is for', () => {
