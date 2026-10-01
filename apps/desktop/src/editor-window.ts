@@ -22,7 +22,7 @@ export function createEditorWindow(options: EditorWindowOptions): BrowserWindow 
   const window = new BrowserWindow({
     width: 1440,
     height: 900,
-    minWidth: 900,
+    minWidth: 480,
     minHeight: 560,
     title: 'perch editor',
     show: false,

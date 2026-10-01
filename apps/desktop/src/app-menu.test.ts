@@ -119,6 +119,7 @@ describe("the menu's defaults and the editor's registry", () => {
       'history.undo': 'CommandOrControl+Z',
       'history.redo': 'CommandOrControl+Shift+Z',
       'app.settings': 'CommandOrControl+,',
+      'view.toggleSidebar': 'CommandOrControl+\\',
     });
   });
 });
@@ -277,6 +278,16 @@ describe('appMenuTemplate', () => {
     expect(view(false)).not.toContain('forceReload');
     expect(view(false)).not.toContain('toggleDevTools');
     expect(view(true)).toContain('toggleDevTools');
+  });
+
+  it("folds and unfolds the editor's sidebar from View, on the editor's own key", () => {
+    const { actions, calls } = recording();
+    const view = submenu(appMenuTemplate(state(), actions), 'View');
+    const toggle = item(view, 'Toggle Sidebar');
+
+    expect(toggle.accelerator).toBe('CommandOrControl+\\');
+    click(toggle);
+    expect(calls).toEqual(['view.toggleSidebar']);
   });
 
   it('opens the editor and shows the preview from the Window menu', () => {

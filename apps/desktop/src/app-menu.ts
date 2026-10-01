@@ -6,6 +6,7 @@
  * File           New, Open..., Open preset >, Open recent >, Save, Save As...,
  *                Settings (Windows, Linux), Close, Quit (Windows, Linux)
  * Edit           Undo, Redo, the clipboard roles
+ * View           Toggle Sidebar (Mod+\), zoom, full screen, developer tools (unpackaged)
  * Window         Open editor, Show preview
  * ```
  *
@@ -69,6 +70,7 @@ export const MENU_COMMANDS = [
   'history.undo',
   'history.redo',
   'app.settings',
+  'view.toggleSidebar',
 ] as const;
 
 export type MenuCommandId = (typeof MENU_COMMANDS)[number];
@@ -82,6 +84,7 @@ const SHARED: Omit<MenuBindings, 'history.redo'> = {
   'document.saveAs': ['Mod+Shift+S'],
   'history.undo': ['Mod+Z'],
   'app.settings': ['Mod+,'],
+  'view.toggleSidebar': ['Mod+\\'],
 };
 
 /** The editor registry's defaults for the menu's commands, per platform. */
@@ -383,6 +386,8 @@ export function appMenuTemplate(
 
   // No reload: it would drop the editor's unsaved edits without asking.
   const view: MenuItemConstructorOptions[] = [
+    command('Toggle Sidebar', 'view.toggleSidebar', { enabled: state.editorOpen }),
+    { type: 'separator' },
     { role: 'resetZoom' },
     { role: 'zoomIn' },
     { role: 'zoomOut' },
