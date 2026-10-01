@@ -39,6 +39,15 @@ export const COMMANDS = {
   // The desktop app's Settings window, where each platform puts Settings: Cmd-, and Ctrl-,. Only
   // where a host is; in a browser the key stays the browser's.
   'app.settings': { label: 'Settings', scope: 'global', keys: ['Mod+,'], inFields: true },
+  // Fold the sidebar to its handle and back (`sidebar.tsx`). Backslash, as Figma's hide-the-UI is:
+  // nothing else in the editor, the browsers or the platforms takes Mod+\. In a field too, since
+  // folding is not typing and the field may be in the sidebar.
+  'view.toggleSidebar': {
+    label: 'Toggle sidebar',
+    scope: 'global',
+    keys: ['Mod+\\'],
+    inFields: true,
+  },
   'selection.delete': {
     label: 'Delete selected element',
     scope: 'canvas',

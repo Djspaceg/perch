@@ -18,7 +18,7 @@ import type { ConnectionChoice } from './connection.js';
 import { boundCommand, isTextEntry, type CommandId, type Keymap } from './keybindings/index.js';
 import type { LayoutLibraryEntry } from './layout-library.js';
 
-/** The commands a host's menu shows, in its File then Edit order. */
+/** The commands a host's menu shows, in its File, Edit then View order. */
 export const MENU_COMMAND_IDS = [
   'document.new',
   'document.open',
@@ -27,6 +27,7 @@ export const MENU_COMMAND_IDS = [
   'history.undo',
   'history.redo',
   'app.settings',
+  'view.toggleSidebar',
 ] as const satisfies readonly CommandId[];
 
 export type MenuCommandId = (typeof MENU_COMMAND_IDS)[number];

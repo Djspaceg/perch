@@ -18,13 +18,15 @@
  * so every preview test would need a polyfill or a fake — or laying the chrome out in CSS and
  * measuring the pane afterwards, which is the same observer with an extra frame of wrong scale.
  *
- * So the chrome's dimensions are constants here, the pane's inline `width`/`height` come from these
+ * So the header's height and the padding are constants here, the sidebar's width is handed in (it is
+ * the author's, and moves: `sidebar.tsx`), the pane's inline `width`/`height` come from these
  * numbers, and the scale comes from the same numbers. One source for a size that would otherwise be
  * spelled twice — once in a stylesheet, once in a division — and drift between the two is exactly a
  * preview whose scale does not match the box it is drawn in.
  */
 
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
+import { SIDEBAR_DEFAULT_WIDTH } from './sidebar.js';
 
 /** The space available to the canvas, in CSS pixels. */
 export interface PreviewViewport {
@@ -32,53 +34,59 @@ export interface PreviewViewport {
   readonly height: number;
 }
 
-/** How wide the inspector column is. The preview gets the rest. */
-export const INSPECTOR_WIDTH = 420;
-
 /** How tall the header strip is. */
 export const HEADER_HEIGHT = 44;
 
 /** The gap between the pane's edge and the canvas, on every side. */
 export const PREVIEW_PADDING = 16;
 
+/** The window's inner size, in CSS pixels. */
+export interface WindowSize {
+  readonly width: number;
+  readonly height: number;
+}
+
 /**
- * The pane's size for a given window, floored to whole pixels and never below 1.
+ * The pane's size for a given window and the width the sidebar takes from it (its width, or the
+ * folded handle's), floored to whole pixels and never below 1.
  *
  * Floored because a fractional pane against an integer canvas produces a scale with no exact
  * representation, and the scale is printed. Clamped at 1 because a window narrower than the
- * inspector yields a negative width, and a negative width divided into a canvas is a negative scale
+ * sidebar yields a negative width, and a negative width divided into a canvas is a negative scale
  * — a canvas mirrored through the origin, which is a rendering no author could explain.
  */
-export function previewViewport(windowWidth: number, windowHeight: number): PreviewViewport {
+export function previewViewport(
+  windowWidth: number,
+  windowHeight: number,
+  sidebarWidth: number = SIDEBAR_DEFAULT_WIDTH,
+): PreviewViewport {
   return {
-    width: Math.max(1, Math.floor(windowWidth - INSPECTOR_WIDTH - PREVIEW_PADDING * 2)),
+    width: Math.max(1, Math.floor(windowWidth - sidebarWidth - PREVIEW_PADDING * 2)),
     height: Math.max(1, Math.floor(windowHeight - HEADER_HEIGHT - PREVIEW_PADDING * 2)),
   };
 }
 
 /**
- * The last viewport handed out, so repeated `getSnapshot` calls return the same object.
+ * The last window size handed out, so repeated `getSnapshot` calls return the same object.
  *
- * Module-level rather than per-hook: it is a cache of a global — the one window — and two panes
+ * Module-level rather than per-hook: it is a cache of a global — the one window — and two hooks
  * asking would get the same answer anyway.
  */
-let lastViewport: PreviewViewport = { width: 1, height: 1 };
+let lastSize: WindowSize = { width: 1, height: 1 };
 
-/** The viewport during a server render: no window, so no size. */
-const SERVER_VIEWPORT: PreviewViewport = Object.freeze({ width: 0, height: 0 });
+/** The size during a server render: no window, so no size. */
+const SERVER_SIZE: WindowSize = Object.freeze({ width: 0, height: 0 });
 
-function readViewport(): PreviewViewport {
-  const next = previewViewport(window.innerWidth, window.innerHeight);
-
-  if (next.width !== lastViewport.width || next.height !== lastViewport.height) {
-    lastViewport = next;
+function readSize(): WindowSize {
+  if (window.innerWidth !== lastSize.width || window.innerHeight !== lastSize.height) {
+    lastSize = { width: window.innerWidth, height: window.innerHeight };
   }
 
-  return lastViewport;
+  return lastSize;
 }
 
-function readServerViewport(): PreviewViewport {
-  return SERVER_VIEWPORT;
+function readServerSize(): WindowSize {
+  return SERVER_SIZE;
 }
 
 function subscribe(onChange: () => void): () => void {
@@ -89,7 +97,23 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
-/** The current preview pane size, re-read on every window resize. */
-export function usePreviewViewport(): PreviewViewport {
-  return useSyncExternalStore(subscribe, readViewport, readServerViewport);
+/** The window's size, re-read on every resize. */
+export function useWindowSize(): WindowSize {
+  return useSyncExternalStore(subscribe, readSize, readServerSize);
+}
+
+/**
+ * The preview pane's size beside a sidebar taking `sidebarWidth`, re-read on every window resize. The
+ * same object while nothing it depends on changes, so the canvas does not re-render for nothing.
+ */
+export function usePreviewViewport(sidebarWidth: number): PreviewViewport {
+  const size = useWindowSize();
+
+  return useMemo(
+    () =>
+      size.width === 0 && size.height === 0
+        ? SERVER_SIZE
+        : previewViewport(size.width, size.height, sidebarWidth),
+    [size, sidebarWidth],
+  );
 }

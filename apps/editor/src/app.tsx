@@ -103,6 +103,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import { CANVAS_HANDLES_STYLES } from './canvas-handles.js';
 import {
@@ -154,10 +155,20 @@ import { SENSOR_PICKER_STYLES } from './sensor-picker.js';
 import { TOKEN_PANE_STYLES } from './token-pane.js';
 import {
   HEADER_HEIGHT,
-  INSPECTOR_WIDTH,
   PREVIEW_PADDING,
   usePreviewViewport,
+  useWindowSize,
 } from './preview-viewport.js';
+import {
+  SIDEBAR_AUTO_COLLAPSE_BELOW,
+  SIDEBAR_MIN_WIDTH,
+  SIDEBAR_STYLES,
+  SidebarHandle,
+  SidebarSplitter,
+  sidebarLayout,
+  sidebarStyle,
+  type SidebarLayout,
+} from './sidebar.js';
 import { saveDraft, type SaveTransport } from './save.js';
 import { openLayoutByName, openLayoutEntry, openNewLayout, type Opened } from './open-layout.js';
 import {
@@ -373,6 +384,9 @@ function ConnectedEditor({
       <style href="perch-editor-connection" precedence="default">
         {CONNECTION_STYLES}
       </style>
+      <style href="perch-editor-sidebar" precedence="default">
+        {SIDEBAR_STYLES}
+      </style>
       <style href="perch-editor" precedence="default">
         {EDITOR_STYLES}
       </style>
@@ -412,7 +426,11 @@ function EditorShell({
   readonly connection: Connection;
   readonly live: boolean;
 }): ReactNode {
-  const viewport = usePreviewViewport();
+  const sideRef = useRef<HTMLElement>(null);
+  const splitterRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<HTMLButtonElement>(null);
+  const sidebar = useSidebar({ sideRef, splitterRef, handleRef });
+  const viewport = usePreviewViewport(sidebar.layout.occupies);
 
   /**
    * The document and the selection are the store's session (`store.ts`): in the store so each edit
@@ -990,7 +1008,26 @@ function EditorShell({
           )}
         </main>
 
-        <aside className="perch-editor-side" {...keyScope('sidebar')}>
+        <aside
+          ref={sideRef}
+          id={sidebar.sideId}
+          className="perch-editor-side"
+          data-testid="perch-editor-side"
+          style={sidebarStyle(sidebar.layout)}
+          hidden={sidebar.layout.collapsed}
+          data-perch-snapping={sidebar.snapping ? 'true' : undefined}
+          {...keyScope('sidebar')}
+        >
+          {sidebar.layout.collapsed ? null : (
+            <SidebarSplitter
+              sideId={sidebar.sideId}
+              width={sidebar.layout.width}
+              splitterRef={splitterRef}
+              onDrag={sidebar.setDrag}
+              onWidth={sidebar.setWidth}
+              onCollapse={sidebar.collapse}
+            />
+          )}
           <LayoutProblems
             issues={opened.ok ? opened.state.issues : opened.issues}
             onSelectElement={select}
@@ -1013,9 +1050,108 @@ function EditorShell({
             </BackgroundContext.Provider>
           ) : null}
         </aside>
+        {sidebar.layout.collapsed ? (
+          <SidebarHandle
+            sideId={sidebar.sideId}
+            handleRef={handleRef}
+            hint={sidebar.hint}
+            onOpen={sidebar.expand}
+          />
+        ) : null}
       </div>
     </div>
   );
+}
+
+/**
+ * The sidebar's width and fold, as this window shows them (`sidebar.tsx`): the author's settings, a
+ * drag in progress, and the window's own width. Folding moves focus that was in the sidebar to the
+ * handle, and unfolding moves the handle's focus to the splitter, so focus is never left on nothing.
+ */
+function useSidebar({
+  sideRef,
+  splitterRef,
+  handleRef,
+}: {
+  readonly sideRef: RefObject<HTMLElement | null>;
+  readonly splitterRef: RefObject<HTMLDivElement | null>;
+  readonly handleRef: RefObject<HTMLButtonElement | null>;
+}): {
+  readonly layout: SidebarLayout;
+  readonly snapping: boolean;
+  readonly sideId: string;
+  readonly hint: string;
+  readonly setDrag: (drag: { readonly width: number; readonly collapsed: boolean } | null) => void;
+  readonly setWidth: (width: number) => void;
+  readonly collapse: () => void;
+  readonly expand: () => void;
+} {
+  const windowSize = useWindowSize();
+  const settings = useEditorStore((state) => state.settings.panels.sidebar);
+  const setSidebarWidth = useEditorStore((state) => state.setSidebarWidth);
+  const setSidebarCollapsed = useEditorStore((state) => state.setSidebarCollapsed);
+  const [drag, setDrag] = useState<{ readonly width: number; readonly collapsed: boolean } | null>(
+    null,
+  );
+  /** Opened by hand in a window too narrow for it; forgotten once the window is wide enough. */
+  const [openedNarrow, setOpenedNarrow] = useState(false);
+  const wideEnough = windowSize.width >= SIDEBAR_AUTO_COLLAPSE_BELOW;
+  if (wideEnough && openedNarrow) setOpenedNarrow(false);
+
+  // A drag past the snap point shows the sidebar at its narrowest, marked, and folds it only once
+  // let go: folding mid-drag would unmount the splitter holding the pointer.
+  const snapping = drag?.collapsed === true;
+  const layout = sidebarLayout({
+    windowWidth: windowSize.width,
+    width: drag === null ? settings.width : snapping ? SIDEBAR_MIN_WIDTH : drag.width,
+    collapsed: settings.collapsed,
+    openedNarrow,
+  });
+
+  const sideId = 'perch-editor-side';
+  const shown = useKeybinding('view.toggleSidebar');
+
+  const collapse = useCallback(() => {
+    setOpenedNarrow(false);
+    setSidebarCollapsed(true);
+  }, [setSidebarCollapsed]);
+  const expand = useCallback(() => {
+    setSidebarCollapsed(false);
+    if (!wideEnough) setOpenedNarrow(true);
+  }, [setSidebarCollapsed, wideEnough]);
+
+  useCommand('view.toggleSidebar', () => {
+    if (layout.collapsed) expand();
+    else collapse();
+  });
+
+  // Focus follows the fold: from inside the sidebar (or from nothing, once it is hidden) to the
+  // handle, and from the handle, gone, to the splitter. Not on the first render.
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const active = document.activeElement;
+    const lost = active === null || active === document.body;
+    if (layout.collapsed) {
+      if (lost || sideRef.current?.contains(active) === true) handleRef.current?.focus();
+    } else if (lost) {
+      splitterRef.current?.focus();
+    }
+  }, [layout.collapsed, sideRef, splitterRef, handleRef]);
+
+  return {
+    layout,
+    snapping,
+    sideId,
+    hint: shown.hint.replace(/^Toggle sidebar/, 'Show sidebar'),
+    setDrag,
+    setWidth: setSidebarWidth,
+    collapse,
+    expand,
+  };
 }
 
 /** A header button for `command`, titled and `aria-keyshortcuts`-labelled with its keys. */
@@ -1085,8 +1221,8 @@ function useOpened(): Opened {
 /**
  * The editor's own chrome. Nothing here styles a layout element or reads a layout's theme.
  *
- * The three numbers that also appear in `preview-viewport.ts` are interpolated from it rather than
- * written twice: the pane's size is computed in JavaScript to derive the canvas scale, so a header
+ * The two numbers that also appear in `preview-viewport.ts` are interpolated from it rather than
+ * written twice, and the sidebar's width is inline, from the same number the preview is sized by: the pane's size is computed in JavaScript to derive the canvas scale, so a header
  * that was 44px in CSS and 40px in the arithmetic would produce a preview scaled for a box it is not
  * in.
  */
@@ -1163,13 +1299,14 @@ html, body { margin: 0; height: 100%; background: var(--ed-canvas); }
   overflow: hidden;
 }
 .perch-editor-side {
+  position: relative;
   flex: none;
-  width: ${INSPECTOR_WIDTH}px;
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--ed-toolbar-edge);
   background: var(--ed-bg);
   overflow: hidden;
 }
+.perch-editor-side[hidden] { display: none; }
 .perch-editor-side > .perch-editor-problems { flex: none; margin: 6px; max-height: 40%; overflow-y: auto; }
 `;

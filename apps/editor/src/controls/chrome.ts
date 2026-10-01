@@ -238,7 +238,9 @@ export const CHROME_STYLES = `
   --ed-field-h: 20px;
   --ed-control: 18px;
   --ed-list-row-h: 20px;
-  --ed-label-col: 38%;
+  /* 38% of the row, which is about 150px at the default width, held between 96px and 180px so a
+     narrow sidebar keeps a readable label and a wide one gives its extra room to the values. */
+  --ed-label-col: clamp(96px, 38%, 180px);
   --ed-pad-x: 8px;
   --ed-gap: 4px;
   --ed-radius: 3px;

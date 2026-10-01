@@ -133,6 +133,7 @@ replaces that command's defaults on every platform. `[]` unbinds it; absence mea
 | `history.undo`           | Undo                    | global          | ⌘Z    | Ctrl+Z               |
 | `history.redo`           | Redo                    | global          | ⇧⌘Z   | Ctrl+Shift+Z, Ctrl+Y |
 | `app.settings`           | Settings                | global          | ⌘,    | Ctrl+,               |
+| `view.toggleSidebar`     | Toggle sidebar          | global          | ⌘\    | Ctrl+\               |
 | `selection.delete`       | Delete selected element | canvas          | ⌦, ⌫  | Delete, Backspace    |
 | `selection.clear`        | Deselect                | canvas, sidebar | ⎋     | Escape               |
 | `selection.bringForward` | Bring forward           | canvas, sidebar | ⌘]    | Ctrl+]               |

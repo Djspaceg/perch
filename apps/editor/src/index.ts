@@ -100,12 +100,24 @@ export {
 
 export {
   HEADER_HEIGHT,
-  INSPECTOR_WIDTH,
   PREVIEW_PADDING,
   previewViewport,
   usePreviewViewport,
+  useWindowSize,
   type PreviewViewport,
+  type WindowSize,
 } from './preview-viewport.js';
+
+export {
+  SIDEBAR_AUTO_COLLAPSE_BELOW,
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_HANDLE_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+  sidebarLayout,
+  type SidebarLayout,
+  type SidebarSettings,
+} from './sidebar.js';
 
 export {
   SAVE_ENDPOINT_PREFIX,

@@ -71,6 +71,7 @@ export function FilterBar({
               type="button"
               className="perch-filter__chip"
               aria-pressed={entry.id === chip}
+              data-perch-tip={entry.label}
               onClick={() => {
                 if (entry.id !== chip) onChip?.(entry.id);
               }}
@@ -101,12 +102,17 @@ export const FILTER_BAR_STYLES = `
 .perch-filter__search:focus { outline: none; border-color: var(--ed-accent); }
 .perch-filter__chips {
   display: flex;
-  flex-wrap: wrap;
+  min-width: 0;
   gap: 3px;
   padding: 5px var(--ed-pad-x) 4px;
 }
 .perch-filter__chip {
-  height: 18px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  height: var(--ed-control);
   border: 1px solid var(--ed-field-edge);
   border-radius: var(--ed-radius);
   background: var(--ed-bar);

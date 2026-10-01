@@ -6,8 +6,8 @@
  *
  * - **`settings`** is how the author has arranged the editor: the sensor host, which sections are
  *   open, which tab and chip each token pane shows, the layout last picked, the author's keybinding
- *   overrides (`keybindings/`, KEYBINDINGS.md), the chrome's colour scheme, and (reserved, empty until the sidebar can move)
- *   where the panels sit. It is persisted to `localStorage` under
+ *   overrides (`keybindings/`, KEYBINDINGS.md), the chrome's colour scheme, and the panels: how
+ *   wide the sidebar is and whether it is folded (`sidebar.tsx`). It is persisted to `localStorage` under
  *   `EDITOR_STORE_KEY` (`persist`, with `partialize` choosing it and nothing else), so it survives a
  *   reload and a new tab alike. How a sidebar is folded is not a fact about a dashboard, so none of
  *   it is ever written into a layout.
@@ -74,6 +74,7 @@ import {
 import type { LayoutUpdate } from './layout-edits.js';
 import type { LayoutLibrary } from './layout-library.js';
 import { openLayoutByName, type Opened } from './open-layout.js';
+import { DEFAULT_SIDEBAR, clampSidebarWidth, type SidebarSettings } from './sidebar.js';
 
 /** The selection when there is none. Any out-of-range index means the same. */
 export const NOTHING_SELECTED = -1;
@@ -96,11 +97,10 @@ export interface ConnectionSettings {
   readonly draft: string;
 }
 
-/**
- * Where the panels sit and how big they are. Reserved: the sidebar cannot move or resize yet, so
- * this is empty, and exists so placement lands here rather than in a store of its own.
- */
-export type PanelSettings = Readonly<Record<string, never>>;
+/** Where the panels sit and how big they are: the sidebar's width, and whether it is folded. */
+export interface PanelSettings {
+  readonly sidebar: SidebarSettings;
+}
 
 /** Everything persisted. */
 export interface EditorSettings {
@@ -153,6 +153,9 @@ export interface EditorActions {
   /** Replace command `id`'s keys with `bindings` (`[]` unbinds it), or with `undefined` restore them. */
   readonly setKeybinding: (id: CommandId, bindings: readonly string[] | undefined) => void;
   readonly setScheme: (scheme: ChromeScheme) => void;
+  /** The sidebar's width, kept within its range (`clampSidebarWidth`). */
+  readonly setSidebarWidth: (width: number) => void;
+  readonly setSidebarCollapsed: (collapsed: boolean) => void;
   /** Open the first layout — `?layout=`, else the one last picked, else the library's first — once. */
   readonly openFirst: (library: LayoutLibrary, initialLayout: string | undefined) => void;
   /** Open a layout, dropping the selection. `remember` records it as the layout last picked. */
@@ -199,7 +202,7 @@ const DEFAULT_SETTINGS: EditorSettings = Object.freeze({
   layout: null,
   keybindings: Object.freeze({}),
   scheme: 'system',
-  panels: Object.freeze({}),
+  panels: Object.freeze({ sidebar: DEFAULT_SIDEBAR }),
 });
 
 /**
@@ -320,6 +323,25 @@ export function createEditorStore(
             },
             setScheme: (scheme) => {
               settle({ scheme }, { type: 'set/scheme', scheme });
+            },
+            setSidebarWidth: (width) => {
+              const panels = get().settings.panels;
+              settle(
+                {
+                  panels: {
+                    ...panels,
+                    sidebar: { ...panels.sidebar, width: clampSidebarWidth(width) },
+                  },
+                },
+                { type: 'set/sidebarWidth', width },
+              );
+            },
+            setSidebarCollapsed: (collapsed) => {
+              const panels = get().settings.panels;
+              settle(
+                { panels: { ...panels, sidebar: { ...panels.sidebar, collapsed } } },
+                { type: 'set/sidebarCollapsed', collapsed },
+              );
             },
             setKeybinding: (id, bindings) => {
               const { [id]: _replaced, ...others } = get().settings.keybindings;
@@ -519,7 +541,22 @@ function readSettings(raw: unknown): EditorSettings {
     layout: typeof body['layout'] === 'string' ? body['layout'] : null,
     keybindings: readRecord(body['keybindings'], isStringList),
     scheme: isScheme(body['scheme']) ? body['scheme'] : DEFAULT_SETTINGS.scheme,
-    panels: DEFAULT_SETTINGS.panels,
+    panels: readPanels(body['panels']),
+  };
+}
+
+function readPanels(raw: unknown): PanelSettings {
+  const sidebar = isRecord(raw) && isRecord(raw['sidebar']) ? raw['sidebar'] : {};
+  const { width, collapsed } = sidebar;
+
+  return {
+    sidebar: {
+      width:
+        typeof width === 'number' && Number.isFinite(width)
+          ? clampSidebarWidth(width)
+          : DEFAULT_SIDEBAR.width,
+      collapsed: typeof collapsed === 'boolean' ? collapsed : DEFAULT_SIDEBAR.collapsed,
+    },
   };
 }
 
