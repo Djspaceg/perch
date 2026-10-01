@@ -180,6 +180,12 @@ export function describePreviewFit(layout: Layout, viewport: PreviewViewport): s
  */
 export const PREVIEW_STYLES = `
 .perch-editor-preview {
+  /*
+   * The scheme the canvas has always been drawn under, held here so the chrome's light scheme stops
+   * at this edge: the layout is the author's design, and the runtime does not change with the
+   * editor's scheme either.
+   */
+  color-scheme: dark;
   position: relative;
   display: flex;
   align-items: center;

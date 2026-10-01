@@ -121,4 +121,24 @@ describe('the editor over a remembered store', () => {
     expect(globalTab('Customize')).toHaveAttribute('aria-selected', 'true');
     expect(chip('Colour')).toHaveAttribute('aria-pressed', 'true');
   });
+
+  it('puts the remembered scheme on the page, and takes it off again when it goes', () => {
+    const storage = memoryStorage();
+    storage.setItem(
+      'perch-editor',
+      JSON.stringify({ state: { settings: { scheme: 'light' } }, version: 2 }),
+    );
+    const view = renderEditor(storage);
+    expect(document.documentElement).toHaveAttribute('data-ed-scheme', 'light');
+    view.unmount();
+    expect(document.documentElement).not.toHaveAttribute('data-ed-scheme');
+
+    // The system's own: no attribute, so `prefers-color-scheme` decides.
+    storage.setItem(
+      'perch-editor',
+      JSON.stringify({ state: { settings: { scheme: 'system' } }, version: 2 }),
+    );
+    renderEditor(storage);
+    expect(document.documentElement).not.toHaveAttribute('data-ed-scheme');
+  });
 });

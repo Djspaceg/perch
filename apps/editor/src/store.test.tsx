@@ -217,6 +217,34 @@ describe('keybinding overrides', () => {
   });
 });
 
+describe('the chrome scheme', () => {
+  it('follows the system until one is picked, and remembers the pick', () => {
+    const storage = memoryStorage();
+    const store = createEditorStore({ storage });
+    expect(store.getState().settings.scheme).toBe('system');
+
+    store.getState().setScheme('light');
+    expect(createEditorStore({ storage }).getState().settings.scheme).toBe('light');
+
+    store.getState().setScheme('system');
+    expect(createEditorStore({ storage }).getState().settings.scheme).toBe('system');
+  });
+
+  it('reads anything else stored as the system, keeping the other settings', () => {
+    const settings = createEditorStore({
+      storage: memoryStorage({
+        [EDITOR_STORE_KEY]: JSON.stringify({
+          state: { settings: { scheme: 'sepia', layout: 'tower-test' } },
+          version: EDITOR_STORE_VERSION,
+        }),
+      }),
+    }).getState().settings;
+
+    expect(settings.scheme).toBe('system');
+    expect(settings.layout).toBe('tower-test');
+  });
+});
+
 describe('migration from the connection control’s own key', () => {
   const legacy = JSON.stringify({
     choice: { kind: 'remote', host: '192.168.1.3', port: 8085 },

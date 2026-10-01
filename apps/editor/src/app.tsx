@@ -95,7 +95,15 @@ import {
   useBackgroundSources,
 } from '@perch/ui-kit';
 import type { LayoutElement, Rect } from '@perch/layout-schema';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { CANVAS_HANDLES_STYLES } from './canvas-handles.js';
 import {
   CONNECTION_STYLES,
@@ -225,12 +233,33 @@ export function Editor({
 
   return (
     <EditorStoreProvider store={editorStore}>
+      <ChromeSchemeAttribute />
       <EditorKeybindings platform={platform}>
         {host === undefined ? null : <HostCommands host={host} />}
         <ConnectedEditor library={library} host={host} {...rest} />
       </EditorKeybindings>
     </EditorStoreProvider>
   );
+}
+
+/**
+ * The author's scheme on `<html data-ed-scheme>`, where the chrome's palette reads it, and nothing
+ * there for the system's (`controls/chrome.ts`). Before paint, so a light pick never flashes dark.
+ */
+function ChromeSchemeAttribute(): null {
+  const scheme = useEditorStore((state) => state.settings.scheme);
+
+  useLayoutEffect(() => {
+    if (scheme === 'system') return undefined;
+    const root = document.documentElement;
+    root.setAttribute('data-ed-scheme', scheme);
+
+    return () => {
+      root.removeAttribute('data-ed-scheme');
+    };
+  }, [scheme]);
+
+  return null;
 }
 
 /** The one keyboard dispatcher, over the store's keybinding overrides. */

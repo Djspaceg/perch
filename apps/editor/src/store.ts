@@ -6,7 +6,7 @@
  *
  * - **`settings`** is how the author has arranged the editor: the sensor host, which sections are
  *   open, which tab and chip each token pane shows, the layout last picked, the author's keybinding
- *   overrides (`keybindings/`, KEYBINDINGS.md), and (reserved, empty until the sidebar can move)
+ *   overrides (`keybindings/`, KEYBINDINGS.md), the chrome's colour scheme, and (reserved, empty until the sidebar can move)
  *   where the panels sit. It is persisted to `localStorage` under
  *   `EDITOR_STORE_KEY` (`persist`, with `partialize` choosing it and nothing else), so it survives a
  *   reload and a new tab alike. How a sidebar is folded is not a fact about a dashboard, so none of
@@ -37,7 +37,9 @@
  * over; the store's own key is written at once, and from then on the old key is neither read nor
  * written. It is left in place rather than deleted, so a checkout from before this store, served on
  * the same origin, still finds its host. Version 2 added `keybindings`; a version 1 value has none,
- * and `merge` gives it the empty default.
+ * and `merge` gives it the empty default. Fields added
+ * since, the scheme among them, need no bump: `merge` reads each field on its own and defaults one
+ * that is absent, which is all a version 2 value without them needs.
  *
  * ## One store per editor
  *
@@ -58,6 +60,7 @@ import {
   readSavedConnection,
   type ConnectionChoice,
 } from './connection.js';
+import type { ChromeScheme } from './controls/chrome.js';
 import { draftSaved, editDraft as applyEdit } from './draft.js';
 import type { CommandId, KeybindingOverrides } from './keybindings/index.js';
 import {
@@ -115,6 +118,8 @@ export interface EditorSettings {
    * build has no command for is kept, and ignored by `resolveKeymap`.
    */
   readonly keybindings: KeybindingOverrides;
+  /** The chrome's colours: the system's, or a scheme the author picked (`controls/chrome.ts`). */
+  readonly scheme: ChromeScheme;
   readonly panels: PanelSettings;
 }
 
@@ -147,6 +152,7 @@ export interface EditorActions {
   readonly setChip: (pane: string, chip: string) => void;
   /** Replace command `id`'s keys with `bindings` (`[]` unbinds it), or with `undefined` restore them. */
   readonly setKeybinding: (id: CommandId, bindings: readonly string[] | undefined) => void;
+  readonly setScheme: (scheme: ChromeScheme) => void;
   /** Open the first layout — `?layout=`, else the one last picked, else the library's first — once. */
   readonly openFirst: (library: LayoutLibrary, initialLayout: string | undefined) => void;
   /** Open a layout, dropping the selection. `remember` records it as the layout last picked. */
@@ -192,6 +198,7 @@ const DEFAULT_SETTINGS: EditorSettings = Object.freeze({
   chips: Object.freeze({}),
   layout: null,
   keybindings: Object.freeze({}),
+  scheme: 'system',
   panels: Object.freeze({}),
 });
 
@@ -310,6 +317,9 @@ export function createEditorStore(
                 { chips: { ...get().settings.chips, [pane]: chip } },
                 { type: 'set/chip', pane, chip },
               );
+            },
+            setScheme: (scheme) => {
+              settle({ scheme }, { type: 'set/scheme', scheme });
             },
             setKeybinding: (id, bindings) => {
               const { [id]: _replaced, ...others } = get().settings.keybindings;
@@ -508,6 +518,7 @@ function readSettings(raw: unknown): EditorSettings {
     chips: readRecord(body['chips'], (value) => typeof value === 'string'),
     layout: typeof body['layout'] === 'string' ? body['layout'] : null,
     keybindings: readRecord(body['keybindings'], isStringList),
+    scheme: isScheme(body['scheme']) ? body['scheme'] : DEFAULT_SETTINGS.scheme,
     panels: DEFAULT_SETTINGS.panels,
   };
 }
@@ -531,6 +542,10 @@ function readRecord<T>(raw: unknown, keep: (value: unknown) => value is T): Reco
 
 function isStringList(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function isScheme(value: unknown): value is ChromeScheme {
+  return value === 'system' || value === 'light' || value === 'dark';
 }
 
 function isTokenTab(value: unknown): value is TokenTab {
