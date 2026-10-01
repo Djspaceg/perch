@@ -23,9 +23,10 @@ import {
   type RelayLink,
 } from './connection-control.js';
 import type { ChromeScheme } from './controls/chrome.js';
-import { CONTROLS_STYLES, SegmentedControl, TooltipLayer } from './controls/index.js';
+import { CONTROLS_STYLES, TooltipLayer } from './controls/index.js';
 import { EDITOR_STYLES } from './app.js';
 import { choiceForRelay, type RelayTarget } from './editor-host.js';
+import { SchemeControl } from './header-bar.js';
 import { EditorStoreProvider, createEditorStore } from './store.js';
 
 export interface SettingsPageProps {
@@ -37,17 +38,6 @@ export interface SettingsPageProps {
   readonly scheme: ChromeScheme;
   /** A scheme picked here, for the app to apply to every window. */
   readonly onScheme: (scheme: ChromeScheme) => void;
-}
-
-/** The scheme control's choices, in the order the platforms list them. */
-const SCHEMES: readonly { readonly value: ChromeScheme; readonly label: string }[] = [
-  { value: 'system', label: 'System' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-];
-
-function isScheme(value: string): value is ChromeScheme {
-  return SCHEMES.some((option) => option.value === value);
 }
 
 export function SettingsPage({ relay, target, scheme, onScheme }: SettingsPageProps): ReactNode {
@@ -120,12 +110,9 @@ function Appearance({
         sets never change with it.
       </p>
       <div className="perch-settings__scheme">
-        <SegmentedControl
-          label="colour scheme"
+        <SchemeControl
           value={shown}
-          options={SCHEMES}
           onValue={(value) => {
-            if (!isScheme(value)) return;
             setShown(value);
             onScheme(value);
           }}

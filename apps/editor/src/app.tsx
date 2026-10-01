@@ -125,6 +125,7 @@ import {
   type EditorHost,
 } from './editor-host.js';
 import { useEditGesture } from './edit-gestures.js';
+import { HEADER_BAR_STYLES, HeaderBar, SchemeControl } from './header-bar.js';
 import {
   KeybindingsProvider,
   isTextEntry,
@@ -383,6 +384,9 @@ function ConnectedEditor({
       </style>
       <style href="perch-editor-connection" precedence="default">
         {CONNECTION_STYLES}
+      </style>
+      <style href="perch-editor-header" precedence="default">
+        {HEADER_BAR_STYLES}
       </style>
       <style href="perch-editor-sidebar" precedence="default">
         {SIDEBAR_STYLES}
@@ -838,121 +842,180 @@ function EditorShell({
 
   return (
     <div id="perch-editor" data-perch-layout={name} data-perch-dirty={dirty ? 'true' : 'false'}>
-      <header className="perch-editor-header" data-testid="perch-editor-header">
-        <span className="perch-editor-brand">perch · editor</span>
-
-        {hosted ? null : (
-          <label className="perch-editor-picker">
-            layout
-            <select
-              className="perch-editor-input"
-              value={name}
-              onChange={(event) => {
-                onPick(event.target.value);
-              }}
-            >
-              {choices.map((choice) => (
-                <option key={choice} value={choice}>
-                  {choice}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {opened.ok ? (
-          <span className="perch-editor-item" data-testid="perch-editor-fit">
-            {describePreviewFit(opened.state.rendered, viewport)}
-          </span>
-        ) : null}
-
-        {hosted ? (
-          <ConnectionIndicator
-            connection={connection}
-            onOpenSettings={() => {
-              host.openSettings();
-            }}
-          />
-        ) : (
-          <ConnectionControl connection={connection} />
-        )}
-
-        {live ? (
-          <span
-            className="perch-editor-live"
-            data-testid="perch-editor-source"
-            data-perch-source-kind="mqtt"
-          >
-            {`live · ${connection.state.target}`}
-          </span>
-        ) : (
-          <span
-            className="perch-editor-sample"
-            data-testid="perch-editor-source"
-            data-perch-source-kind="mock"
-            data-perch-tip={SAMPLE_PROVENANCE}
-          >
-            sample data
-          </span>
-        )}
-
-        <span className="perch-editor-spacer" />
-
-        {dirty ? (
-          <span className="perch-editor-dirty" data-testid="perch-editor-dirty">
-            unsaved changes
-          </span>
-        ) : null}
-
-        {hosted ? null : (
-          <>
-            <CommandButton
-              command="history.undo"
-              disabled={!canUndo}
-              onClick={() => {
-                onHistory('undo');
-              }}
-            >
-              undo
-            </CommandButton>
-
-            <CommandButton
-              command="history.redo"
-              disabled={!canRedo}
-              onClick={() => {
-                onHistory('redo');
-              }}
-            >
-              redo
-            </CommandButton>
-          </>
-        )}
-
-        <button
-          type="button"
-          className="perch-editor-button"
-          disabled={!opened.ok || !dirty || untitled === name}
-          onClick={() => {
-            open(name, false);
-          }}
-        >
-          revert
-        </button>
-
-        {hosted ? null : (
-          <button
-            type="button"
-            className="perch-editor-button perch-editor-button--save"
-            data-testid="perch-editor-save"
-            disabled={!opened.ok || saving || !canSave(opened.state)}
-            onClick={() => {
-              void onSave();
-            }}
-          >
-            save
-          </button>
-        )}
-      </header>
+      <HeaderBar
+        items={[
+          {
+            key: 'brand',
+            drop: 1,
+            node: <span className="perch-editor-brand">perch · editor</span>,
+          },
+          ...(hosted
+            ? []
+            : [
+                {
+                  key: 'picker',
+                  drop: 9,
+                  node: (
+                    <label className="perch-editor-picker">
+                      layout
+                      <select
+                        className="perch-editor-input"
+                        value={name}
+                        onChange={(event) => {
+                          onPick(event.target.value);
+                        }}
+                      >
+                        {choices.map((choice) => (
+                          <option key={choice} value={choice}>
+                            {choice}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ),
+                },
+              ]),
+          ...(opened.ok
+            ? [
+                {
+                  key: 'fit',
+                  drop: 2,
+                  node: (
+                    <span className="perch-editor-item" data-testid="perch-editor-fit">
+                      {describePreviewFit(opened.state.rendered, viewport)}
+                    </span>
+                  ),
+                },
+              ]
+            : []),
+          {
+            key: 'connection',
+            drop: 4,
+            node: hosted ? (
+              <ConnectionIndicator
+                connection={connection}
+                onOpenSettings={() => {
+                  host.openSettings();
+                }}
+              />
+            ) : (
+              <ConnectionControl connection={connection} />
+            ),
+          },
+          {
+            key: 'source',
+            drop: 3,
+            node: live ? (
+              <span
+                className="perch-editor-live"
+                data-testid="perch-editor-source"
+                data-perch-source-kind="mqtt"
+              >
+                {`live · ${connection.state.target}`}
+              </span>
+            ) : (
+              <span
+                className="perch-editor-sample"
+                data-testid="perch-editor-source"
+                data-perch-source-kind="mock"
+                data-perch-tip={SAMPLE_PROVENANCE}
+              >
+                sample data
+              </span>
+            ),
+          },
+          ...(dirty
+            ? [
+                {
+                  key: 'dirty',
+                  drop: Number.POSITIVE_INFINITY,
+                  end: true,
+                  node: (
+                    <span className="perch-editor-dirty" data-testid="perch-editor-dirty">
+                      unsaved changes
+                    </span>
+                  ),
+                },
+              ]
+            : []),
+          ...(hosted
+            ? []
+            : [
+                {
+                  key: 'undo',
+                  drop: 8,
+                  end: true,
+                  node: (
+                    <CommandButton
+                      command="history.undo"
+                      disabled={!canUndo}
+                      onClick={() => {
+                        onHistory('undo');
+                      }}
+                    >
+                      undo
+                    </CommandButton>
+                  ),
+                },
+                {
+                  key: 'redo',
+                  drop: 7,
+                  end: true,
+                  node: (
+                    <CommandButton
+                      command="history.redo"
+                      disabled={!canRedo}
+                      onClick={() => {
+                        onHistory('redo');
+                      }}
+                    >
+                      redo
+                    </CommandButton>
+                  ),
+                },
+              ]),
+          {
+            key: 'revert',
+            drop: 6,
+            end: true,
+            node: (
+              <button
+                type="button"
+                className="perch-editor-button"
+                disabled={!opened.ok || !dirty || untitled === name}
+                onClick={() => {
+                  open(name, false);
+                }}
+              >
+                revert
+              </button>
+            ),
+          },
+          ...(hosted
+            ? []
+            : [
+                {
+                  key: 'save',
+                  drop: Number.POSITIVE_INFINITY,
+                  end: true,
+                  node: (
+                    <button
+                      type="button"
+                      className="perch-editor-button perch-editor-button--save"
+                      data-testid="perch-editor-save"
+                      disabled={!opened.ok || saving || !canSave(opened.state)}
+                      onClick={() => {
+                        void onSave();
+                      }}
+                    >
+                      save
+                    </button>
+                  ),
+                },
+              ]),
+        ]}
+        extra={hosted ? null : <BrowserAppearance />}
+      />
 
       {/*
        * The migration, said out loud before it is written. A file at an older `schemaVersion` is saved
@@ -1154,6 +1217,21 @@ function useSidebar({
   };
 }
 
+/** The browser's colour scheme, in the header's more: the desktop app keeps it in Settings. */
+function BrowserAppearance(): ReactNode {
+  const scheme = useEditorStore((state) => state.settings.scheme);
+  const setScheme = useEditorStore((state) => state.setScheme);
+
+  return (
+    <>
+      <span className="perch-editor-more__label" id="perch-editor-appearance">
+        Appearance
+      </span>
+      <SchemeControl value={scheme} onValue={setScheme} />
+    </>
+  );
+}
+
 /** A header button for `command`, titled and `aria-keyshortcuts`-labelled with its keys. */
 function CommandButton({
   command,
@@ -1239,8 +1317,12 @@ html, body { margin: 0; height: 100%; background: var(--ed-canvas); }
 .perch-editor-header {
   flex: none;
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
   height: ${HEADER_HEIGHT}px;
   padding: 0 10px;
   border-bottom: 1px solid var(--ed-toolbar-edge);
@@ -1251,7 +1333,6 @@ html, body { margin: 0; height: 100%; background: var(--ed-canvas); }
 .perch-editor-brand { font-weight: 600; color: var(--ed-text); }
 .perch-editor-picker { display: flex; align-items: center; gap: 6px; }
 .perch-editor-item { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.perch-editor-spacer { flex: 1 1 auto; }
 .perch-editor-dirty {
   white-space: nowrap;
   border-radius: 999px;
