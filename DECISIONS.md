@@ -5131,3 +5131,42 @@ File capture refused this worktree: the captured notes summarise these logs.
 ## Residuals
 
 Drag, autoscroll and focus were verified in jsdom with mocked layout, not in a browser (no screenshots, per the brief). The Opacity row cannot take a fractional percent as typed ("55." snaps to 55). Commits: f8570a0 (opacity + migration), d54ef2f (layers), 1788131 (alpha), bb8921e (review fixes), then this docs commit.
+
+# Editor chrome: light scheme, resizable sidebar, tooltips, small windows, touch - decisions
+
+Outcome: the editor chrome gains a light scheme that follows the OS (System/Light/Dark override), a 300-540px sidebar (420 default) that resizes and folds to a 14px handle, its own tooltips, a header that overflows into More, 24px touch targets and a themed colour picker. 12 commits on local main after db53eec, nothing pushed.
+
+## Decisions to evaluate
+
+D1 The light palette is its own ladder (mid-grey window, white field wells, bars lighter than the panel). Every text role is 4.5:1 on every surface and every edge and focus ring 3:1, checked by tests. If overruled: retune `CHROME_SCHEMES.light` and DESIGN.md `colors-light`.
+D2 Desktop: Settings > Appearance sets `nativeTheme.themeSource`, saved in perch-desktop.json, and the editor follows `prefers-color-scheme`. Browser: More > Appearance, saved in the editor store. Bridge change: Settings only (`load()` also returns `scheme`; new `setScheme()`, checked in main). If overruled: an editor-side setting in desktop too.
+D3 The preview pins `color-scheme: dark` and reads no chrome token. Canvas handles keep literal colours because they draw over the design.
+D4 Sidebar: arrows 10px (Shift 50), Home/End, Enter folds, double-click 420, a drag below 225px folds on release. The work area keeps 320px and a window under 620px folds the sidebar on its own (the handle opens it at 300). The width does not animate, so the preview scale never lags.
+D5 Fold shortcut Mod+\ (`view.toggleSidebar`, works in fields too), plus View > Toggle Sidebar. If overruled: one line each in commands.ts and app-menu.ts.
+D6 The label column is clamp(96px, 38%, 180px), and chips, the legend and the placement read-out truncate. Prose (empty states, help, errors) still wraps.
+D7 Tooltips are one delegated layer reading `data-perch-tip`: 500ms for hover and keyboard focus alike, a 300ms grace, never for touch. A chip shows its tip only when its label is truncated.
+D8 The header drops, in order: brand, fit, source, connection, revert, redo, undo, picker. The unsaved mark and Save stay, and the header's connection status is capped at 160px.
+D9 Under a coarse pointer rows are 30px, fields 26px and targets 24px. At 300px the placement words hide (a container query).
+D10 The desktop editor window's minWidth drops from 900 to 480.
+D11 New tools/design-preview.mjs regenerates preview.html's tokens from DESIGN.md. Tests keep preview.html and DESIGN.md's colours in sync with chrome.ts.
+
+## Open questions
+
+Q1 The dark scheme is below AA in places (quiet 4.2:1, faint 2.6:1, field edges 1.3:1). Default: left as is, listed in Known Gaps.
+Q2 The store version is not bumped for `scheme` and `panels`; merge defaults them. Default: no bump.
+Q3 Sidebar prose still wraps. Default: yes, because truncated errors cannot be read.
+
+## Gate facts
+
+Push: none. Work was done directly on local main, as the human asked. No CR: this is a GitHub repo with no CRUX, and AutoSDE was not run. No dependency added; lockfile untouched. packages/*: none touched. Lanes at fbc5bd7: build.log 0, typecheck.log 0, test.log 0 (2563 tests: editor 860, desktop 172, tools 47, the rest unchanged; baseline 2327), lint.log 0. format.log exits 1 on two files that were already unformatted at db53eec. Adversarial review rounds: 0 (waived, rule 13).
+
+## Evidence (under the checkout's .evidence/editor-chrome-gaps/)
+
+- red-1..10 logs: each slice's new tests failing first.
+- baseline-*.log: the starting state.
+- build/typecheck/test/lint/format.log: final lanes.
+- cdp.mjs with wraps/drag/tip/keytip/targets/header/more/preview .js: headless Chrome checks of wrapping, real drags, tooltips, touch sizes, header fit and preview.html.
+
+## Residuals
+
+All checks ran in headless Chrome and jsdom; the Electron app was not launched, so `nativeTheme` and the View menu were checked by unit tests only. The sidebar does not wrap at 300/420/540 except for prose.
