@@ -106,6 +106,7 @@ const DARK = {
   'scroll-thumb': '#2e3542',
   'scroll-thumb-hover': '#4c586b',
   'scroll-track': '#0a0c10',
+  'picker-ring': 'rgba(0, 0, 0, 0.6)',
 } as const satisfies Readonly<Record<string, string>>;
 
 export type ChromeColour = keyof typeof DARK;
@@ -179,6 +180,7 @@ const LIGHT: Readonly<Record<ChromeColour, string>> = {
   'scroll-thumb': '#b4bbc6',
   'scroll-thumb-hover': '#8f98a6',
   'scroll-track': '#eceff3',
+  'picker-ring': 'rgba(0, 0, 0, 0.45)',
 };
 
 /** Both schemes, by name. */

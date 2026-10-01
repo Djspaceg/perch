@@ -14,6 +14,7 @@ import { INSPECTOR_STYLES } from '../inspector.js';
 import { PREVIEW_STYLES } from '../preview.js';
 import { SIDEBAR_STYLES } from '../sidebar.js';
 import { CHROME_SCHEMES, CHROME_STYLES, contrastRatio, type ChromeColour } from './chrome.js';
+import { COLOR_FIELD_STYLES } from './color-field.js';
 import { CONTROLS_STYLES } from './index.js';
 
 const LIGHT = CHROME_SCHEMES.light;
@@ -173,5 +174,25 @@ describe('touch', () => {
     );
     expect(EDITOR_STYLES).toMatch(/\.perch-editor-button \{[^}]*min-height: var\(--ed-target\);/);
     expect(SIDEBAR_STYLES).toMatch(/\.perch-sidebar-splitter \{[^}]*width: var\(--ed-hit\);/);
+  });
+});
+
+describe('the colour picker', () => {
+  // react-colorful's own sheet assumes a white page. Its gradients are the colour being picked and
+  // stay; everything around them is the chrome's.
+  it('takes its edges, checkerboard, pointer ring and focus from the chrome', () => {
+    expect(COLOR_FIELD_STYLES).toMatch(
+      /\.react-colorful__saturation[^{]*\{[^}]*box-shadow: inset 0 0 0 1px var\(--ed-swatch-edge\)/,
+    );
+    expect(COLOR_FIELD_STYLES).toMatch(
+      /\.react-colorful__alpha[^{]*\{[^}]*background-image: repeating-conic-gradient\(var\(--ed-checker-light\)/,
+    );
+    expect(COLOR_FIELD_STYLES).toMatch(
+      /\.react-colorful__pointer \{[^}]*box-shadow: 0 0 0 1px var\(--ed-picker-ring\)/,
+    );
+    expect(COLOR_FIELD_STYLES).toMatch(
+      /\.react-colorful__interactive:focus-visible \.react-colorful__pointer \{[^}]*var\(--ed-focus-ring\)/,
+    );
+    expect(LIGHT['picker-ring']).toBeDefined();
   });
 });

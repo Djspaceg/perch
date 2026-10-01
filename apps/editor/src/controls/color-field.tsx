@@ -178,7 +178,28 @@ export const COLOR_FIELD_STYLES = `
   box-shadow: 0 8px 24px var(--ed-popover-shadow);
 }
 .perch-popover .perch-popover__picker { width: 100%; height: 132px; }
-.perch-popover .react-colorful__saturation { border-radius: 3px 3px 0 0; }
+/*
+ * react-colorful, themed. Its own sheet assumes a white page; the gradients are the colour being
+ * picked and are left alone, and everything around them is the chrome's: an edge the panel can see
+ * in either scheme, the chrome's checkerboard under alpha, a dark ring round the white pointer so it
+ * shows on white, and the chrome's focus ring on the part the keyboard moves.
+ */
+.perch-popover .react-colorful__saturation {
+  border-radius: 3px 3px 0 0;
+  box-shadow: inset 0 0 0 1px var(--ed-swatch-edge);
+}
+.perch-popover .react-colorful__alpha-gradient { box-shadow: inset 0 0 0 1px var(--ed-swatch-edge); }
+.perch-popover .react-colorful__alpha, .perch-popover .react-colorful__alpha-pointer {
+  background-color: var(--ed-checker-light);
+  background-image: repeating-conic-gradient(var(--ed-checker-light) 0 25%, var(--ed-checker-dark) 0 50%);
+  background-size: 8px 8px;
+}
+.perch-popover .react-colorful__pointer {
+  box-shadow: 0 0 0 1px var(--ed-picker-ring), 0 1px 3px var(--ed-popover-shadow);
+}
+.perch-popover .react-colorful__interactive:focus-visible .react-colorful__pointer {
+  box-shadow: 0 0 0 1px var(--ed-picker-ring), 0 0 0 3px var(--ed-focus-ring);
+}
 .perch-popover .react-colorful__last-control { border-radius: 0 0 3px 3px; }
 .perch-popover .react-colorful__hue, .perch-popover .react-colorful__alpha { height: max(12px, var(--ed-target)); }
 .perch-popover .react-colorful__pointer { width: max(14px, var(--ed-target)); height: max(14px, var(--ed-target)); }
