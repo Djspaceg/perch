@@ -95,7 +95,7 @@ export const SEGMENTED_CONTROL_STYLES = `
   flex: 1 1 0;
   min-width: 0;
   border: 0;
-  border-left: 1px solid #1b2028;
+  border-left: 1px solid var(--ed-field-edge);
   background: none;
   color: var(--ed-label);
   font: inherit;
@@ -108,6 +108,6 @@ export const SEGMENTED_CONTROL_STYLES = `
 }
 .perch-segmented__option:first-child { border-left: 0; }
 .perch-segmented__option:hover { color: var(--ed-text); background: var(--ed-hover); }
-.perch-segmented__option[aria-checked='true'] { background: var(--ed-accent-fill); color: #eef5ff; }
+.perch-segmented__option[aria-checked='true'] { background: var(--ed-accent-fill); color: var(--ed-on-accent); }
 .perch-segmented__option:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: -2px; }
 `;

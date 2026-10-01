@@ -22,10 +22,99 @@
  * pseudo-elements, which do not inherit, so those are unscoped; Chromium ignores them wherever the
  * standard properties apply, so the two never fight.
  */
+/**
+ * Every colour the chrome paints, by role, as `--ed-<name>`. The names are DESIGN.md's roles where
+ * the two differ only in spelling (`bg` is its `panel`, `text` its `ink`, `accent` its `primary`).
+ */
+export const CHROME_PALETTE = {
+  canvas: '#07080a',
+  bg: '#0f1217',
+  'bg-recessed': '#0a0c10',
+  bar: '#171b23',
+  'bar-edge': '#1f242e',
+  'bar-shadow': '#0a0c10',
+  field: '#0a0c10',
+  'field-edge': '#232933',
+  'field-edge-hover': '#2e3542',
+  hover: '#1a1f28',
+  'row-hover': '#12161c',
+  popover: '#151920',
+  'popover-shadow': 'rgba(0, 0, 0, 0.55)',
+  header: '#0d1016',
+  'header-text': '#9aa4b2',
+  'toolbar-edge': '#1b2028',
+  'group-divider': '#262c36',
+  'swatch-edge': '#2a303b',
+  scrim: 'rgba(7, 8, 10, 0.7)',
+
+  text: '#e8f1ff',
+  'text-2': '#b7c2d2',
+  heading: '#dbe4f2',
+  'heading-hover': '#ffffff',
+  label: '#8f9aab',
+  quiet: '#6b7889',
+  faint: '#4c586b',
+
+  accent: '#8fb7e8',
+  'accent-fill': '#2a3f5c',
+  'accent-edge': '#3b5f8c',
+  'on-accent': '#eef5ff',
+  'focus-ring': '#8fb7e8',
+  'fill-bar': '#22344d',
+  own: '#6f9fd8',
+  'own-text': '#9cc2ee',
+  inherited: '#b8955c',
+  'inherited-text': '#c9ad7d',
+
+  danger: '#e8a08f',
+  'danger-fill': '#2a1414',
+  'danger-strong': '#ffc2b4',
+  'danger-surface': '#1a0e0e',
+  'danger-edge': '#5e2323',
+  success: '#7ee2a8',
+  'success-fill': '#10241a',
+  'success-edge': '#23503a',
+  warning: '#e8c98f',
+  'warning-fill': '#261e10',
+  'warning-edge': '#5e4a23',
+
+  'axis-x': '#c8645c',
+  'axis-y': '#72a85a',
+  'axis-w': '#5b8fd0',
+  'axis-h': '#c8a04e',
+
+  'checker-light': '#6b7889',
+  'checker-dark': '#262c36',
+  'scroll-thumb': '#2e3542',
+  'scroll-thumb-hover': '#4c586b',
+  'scroll-track': '#0a0c10',
+} as const satisfies Readonly<Record<string, string>>;
+
+export type ChromeColour = keyof typeof CHROME_PALETTE;
+
+/** The palette as declarations, one per line. */
+function declarations(palette: Readonly<Record<string, string>>): string {
+  return Object.entries(palette)
+    .map(([name, value]) => `  --ed-${name}: ${value};`)
+    .join('\n');
+}
+
+/**
+ * The search field's magnifier, in the scheme's quiet colour. A data URI cannot read a custom
+ * property, so the icon is a token of its own.
+ */
+function searchIcon(stroke: string): string {
+  const colour = stroke.replace('#', '%23');
+
+  return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Ccircle cx='4' cy='4' r='3' fill='none' stroke='${colour}' stroke-width='1.3'/%3E%3Cpath d='M6.3 6.3 9 9' stroke='${colour}' stroke-width='1.3'/%3E%3C/svg%3E")`;
+}
+
 export const CHROME_STYLES = `
 :root {
   --ed-row-h: 22px;
   --ed-field-h: 20px;
+  --ed-control: 18px;
+  --ed-list-row-h: 20px;
   --ed-label-col: 38%;
   --ed-pad-x: 8px;
   --ed-gap: 4px;
@@ -34,45 +123,15 @@ export const CHROME_STYLES = `
   --ed-font-small: 0.65625rem;
   --ed-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --ed-bg: #0f1217;
-  --ed-bg-recessed: #0a0c10;
-  --ed-bar: #171b23;
-  --ed-bar-edge: #1f242e;
-  --ed-bar-shadow: #0a0c10;
-  --ed-field: #0a0c10;
-  --ed-field-edge: #232933;
-  --ed-field-edge-hover: #2e3542;
-  --ed-hover: #1a1f28;
-
-  --ed-text: #e8f1ff;
-  --ed-text-2: #b7c2d2;
-  --ed-label: #8f9aab;
-  --ed-quiet: #6b7889;
-  --ed-faint: #4c586b;
-
-  --ed-accent: #8fb7e8;
-  --ed-accent-fill: #2a3f5c;
-  --ed-fill-bar: #22344d;
-  --ed-own: #6f9fd8;
-  --ed-own-text: #9cc2ee;
-  --ed-inherited: #b8955c;
-  --ed-inherited-text: #c9ad7d;
-  --ed-danger: #e8a08f;
-  --ed-danger-fill: #2a1414;
-
-  --ed-axis-x: #c8645c;
-  --ed-axis-y: #72a85a;
-  --ed-axis-w: #5b8fd0;
-  --ed-axis-h: #c8a04e;
+${declarations(CHROME_PALETTE)}
+  --ed-search-icon: ${searchIcon(CHROME_PALETTE.quiet)};
 
   --ed-motion-duration: 180ms;
   --ed-motion-ease: cubic-bezier(0.2, 0, 0, 1);
 
   --ed-scroll-size: 10px;
-  --ed-scroll-thumb: #2e3542;
-  --ed-scroll-thumb-hover: #4c586b;
-  --ed-scroll-track: #0a0c10;
 
+  color-scheme: dark;
   scrollbar-color: var(--ed-scroll-thumb) var(--ed-scroll-track);
   scrollbar-width: thin;
 }

@@ -109,11 +109,11 @@ export const ALIGN_GRID_STYLES = `
   height: 15px;
   border: 0;
   border-radius: 2px;
-  background: #141820;
+  background: var(--ed-field);
   padding: 0;
   cursor: pointer;
 }
-.perch-align__cell:hover { background: #1d2430; }
+.perch-align__cell:hover { background: var(--ed-hover); }
 .perch-align__cell:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 0; }
 .perch-align__mark {
   position: absolute;

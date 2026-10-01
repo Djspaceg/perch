@@ -96,11 +96,11 @@ function ElementJumps({ issues, onSelectElement }: LayoutProblemsProps): ReactNo
 
 export const LAYOUT_PROBLEMS_STYLES = `
 .perch-editor-problems {
-  border: 1px solid #6b2626;
+  border: 1px solid var(--ed-danger-edge);
   border-radius: 4px;
-  background: #2a1212;
+  background: var(--ed-danger-fill);
   padding: 10px 12px;
-  color: #ffd7d7;
+  color: var(--ed-danger-strong);
 }
 .perch-editor-problems__title {
   margin: 0 0 4px;
@@ -110,7 +110,7 @@ export const LAYOUT_PROBLEMS_STYLES = `
 .perch-editor-problems__note {
   margin: 0 0 8px;
   font-size: 0.75rem;
-  color: #e8a0a0;
+  color: var(--ed-danger);
 }
 /*
  * pre-wrap and anywhere: the block must not scroll sideways and must not truncate. A path is the
@@ -133,12 +133,12 @@ export const LAYOUT_PROBLEMS_STYLES = `
   margin: 8px 0 0;
   font-size: 0.75rem;
 }
-.perch-editor-problems__jumps-label { color: #e8a0a0; }
+.perch-editor-problems__jumps-label { color: var(--ed-danger); }
 .perch-editor-problems__jump {
-  border: 1px solid #6b2626;
+  border: 1px solid var(--ed-danger-edge);
   border-radius: 999px;
-  background: #3a1818;
-  color: #ffd7d7;
+  background: var(--ed-danger-fill);
+  color: var(--ed-danger-strong);
   font: inherit;
   padding: 1px 8px;
   cursor: pointer;

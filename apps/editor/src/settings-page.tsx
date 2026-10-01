@@ -82,13 +82,13 @@ export const SETTINGS_STYLES = `
   box-sizing: border-box;
   min-height: 100vh;
   padding: 16px 18px;
-  background: #0d1016;
+  background: var(--ed-header);
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 0.75rem;
-  color: #9aa4b2;
+  color: var(--ed-header-text);
 }
 .perch-settings__section { display: flex; flex-direction: column; gap: 8px; }
-.perch-settings__heading { margin: 0; font-size: 0.8125rem; font-weight: 600; color: #e8f1ff; }
+.perch-settings__heading { margin: 0; font-size: 0.8125rem; font-weight: 600; color: var(--ed-text); }
 .perch-settings__note { margin: 0 0 4px; line-height: 1.4; }
 #perch-settings .perch-connection { flex-wrap: wrap; row-gap: 10px; }
 #perch-settings .perch-connection__host { flex: 1 1 150px; }

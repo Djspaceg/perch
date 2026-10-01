@@ -131,10 +131,10 @@ describe('ColorField', () => {
 
     // jsdom's CSS parser drops a conic gradient, so the fill is read from the function that makes it.
     expect(swatchStyle('#1a2b3c').background).toBe(
-      'linear-gradient(#1a2b3c, #1a2b3c), repeating-conic-gradient(#6b7889 0 25%, #262c36 0 50%) 0 0 / 8px 8px',
+      'linear-gradient(#1a2b3c, #1a2b3c), repeating-conic-gradient(var(--ed-checker-light) 0 25%, var(--ed-checker-dark) 0 50%) 0 0 / 8px 8px',
     );
     expect(swatchStyle('#ABC8').background).toMatch(/^linear-gradient\(#aabbcc88, #aabbcc88\)/);
-    expect(swatchStyle('var(--perch-fg)').background).not.toContain('var(');
+    expect(swatchStyle('var(--perch-fg)').background).not.toContain('var(--perch');
 
     rerender(<Colour key="other" initial="var(--perch-fg)" writes={[]} />);
     const none = screen.getByRole('button', { name: /colour picker for Background/ });

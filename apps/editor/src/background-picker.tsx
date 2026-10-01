@@ -405,13 +405,13 @@ export const BACKGROUND_PICKER_STYLES = `
   position: relative;
   overflow: hidden;
   border-radius: var(--ed-radius);
-  background: #151920;
+  background: var(--ed-popover);
   outline: 1px solid var(--ed-bar-edge);
   cursor: pointer;
 }
 .perch-backgrounds__cell:hover { outline-color: var(--ed-field-edge-hover); }
 .perch-backgrounds__cell:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 1px; }
-.perch-backgrounds__cell[aria-selected='true'] { outline: 2px solid #7ee2a8; outline-offset: 1px; }
+.perch-backgrounds__cell[aria-selected='true'] { outline: 2px solid var(--ed-success); outline-offset: 1px; }
 .perch-backgrounds__cell[data-state='failed'] { outline: 1px dashed var(--ed-danger); }
 .perch-backgrounds__thumb { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
 .perch-backgrounds__number {
@@ -420,7 +420,7 @@ export const BACKGROUND_PICKER_STYLES = `
   bottom: 2px;
   padding: 0 4px;
   border-radius: 2px;
-  background: rgba(7, 8, 10, 0.7);
+  background: var(--ed-scrim);
   color: var(--ed-text-2);
   font-size: var(--ed-font-small);
   font-variant-numeric: tabular-nums;
@@ -432,8 +432,8 @@ export const BACKGROUND_PICKER_STYLES = `
   width: 16px;
   height: 16px;
   margin: -8px 0 0 -8px;
-  border: 2px solid rgba(232, 241, 255, 0.3);
-  border-top-color: #e8f1ff;
+  border: 2px solid color-mix(in srgb, var(--ed-text) 30%, transparent);
+  border-top-color: var(--ed-text);
   border-radius: 50%;
   animation: perch-backgrounds-spin 0.8s linear infinite;
 }

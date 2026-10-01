@@ -1062,14 +1062,14 @@ function useOpened(): Opened {
  * in.
  */
 export const EDITOR_STYLES = `
-html, body { margin: 0; height: 100%; background: #07080a; }
+html, body { margin: 0; height: 100%; background: var(--ed-canvas); }
 #perch-editor {
   display: flex;
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
   font-family: ui-sans-serif, system-ui, sans-serif;
-  color: #e8f1ff;
+  color: var(--ed-text);
 }
 .perch-editor-header {
   flex: none;
@@ -1078,36 +1078,36 @@ html, body { margin: 0; height: 100%; background: #07080a; }
   gap: 10px;
   height: ${HEADER_HEIGHT}px;
   padding: 0 10px;
-  border-bottom: 1px solid #1b2028;
-  background: #0d1016;
+  border-bottom: 1px solid var(--ed-toolbar-edge);
+  background: var(--ed-header);
   font-size: 0.75rem;
-  color: #9aa4b2;
+  color: var(--ed-header-text);
 }
-.perch-editor-brand { font-weight: 600; color: #e8f1ff; }
+.perch-editor-brand { font-weight: 600; color: var(--ed-text); }
 .perch-editor-picker { display: flex; align-items: center; gap: 6px; }
 .perch-editor-item { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .perch-editor-spacer { flex: 1 1 auto; }
 .perch-editor-dirty {
   white-space: nowrap;
   border-radius: 999px;
-  border: 1px solid #5e4a23;
-  background: #261e10;
-  color: #e8c98f;
+  border: 1px solid var(--ed-warning-edge);
+  background: var(--ed-warning-fill);
+  color: var(--ed-warning);
   padding: 1px 8px;
   font-weight: 600;
 }
 .perch-editor-button {
   flex: none;
-  border: 1px solid #262c36;
+  border: 1px solid var(--ed-field-edge);
   border-radius: 3px;
-  background: #171b22;
-  color: #e8f1ff;
+  background: var(--ed-bar);
+  color: var(--ed-text);
   font: inherit;
   padding: 3px 10px;
   cursor: pointer;
 }
-.perch-editor-button:disabled { color: #4c586b; cursor: not-allowed; }
-.perch-editor-button--save:not(:disabled) { border-color: #23503a; background: #10241a; color: #7ee2a8; }
+.perch-editor-button:disabled { color: var(--ed-faint); cursor: not-allowed; }
+.perch-editor-button--save:not(:disabled) { border-color: var(--ed-success-edge); background: var(--ed-success-fill); color: var(--ed-success); }
 .perch-editor-bar {
   flex: none;
   display: flex;
@@ -1116,13 +1116,13 @@ html, body { margin: 0; height: 100%; background: #07080a; }
   gap: 8px;
   margin: 0;
   padding: 5px 10px;
-  border-bottom: 1px solid #1b2028;
-  background: #0d1016;
+  border-bottom: 1px solid var(--ed-toolbar-edge);
+  background: var(--ed-header);
   font-size: 0.75rem;
-  color: #9aa4b2;
+  color: var(--ed-header-text);
   overflow-wrap: anywhere;
 }
-.perch-editor-bar--warn { border-color: #5e4a23; background: #261e10; color: #e8c98f; }
+.perch-editor-bar--warn { border-color: var(--ed-warning-edge); background: var(--ed-warning-fill); color: var(--ed-warning); }
 .perch-editor-body { flex: 1 1 auto; display: flex; min-height: 0; }
 .perch-editor-pane {
   flex: 1 1 auto;
@@ -1138,8 +1138,8 @@ html, body { margin: 0; height: 100%; background: #07080a; }
   width: ${INSPECTOR_WIDTH}px;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid #1b2028;
-  background: var(--ed-bg, #0f1217);
+  border-left: 1px solid var(--ed-toolbar-edge);
+  background: var(--ed-bg);
   overflow: hidden;
 }
 .perch-editor-side > .perch-editor-problems { flex: none; margin: 6px; max-height: 40%; overflow-y: auto; }

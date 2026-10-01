@@ -267,7 +267,7 @@ export const CONNECTION_STYLES = `
 }
 .perch-connection__dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ed-faint); }
 [data-perch-connection='connecting'] > .perch-connection__dot { background: var(--ed-inherited); }
-[data-perch-connection='connected'] > .perch-connection__dot { background: #7ee2a8; }
+[data-perch-connection='connected'] > .perch-connection__dot { background: var(--ed-success); }
 [data-perch-connection='disconnected'] > .perch-connection__dot { background: var(--ed-danger); }
 [data-perch-connection='disconnected'] { color: var(--ed-danger); }
 .perch-connection__indicator {
@@ -283,11 +283,11 @@ export const CONNECTION_STYLES = `
 .perch-editor-sample {
   white-space: nowrap;
   border-radius: 999px;
-  border: 1px solid #5e4a23;
-  background: #261e10;
-  color: #e8c98f;
+  border: 1px solid var(--ed-warning-edge);
+  background: var(--ed-warning-fill);
+  color: var(--ed-warning);
   padding: 1px 8px;
   font-weight: 600;
 }
-.perch-editor-live { white-space: nowrap; color: #7ee2a8; }
+.perch-editor-live { white-space: nowrap; color: var(--ed-success); }
 `;

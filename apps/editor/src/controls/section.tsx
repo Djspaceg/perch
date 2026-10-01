@@ -152,7 +152,7 @@ export const SECTION_STYLES = `
   min-height: calc(var(--ed-row-h) - 1px);
   border: 0;
   background: none;
-  color: #dbe4f2;
+  color: var(--ed-heading);
   font: inherit;
   font-size: var(--ed-font);
   font-weight: 600;
@@ -171,7 +171,7 @@ export const SECTION_STYLES = `
   transition: transform 80ms ease-out;
 }
 .perch-section__toggle[aria-expanded='true']::before { transform: rotate(90deg); }
-.perch-section__toggle:hover { color: #ffffff; }
+.perch-section__toggle:hover { color: var(--ed-heading-hover); }
 .perch-section__toggle:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: -2px; }
 .perch-section__summary {
   flex: 0 1 auto;

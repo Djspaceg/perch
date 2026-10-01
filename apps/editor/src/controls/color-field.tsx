@@ -32,7 +32,8 @@ import { NumberField } from './number-field.js';
 import { usePopover } from './popover.js';
 
 /** The checkerboard a swatch's colour is laid over. */
-const CHECKERBOARD = 'repeating-conic-gradient(#6b7889 0 25%, #262c36 0 50%) 0 0 / 8px 8px';
+const CHECKERBOARD =
+  'repeating-conic-gradient(var(--ed-checker-light) 0 25%, var(--ed-checker-dark) 0 50%) 0 0 / 8px 8px';
 
 /**
  * A swatch's fill: the colour over a checkerboard, because a translucent swatch over the pane's own
@@ -44,7 +45,7 @@ export function swatchStyle(value: string): { background: string } {
   const colour = parseColour(value);
   if (colour === undefined) {
     return {
-      background: `linear-gradient(to top right, transparent calc(50% - 1px), #d08770 50%, transparent calc(50% + 1px)), #151920`,
+      background: `linear-gradient(to top right, transparent calc(50% - 1px), var(--ed-danger) 50%, transparent calc(50% + 1px)), var(--ed-popover)`,
     };
   }
   const hex = formatColour(colour);
@@ -153,13 +154,13 @@ export const COLOR_FIELD_STYLES = `
   min-width: 28px;
   height: var(--ed-field-h);
   box-sizing: border-box;
-  border: 1px solid #2a303b;
+  border: 1px solid var(--ed-swatch-edge);
   border-radius: var(--ed-radius);
   padding: 0;
   cursor: pointer;
 }
 .perch-color__swatch:hover { border-color: var(--ed-faint); }
-.perch-color__swatch:disabled { cursor: default; border-color: #2a303b; }
+.perch-color__swatch:disabled { cursor: default; border-color: var(--ed-swatch-edge); }
 .perch-color__swatch[aria-expanded='true'] { border-color: var(--ed-accent); }
 .perch-color__swatch:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 0; }
 .perch-color__hex { flex: 0 0 78px; }
@@ -173,8 +174,8 @@ export const COLOR_FIELD_STYLES = `
   padding: 8px;
   border: 1px solid var(--ed-field-edge-hover);
   border-radius: 4px;
-  background: #151920;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  background: var(--ed-popover);
+  box-shadow: 0 8px 24px var(--ed-popover-shadow);
 }
 .perch-popover .perch-popover__picker { width: 100%; height: 132px; }
 .perch-popover .react-colorful__saturation { border-radius: 3px 3px 0 0; }

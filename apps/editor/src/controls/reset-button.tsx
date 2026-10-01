@@ -209,7 +209,7 @@ export const RESET_BUTTON_STYLES = `
 .perch-reset--revert { color: var(--ed-accent); }
 .perch-reset--revert:hover { background: var(--ed-hover); color: var(--ed-text); }
 .perch-reset--delete { color: var(--ed-danger); }
-.perch-reset--delete:hover { background: var(--ed-danger-fill); color: #ffc2b4; }
+.perch-reset--delete:hover { background: var(--ed-danger-fill); color: var(--ed-danger-strong); }
 /*
  * The confirm floats over the row's value, right-aligned to the slot, so the row does not reflow; it
  * unfolds from the row's middle, through Collapse, rather than appearing.
@@ -227,9 +227,9 @@ export const RESET_BUTTON_STYLES = `
   align-items: center;
   gap: 4px;
   padding: 1px 2px 1px 6px;
-  border: 1px solid #5e2323;
+  border: 1px solid var(--ed-danger-edge);
   border-radius: var(--ed-radius);
-  background: #1a0e0e;
+  background: var(--ed-danger-surface);
   white-space: nowrap;
 }
 .perch-reset__ask { font-size: var(--ed-font-small); color: var(--ed-danger); }
@@ -244,6 +244,6 @@ export const RESET_BUTTON_STYLES = `
   height: 16px;
   cursor: pointer;
 }
-.perch-reset__word--delete { border-color: #5e2323; background: #241010; color: var(--ed-danger); }
+.perch-reset__word--delete { border-color: var(--ed-danger-edge); background: var(--ed-danger-surface); color: var(--ed-danger); }
 .perch-reset__word:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 0; }
 `;

@@ -857,7 +857,7 @@ export const TOKEN_PANE_STYLES = `
   flex: none;
   width: 14px;
   height: 14px;
-  border: 1px solid #2a303b;
+  border: 1px solid var(--ed-swatch-edge);
   border-radius: 2px;
 }
 .perch-token-help, .perch-token-empty, .perch-token-legend {

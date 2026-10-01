@@ -146,7 +146,7 @@ export const PROPERTY_ROW_STYLES = `
   min-height: var(--ed-row-h);
   padding: 1px 4px 1px var(--ed-pad-x);
 }
-.perch-row:hover { background: #12161c; }
+.perch-row:hover { background: var(--ed-row-hover); }
 .perch-row__label {
   position: relative;
   display: flex;

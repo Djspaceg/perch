@@ -711,7 +711,7 @@ export const INSPECTOR_STYLES = `
 }
 .perch-editor-group { display: flex; flex-direction: column; min-width: 0; scroll-margin-top: 0; }
 .perch-editor-group:focus { outline: none; }
-.perch-editor-group + .perch-editor-group { border-top: 1px solid #262c36; }
+.perch-editor-group + .perch-editor-group { border-top: 1px solid var(--ed-group-divider); }
 .perch-editor-group__bar {
   display: flex;
   align-items: baseline;
