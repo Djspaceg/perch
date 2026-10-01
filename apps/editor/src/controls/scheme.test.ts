@@ -9,8 +9,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { EDITOR_STYLES } from '../app.js';
+import { INSPECTOR_STYLES } from '../inspector.js';
 import { PREVIEW_STYLES } from '../preview.js';
+import { SIDEBAR_STYLES } from '../sidebar.js';
 import { CHROME_SCHEMES, CHROME_STYLES, contrastRatio, type ChromeColour } from './chrome.js';
+import { CONTROLS_STYLES } from './index.js';
 
 const LIGHT = CHROME_SCHEMES.light;
 
@@ -123,5 +127,51 @@ describe('contrastRatio', () => {
     expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21, 5);
     expect(contrastRatio('#ffffff', '#ffffff')).toBeCloseTo(1, 5);
     expect(contrastRatio('#767676', '#ffffff')).toBeCloseTo(4.54, 2);
+  });
+});
+
+describe('touch', () => {
+  /** The `@media (pointer: coarse)` block's declarations, by name. */
+  function coarse(): Record<string, string> {
+    const block =
+      /@media \(pointer: coarse\) \{\s*:root \{([^}]*)\}/.exec(CHROME_STYLES)?.[1] ?? '';
+
+    const sizes: Record<string, string> = {};
+    for (const [, name, value] of block.matchAll(/(--ed-[a-z-]+):\s*([^;]+);/g)) {
+      if (name !== undefined && value !== undefined) sizes[name] = value;
+    }
+
+    return sizes;
+  }
+
+  it('grows every target to at least 24px under a coarse pointer, and only there', () => {
+    const sizes = coarse();
+    for (const name of [
+      '--ed-field-h',
+      '--ed-control',
+      '--ed-list-row-h',
+      '--ed-target',
+      '--ed-hit',
+    ]) {
+      expect(Number.parseFloat(sizes[name] ?? '0'), name).toBeGreaterThanOrEqual(24);
+    }
+    expect(Number.parseFloat(sizes['--ed-row-h'] ?? '0')).toBeGreaterThanOrEqual(26);
+    // The mouse's density is unchanged.
+    expect(CHROME_STYLES).toContain('--ed-control: 18px;');
+    expect(CHROME_STYLES).toContain('--ed-row-h: 22px;');
+  });
+
+  it('sizes the small targets from those tokens rather than in pixels of their own', () => {
+    expect(CONTROLS_STYLES).toMatch(/\.perch-reset \{[^}]*width: var\(--ed-control\);/);
+    expect(CONTROLS_STYLES).toMatch(
+      /grid-template-columns: var\(--ed-label-col\) minmax\(0, 1fr\) var\(--ed-control\);/,
+    );
+    expect(CONTROLS_STYLES).toMatch(/\.perch-filter__search \{[^}]*height: var\(--ed-control\);/);
+    expect(CONTROLS_STYLES).toMatch(/\.perch-align__cell \{[^}]*width: var\(--ed-control\);/);
+    expect(INSPECTOR_STYLES).toMatch(
+      /\.perch-editor-element \{[^}]*height: var\(--ed-list-row-h\);/,
+    );
+    expect(EDITOR_STYLES).toMatch(/\.perch-editor-button \{[^}]*min-height: var\(--ed-target\);/);
+    expect(SIDEBAR_STYLES).toMatch(/\.perch-sidebar-splitter \{[^}]*width: var\(--ed-hit\);/);
   });
 });

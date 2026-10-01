@@ -836,7 +836,13 @@ export const TOKEN_PANE_STYLES = `
    gap between fields), so it is 1ex of the row's own font. */
 .perch-row--box { margin-block: 1ex; }
 .perch-row--placement .perch-row__label { padding-top: 3px; }
-.perch-axes { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.perch-axes { display: flex; flex-direction: column; gap: 2px; min-width: var(--ed-control); flex: 1 1 auto; container-type: inline-size; }
+/* Too narrow for words (a 300px sidebar under a coarse pointer): the grid beside it shows the value,
+   the reset keeps its name, and the words step aside rather than push the reset out of the row. */
+@container (max-width: 64px) {
+  .perch-axis { gap: 0; justify-content: flex-end; }
+  .perch-axis__word, .perch-axis__value { display: none; }
+}
 .perch-axis {
   display: flex;
   align-items: center;

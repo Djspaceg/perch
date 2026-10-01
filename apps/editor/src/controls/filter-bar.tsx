@@ -90,7 +90,7 @@ export const FILTER_BAR_STYLES = `
 .perch-filter__search {
   width: 100%;
   max-width: 180px;
-  height: 18px;
+  height: var(--ed-control);
   box-sizing: border-box;
   border: 1px solid var(--ed-field-edge);
   border-radius: 9px;

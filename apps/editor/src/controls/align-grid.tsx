@@ -40,7 +40,7 @@ export function AlignGrid({
     <div
       className="perch-align"
       role="radiogroup"
-      style={{ gridTemplateColumns: `repeat(${columns}, 18px)` }}
+      style={{ gridTemplateColumns: `repeat(${columns}, var(--ed-control))` }}
       {...(labelledBy === undefined ? { 'aria-label': label } : { 'aria-labelledby': labelledBy })}
     >
       {down.options.map((row, rowIndex) =>
@@ -105,8 +105,8 @@ export const ALIGN_GRID_STYLES = `
 }
 .perch-align__cell {
   position: relative;
-  width: 18px;
-  height: 15px;
+  width: var(--ed-control);
+  height: max(15px, var(--ed-target));
   border: 0;
   border-radius: 2px;
   background: var(--ed-field);

@@ -778,7 +778,7 @@ export const INSPECTOR_STYLES = `
   align-items: center;
   gap: 6px;
   width: 100%;
-  height: 20px;
+  height: var(--ed-list-row-h);
   border: 0;
   border-radius: 2px;
   background: none;

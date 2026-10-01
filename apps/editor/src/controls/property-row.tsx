@@ -144,7 +144,7 @@ export const PROPERTY_ROW_STYLES = `
 .perch-row {
   position: relative;
   display: grid;
-  grid-template-columns: var(--ed-label-col) minmax(0, 1fr) 18px;
+  grid-template-columns: var(--ed-label-col) minmax(0, 1fr) var(--ed-control);
   align-items: center;
   min-width: 0;
   column-gap: 6px;

@@ -194,8 +194,8 @@ export const RESET_BUTTON_STYLES = `
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 18px;
-  height: 18px;
+  width: var(--ed-control);
+  height: var(--ed-control);
   border: 0;
   border-radius: var(--ed-radius);
   background: none;
@@ -241,7 +241,8 @@ export const RESET_BUTTON_STYLES = `
   font: inherit;
   font-size: var(--ed-font-small);
   padding: 0 6px;
-  height: 16px;
+  height: calc(var(--ed-control) - 2px);
+  min-height: var(--ed-target);
   cursor: pointer;
 }
 .perch-reset__word--delete { border-color: var(--ed-danger-edge); background: var(--ed-danger-surface); color: var(--ed-danger); }

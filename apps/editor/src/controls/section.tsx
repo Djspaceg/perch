@@ -186,9 +186,9 @@ export const SECTION_STYLES = `
 }
 .perch-section__summary[data-perch-active='true'] { color: var(--ed-own-text); }
 .perch-section__body { display: flex; flex-direction: column; padding: 3px 0 5px; }
-.perch-section--advanced .perch-section__bar { background: none; border: 0; min-height: 20px; }
+.perch-section--advanced .perch-section__bar { background: none; border: 0; min-height: var(--ed-list-row-h); }
 .perch-section--advanced .perch-section__toggle {
-  min-height: 20px;
+  min-height: var(--ed-list-row-h);
   padding-left: calc(var(--ed-pad-x) + 6px);
   font-weight: 500;
   color: var(--ed-label);

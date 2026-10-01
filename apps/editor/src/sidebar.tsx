@@ -274,8 +274,8 @@ export const SIDEBAR_STYLES = `
   z-index: 2;
   top: 0;
   bottom: 0;
-  left: -4px;
-  width: 8px;
+  left: calc(var(--ed-hit) / -2);
+  width: var(--ed-hit);
   cursor: col-resize;
   touch-action: none;
 }
@@ -284,7 +284,7 @@ export const SIDEBAR_STYLES = `
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 3px;
+  left: calc(var(--ed-hit) / 2 - 1px);
   width: 2px;
   background: transparent;
 }
@@ -297,6 +297,7 @@ export const SIDEBAR_STYLES = `
 .perch-editor-side[data-perch-snapping='true'] > :not(.perch-sidebar-splitter) { opacity: 0.4; }
 body.perch-resizing, body.perch-resizing * { cursor: col-resize !important; user-select: none !important; }
 .perch-sidebar-handle {
+  position: relative;
   flex: none;
   display: flex;
   align-items: center;
@@ -308,6 +309,16 @@ body.perch-resizing, body.perch-resizing * { cursor: col-resize !important; user
   background: var(--ed-bg);
   color: var(--ed-quiet);
   cursor: pointer;
+}
+/* Under a coarse pointer the handle reaches 24px into the work area, so it is a whole target without
+   taking more of the window than the preview's arithmetic gives it. */
+.perch-sidebar-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 100%;
+  width: max(0px, calc(var(--ed-target) - ${String(SIDEBAR_HANDLE_WIDTH)}px));
 }
 .perch-sidebar-handle:hover { background: var(--ed-hover); color: var(--ed-text); }
 .perch-sidebar-handle:focus-visible { outline: 2px solid var(--ed-focus-ring); outline-offset: -2px; }

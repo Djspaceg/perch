@@ -501,7 +501,7 @@ export const SENSOR_PICKER_STYLES = `
   font-size: var(--ed-font-small);
   cursor: pointer;
 }
-.perch-topic__choose { width: 20px; padding: 0; font-size: 0.75rem; line-height: 1; }
+.perch-topic__choose { width: var(--ed-field-h); padding: 0; font-size: 0.75rem; line-height: 1; }
 .perch-topic__choose:hover, .perch-add:hover { color: var(--ed-text); border-color: var(--ed-field-edge-hover); }
 .perch-topic__choose[aria-expanded='true'], .perch-add[aria-expanded='true'] { border-color: var(--ed-accent); color: var(--ed-text); }
 .perch-topic__choose:focus-visible, .perch-add:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 0; }
@@ -536,7 +536,7 @@ export const SENSOR_PICKER_STYLES = `
   color: var(--ed-label);
   font: inherit;
   font-size: var(--ed-font-small);
-  height: 18px;
+  height: var(--ed-control);
   padding: 0 6px;
   cursor: pointer;
 }

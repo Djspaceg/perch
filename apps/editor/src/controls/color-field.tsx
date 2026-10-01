@@ -180,8 +180,8 @@ export const COLOR_FIELD_STYLES = `
 .perch-popover .perch-popover__picker { width: 100%; height: 132px; }
 .perch-popover .react-colorful__saturation { border-radius: 3px 3px 0 0; }
 .perch-popover .react-colorful__last-control { border-radius: 0 0 3px 3px; }
-.perch-popover .react-colorful__hue, .perch-popover .react-colorful__alpha { height: 12px; }
-.perch-popover .react-colorful__pointer { width: 14px; height: 14px; }
+.perch-popover .react-colorful__hue, .perch-popover .react-colorful__alpha { height: max(12px, var(--ed-target)); }
+.perch-popover .react-colorful__pointer { width: max(14px, var(--ed-target)); height: max(14px, var(--ed-target)); }
 .perch-popover__foot { display: flex; align-items: center; gap: 6px; }
 .perch-popover__hex { flex: 1 1 auto; font-family: var(--ed-mono); font-size: var(--ed-font-small); color: var(--ed-text-2); }
 .perch-popover__foot .perch-number { flex: 0 0 108px; }

@@ -1332,6 +1332,7 @@ html, body { margin: 0; height: 100%; background: var(--ed-canvas); }
 }
 .perch-editor-brand { font-weight: 600; color: var(--ed-text); }
 .perch-editor-picker { display: flex; align-items: center; gap: 6px; }
+.perch-editor-picker .perch-editor-input { min-height: var(--ed-target); }
 .perch-editor-item { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .perch-editor-dirty {
   white-space: nowrap;
@@ -1344,6 +1345,7 @@ html, body { margin: 0; height: 100%; background: var(--ed-canvas); }
 }
 .perch-editor-button {
   flex: none;
+  min-height: var(--ed-target);
   border: 1px solid var(--ed-field-edge);
   border-radius: 3px;
   background: var(--ed-bar);

@@ -248,7 +248,7 @@ export function ConnectionIndicator({
 /** The control's chrome: the header's own look, the sidebar's field and focus ring. */
 export const CONNECTION_STYLES = `
 .perch-connection { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.perch-connection__option { display: flex; align-items: center; gap: 4px; white-space: nowrap; cursor: pointer; }
+.perch-connection__option { display: flex; align-items: center; gap: 4px; min-height: var(--ed-target); white-space: nowrap; cursor: pointer; }
 .perch-connection__radio { margin: 0; accent-color: var(--ed-accent); cursor: pointer; }
 .perch-connection__radio:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 1px; }
 .perch-connection__host { flex: none; width: 150px; }

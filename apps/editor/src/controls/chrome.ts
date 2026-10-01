@@ -236,8 +236,14 @@ export const CHROME_STYLES = `
 :root {
   --ed-row-h: 22px;
   --ed-field-h: 20px;
+  /* Icon buttons, chips, the search pill, the row's end slot. */
   --ed-control: 18px;
+  /* A list row: the Elements list, a sensor, a folded Advanced bar. */
   --ed-list-row-h: 20px;
+  /* The least a text button may be: nothing extra under a mouse. */
+  --ed-target: 0px;
+  /* The splitter's grab zone, straddling the sidebar's edge. */
+  --ed-hit: 8px;
   /* 38% of the row, which is about 150px at the default width, held between 96px and 180px so a
      narrow sidebar keeps a readable label and a wide one gives its extra room to the values. */
   --ed-label-col: clamp(96px, 38%, 180px);
@@ -263,6 +269,23 @@ ${declarations(DARK)}
 ${lightRule(":root[data-ed-scheme='light']")}
 @media (prefers-color-scheme: light) {
 ${lightRule(":root:not([data-ed-scheme='dark'])")}
+}
+/*
+ * Touch, and only touch: every target at least 24px (WCAG 2.2, 2.5.8), rows to match. A mouse keeps
+ * the density above.
+ */
+@media (pointer: coarse) {
+  :root {
+    --ed-row-h: 30px;
+    /* 26, so the input inside a field's 1px edge is itself 24. */
+    --ed-field-h: 26px;
+    --ed-control: 24px;
+    --ed-list-row-h: 24px;
+    --ed-target: 24px;
+    --ed-hit: 24px;
+    /* A little less label, so the wider controls still fit a 300px sidebar's value column. */
+    --ed-label-col: clamp(88px, 34%, 180px);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   :root { --ed-motion-duration: 0ms; }

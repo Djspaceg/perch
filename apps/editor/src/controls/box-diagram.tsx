@@ -365,15 +365,15 @@ export const BOX_DIAGRAM_STYLES = `
   bottom: 0; left: 0; justify-content: flex-start;
   border-bottom-width: 2px; border-left-width: 2px; border-bottom-left-radius: 12px;
 }
-.perch-box-diagram__area .perch-number { flex: none; width: 34px; height: 18px; }
+.perch-box-diagram__area .perch-number { flex: none; width: 34px; height: max(18px, calc(var(--ed-target) + 2px)); }
 .perch-box-diagram__area .perch-number__input { padding: 0 3px; text-align: center; }
 .perch-box-diagram__link {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: var(--ed-control);
+  height: var(--ed-control);
   border: 0;
   border-radius: var(--ed-radius);
   background: none;
