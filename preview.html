@@ -9,10 +9,13 @@
   and type style below is a custom property generated from that file; component CSS reads only
   these properties. No build, no framework, no network. The small script at the end demonstrates
   disclosure, scrubbing, nudging, reset, the inline confirm, chips, tabs, segments, the colour
-  field, the popover and list reordering.
+  field, the popover, list reordering, the scheme toggle, resizing and folding the panel, tooltips
+  and the header's More. The token blocks between the BEGIN and END generated markers are written by
+  node tools/design-preview.mjs; edit DESIGN.md and run it, rather than editing them here.
 -->
 <style>
-/* Generated from DESIGN.md front matter: 48 colours, 10 type styles, 7 radii, 13 spacing values. */
+/* BEGIN generated tokens */
+/* 52 colours in each of two schemes, 10 type styles, 7 radii, 21 spacing values. */
 :root {
   --color-primary: #8fb7e8;
   --color-on-primary: #eef5ff;
@@ -62,6 +65,10 @@
   --color-scroll-track: #0a0c10;
   --color-focus-ring: #8fb7e8;
   --color-popover-shadow: rgba(0, 0, 0, 0.55);
+  --color-header: #0d1016;
+  --color-header-text: #9aa4b2;
+  --color-scrim: rgba(7, 8, 10, 0.7);
+  --color-picker-ring: rgba(0, 0, 0, 0.6);
   --rounded-none: 0px;
   --rounded-xs: 2px;
   --rounded-sm: 3px;
@@ -80,8 +87,16 @@
   --spacing-control: 18px;
   --spacing-field-height: 20px;
   --spacing-row-height: 22px;
-  --spacing-label-column: 38%;
+  --spacing-label-column: clamp(96px, 38%, 180px);
   --spacing-sidebar-width: 420px;
+  --spacing-sidebar-min: 300px;
+  --spacing-sidebar-max: 540px;
+  --spacing-sidebar-handle: 14px;
+  --spacing-splitter-hit: 8px;
+  --spacing-work-area-min: 320px;
+  --spacing-touch-target: 24px;
+  --spacing-touch-field-height: 26px;
+  --spacing-touch-row-height: 30px;
   --typography-group-title-fontSize: 10.5px;
   --typography-section-title-fontSize: 11.5px;
   --typography-body-fontSize: 11.5px;
@@ -92,6 +107,127 @@
   --typography-title-fontSize: 13px;
   --typography-toolbar-fontSize: 12px;
   --typography-toolbar-strong-fontSize: 12px;
+  color-scheme: dark;
+}
+:root[data-scheme='light'] {
+  --color-primary: #1f5fae;
+  --color-on-primary: #0d2747;
+  --color-primary-fill: #d3e2f6;
+  --color-primary-edge: #2f6fc0;
+  --color-canvas: #d5dae1;
+  --color-panel: #f5f6f8;
+  --color-panel-recessed: #e9ecf0;
+  --color-bar: #fbfcfd;
+  --color-bar-edge: #ffffff;
+  --color-bar-shadow: #d6dae1;
+  --color-field: #ffffff;
+  --color-field-edge: #7a8391;
+  --color-field-edge-hover: #5a6473;
+  --color-hover: #e2e6ec;
+  --color-row-hover: #eceff3;
+  --color-popover: #ffffff;
+  --color-toolbar-edge: #cdd2da;
+  --color-group-divider: #d5d9e0;
+  --color-swatch-edge: #7a8391;
+  --color-ink: #141a23;
+  --color-ink-2: #2e3846;
+  --color-heading: #1b2330;
+  --color-heading-hover: #000000;
+  --color-label: #454f5e;
+  --color-quiet: #505a68;
+  --color-faint: #5a6473;
+  --color-fill-bar: #dce7f5;
+  --color-own: #2f6fc0;
+  --color-own-text: #1d5aa6;
+  --color-inherited: #9a6a1c;
+  --color-inherited-text: #7f5512;
+  --color-danger: #b3261e;
+  --color-danger-fill: #fbe7e5;
+  --color-danger-strong: #8c1d18;
+  --color-danger-surface: #fdf1f0;
+  --color-danger-edge: #c9605a;
+  --color-success: #1b6e3f;
+  --color-success-fill: #e1f3e8;
+  --color-success-edge: #3f8a5f;
+  --color-warning: #805200;
+  --color-warning-fill: #fbf0d6;
+  --color-warning-edge: #a5781f;
+  --color-checker-light: #ffffff;
+  --color-checker-dark: #d3d8df;
+  --color-scroll-thumb: #b4bbc6;
+  --color-scroll-track: #eceff3;
+  --color-focus-ring: #1f5fae;
+  --color-popover-shadow: rgba(20, 26, 35, 0.18);
+  --color-header: #e9ecf0;
+  --color-header-text: #454f5e;
+  --color-scrim: rgba(245, 246, 248, 0.7);
+  --color-picker-ring: rgba(0, 0, 0, 0.45);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-scheme='dark']) {
+    --color-primary: #1f5fae;
+    --color-on-primary: #0d2747;
+    --color-primary-fill: #d3e2f6;
+    --color-primary-edge: #2f6fc0;
+    --color-canvas: #d5dae1;
+    --color-panel: #f5f6f8;
+    --color-panel-recessed: #e9ecf0;
+    --color-bar: #fbfcfd;
+    --color-bar-edge: #ffffff;
+    --color-bar-shadow: #d6dae1;
+    --color-field: #ffffff;
+    --color-field-edge: #7a8391;
+    --color-field-edge-hover: #5a6473;
+    --color-hover: #e2e6ec;
+    --color-row-hover: #eceff3;
+    --color-popover: #ffffff;
+    --color-toolbar-edge: #cdd2da;
+    --color-group-divider: #d5d9e0;
+    --color-swatch-edge: #7a8391;
+    --color-ink: #141a23;
+    --color-ink-2: #2e3846;
+    --color-heading: #1b2330;
+    --color-heading-hover: #000000;
+    --color-label: #454f5e;
+    --color-quiet: #505a68;
+    --color-faint: #5a6473;
+    --color-fill-bar: #dce7f5;
+    --color-own: #2f6fc0;
+    --color-own-text: #1d5aa6;
+    --color-inherited: #9a6a1c;
+    --color-inherited-text: #7f5512;
+    --color-danger: #b3261e;
+    --color-danger-fill: #fbe7e5;
+    --color-danger-strong: #8c1d18;
+    --color-danger-surface: #fdf1f0;
+    --color-danger-edge: #c9605a;
+    --color-success: #1b6e3f;
+    --color-success-fill: #e1f3e8;
+    --color-success-edge: #3f8a5f;
+    --color-warning: #805200;
+    --color-warning-fill: #fbf0d6;
+    --color-warning-edge: #a5781f;
+    --color-checker-light: #ffffff;
+    --color-checker-dark: #d3d8df;
+    --color-scroll-thumb: #b4bbc6;
+    --color-scroll-track: #eceff3;
+    --color-focus-ring: #1f5fae;
+    --color-popover-shadow: rgba(20, 26, 35, 0.18);
+    --color-header: #e9ecf0;
+    --color-header-text: #454f5e;
+    --color-scrim: rgba(245, 246, 248, 0.7);
+    --color-picker-ring: rgba(0, 0, 0, 0.45);
+    color-scheme: light;
+  }
+}
+@media (pointer: coarse) {
+  :root {
+    --spacing-control: 24px;
+    --spacing-field-height: 26px;
+    --spacing-row-height: 30px;
+    --spacing-splitter-hit: 24px;
+  }
 }
 .t-group-title { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10.5px; font-weight: 700; line-height: normal; letter-spacing: 0.1em; }
 .t-section-title { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11.5px; font-weight: 600; line-height: normal; letter-spacing: normal; }
@@ -103,6 +239,7 @@
 .t-title { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13px; font-weight: 600; line-height: normal; letter-spacing: normal; }
 .t-toolbar { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 12px; font-weight: 400; line-height: normal; letter-spacing: normal; }
 .t-toolbar-strong { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 12px; font-weight: 600; line-height: normal; letter-spacing: normal; }
+/* END generated tokens */
 @media (prefers-reduced-motion: reduce) { :root { --motion-duration: 0ms; } }
 :root { --motion-duration: 180ms; --motion-ease: cubic-bezier(0.2, 0, 0, 1);
   scrollbar-color: var(--color-scroll-thumb) var(--color-scroll-track); scrollbar-width: thin; }
@@ -112,7 +249,9 @@ body { font-family: ui-sans-serif, system-ui, sans-serif; font-size: var(--typog
 .sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
 .lede { color: var(--color-quiet); margin: 0 0 var(--spacing-xl); max-width: 70ch; line-height: 1.45; }
-.cat { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 24px; align-items: start; }
+.cat { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 24px; align-items: start; }
+.topbar { display: flex; align-items: center; gap: var(--spacing-md); margin: 0 0 var(--spacing-xl); }
+.topbar .seg { flex: none; width: 220px; }
 .card { margin: 0 0 var(--spacing-xl); }
 .card > h2 { font-size: 12px; font-weight: 600; color: var(--color-ink-2); margin: 0 0 var(--spacing-sm); }
 .card > p { color: var(--color-quiet); margin: 0 0 var(--spacing-sm); font-size: var(--typography-caption-fontSize); }
@@ -129,7 +268,8 @@ h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
 .types code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; color: var(--color-quiet); }
 
 /* panel */
-.panel { width: 420px; background: var(--color-panel); border-left: 1px solid var(--color-toolbar-edge); color: var(--color-ink); max-height: 900px; overflow-y: scroll; overflow-x: hidden; scrollbar-gutter: stable; }
+.shell { position: relative; display: flex; align-items: stretch; }
+.panel { position: relative; width: var(--panel-w, var(--spacing-sidebar-width)); background: var(--color-panel); border-left: 1px solid var(--color-toolbar-edge); color: var(--color-ink); max-height: 900px; overflow-y: scroll; overflow-x: hidden; scrollbar-gutter: stable; }
 .group-bar { display: flex; align-items: baseline; gap: var(--spacing-pad-x); padding: 6px var(--spacing-pad-x) 5px; background: var(--color-panel-recessed); }
 .group-bar h2 { margin: 0; color: var(--color-ink-2); text-transform: uppercase; }
 .group-bar .hint { color: var(--color-faint); }
@@ -149,6 +289,30 @@ h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
 .collapse.shut > .clip { opacity: 0; }
 .collapse.open > .clip { overflow: visible; }
 .body { display: flex; flex-direction: column; padding: 3px 0 5px; }
+
+/* resize handle, collapsed handle */
+.splitter { position: absolute; z-index: 3; top: 0; bottom: 0; left: calc(var(--spacing-splitter-hit) / -2); width: var(--spacing-splitter-hit); cursor: col-resize; touch-action: none; }
+.splitter::after { content: ''; position: absolute; top: 0; bottom: 0; left: calc(var(--spacing-splitter-hit) / 2 - 1px); width: 2px; background: transparent; }
+.splitter:hover::after, .splitter.is-hover::after, body.resizing .splitter::after { background: var(--color-primary); }
+.splitter:focus { outline: none; }
+.splitter:focus-visible::after { background: var(--color-focus-ring); }
+.panel.snapping > :not(.splitter) { opacity: 0.4; }
+body.resizing, body.resizing * { cursor: col-resize !important; user-select: none !important; }
+.handle { flex: none; display: flex; align-items: center; justify-content: center; width: var(--spacing-sidebar-handle); min-height: 120px; padding: 0; border: 0; border-left: 1px solid var(--color-toolbar-edge); background: var(--color-panel); color: var(--color-quiet); cursor: pointer; }
+.handle:hover, .handle.is-hover { background: var(--color-hover); color: var(--color-ink); }
+.handle:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: -2px; }
+.handle i { width: 5px; height: 5px; border-left: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateX(1px) rotate(45deg); }
+
+/* tooltip */
+.tooltip { position: fixed; z-index: 100; max-width: min(320px, calc(100vw - 8px)); padding: 3px 7px 4px; border: 1px solid var(--color-field-edge-hover); border-radius: var(--rounded-sm); background: var(--color-popover); box-shadow: 0 4px 12px var(--color-popover-shadow); color: var(--color-ink); font-size: var(--typography-caption-fontSize); line-height: 1.4; }
+.tooltip.static { position: relative; }
+.tooltip[hidden] { display: none; }
+
+/* header and more */
+.header { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--spacing-md); height: 44px; padding: 0 var(--spacing-md); overflow: hidden; white-space: nowrap; border: 1px solid var(--color-toolbar-edge); border-radius: var(--rounded-md); background: var(--color-header); color: var(--color-header-text); }
+.header .brand { font-weight: 600; color: var(--color-ink); }
+.header .end { margin-left: auto; }
+.header .more { min-width: 28px; padding: 0 6px; }
 
 /* row */
 .row { position: relative; display: grid; grid-template-columns: var(--spacing-label-column) minmax(0, 1fr) var(--spacing-control); column-gap: var(--spacing-sm); align-items: center; min-height: var(--spacing-row-height); padding: 1px var(--spacing-gap) 1px var(--spacing-pad-x); color: var(--color-label); }
@@ -270,11 +434,18 @@ body.scrubbing, body.scrubbing * { cursor: ew-resize !important; user-select: no
 </head>
 <body>
 <h1>Dense inspector panel</h1>
-<p class="lede">The catalogue for <code>DESIGN.md</code>. Everything here is drawn from its tokens. Try dragging a row label or typing into fields, and use the arrow keys (hold Shift for ×10). Fold sections, press a reset (↺) or the trash can, click the chips, tabs and segments, or type a colour. Alt+Up and Alt+Down reorder the list.</p>
+<p class="lede">The catalogue for <code>DESIGN.md</code>. Everything here is drawn from its tokens. Try dragging a row label or typing into fields, and use the arrow keys (hold Shift for ×10). Fold sections, press a reset (↺) or the trash can, click the chips, tabs and segments, or type a colour. Alt+Up and Alt+Down reorder the list. Drag the panel's left edge, or focus it and use the arrows, Home, End and Enter; double-click it for 420px. Hover or tab to anything with a tip. Pick a scheme above.</p>
+
+<div class="topbar t-caption">
+  <span id="schemeLabel">Scheme</span>
+  <div class="seg t-caption" role="radiogroup" aria-label="colour scheme" id="scheme"><button role="radio" aria-checked="true" tabindex="0" data-scheme="system">System</button><button role="radio" aria-checked="false" tabindex="-1" data-scheme="light">Light</button><button role="radio" aria-checked="false" tabindex="-1" data-scheme="dark">Dark</button></div>
+</div>
 
 <div class="cat">
 <!-- A composed panel -->
-<aside class="panel" aria-label="inspector">
+<div class="shell" id="shell">
+<aside class="panel" aria-label="inspector" id="panel">
+  <div class="splitter" id="splitter" role="separator" aria-label="sidebar width" aria-orientation="vertical" aria-controls="panel" aria-valuenow="420" aria-valuemin="300" aria-valuemax="540" tabindex="0" data-tip="Drag to resize the sidebar. Double-click for its default width."></div>
   <section class="group" aria-labelledby="g1">
     <div class="group-bar"><h2 id="g1" class="t-group-title">Global</h2><span class="hint t-caption">the whole document</span></div>
     <div class="tabs">
@@ -289,17 +460,17 @@ body.scrubbing, body.scrubbing * { cursor: ew-resize !important; user-select: no
     </div>
 
     <section class="sect" aria-labelledby="s1h">
-      <div class="section-bar t-section-title"><h3 id="s1h"><button class="toggle t-section-title" aria-expanded="true" aria-controls="s1b">Appearance</button></h3><span class="summary set t-caption" title="2 set">2 set</span></div>
+      <div class="section-bar t-section-title"><h3 id="s1h"><button class="toggle t-section-title" aria-expanded="true" aria-controls="s1b">Appearance</button></h3><span class="summary set t-caption" data-tip="2 set">2 set</span></div>
       <div class="collapse open" id="s1b"><div class="clip"><div class="body">
         <div class="row t-body" data-source="set" id="opacityRow">
-          <div class="label scrub" data-scrub="opacity"><i class="mark" aria-hidden="true"></i><label for="opacity" title="How strongly this paints: 0% is invisible, 100% solid.">Opacity</label><span class="sr" id="opacitySrc">set here</span></div>
+          <div class="label scrub" data-scrub="opacity"><i class="mark" aria-hidden="true"></i><label for="opacity" data-tip="How strongly this paints: 0% is invisible, 100% solid.">Opacity</label><span class="sr" id="opacitySrc">set here</span></div>
           <div class="value"><span class="num bar" id="opacityWrap"><input id="opacity" role="spinbutton" inputmode="decimal" value="55" aria-valuemin="0" aria-valuemax="100" aria-describedby="opacitySrc" data-min="0" data-max="100" data-step="1" class="t-number"><span class="unit t-caption" aria-hidden="true">%</span></span></div>
-          <div class="end"><button class="icon" id="opacityReset" aria-label="reset Opacity to the default 100%" title="reset Opacity to the default 100%"><span aria-hidden="true">↺</span></button></div>
+          <div class="end"><button class="icon" id="opacityReset" aria-label="reset Opacity to the default 100%" data-tip="reset Opacity to the default 100%"><span aria-hidden="true">↺</span></button></div>
         </div>
         <div class="row t-body" data-source="inherited">
           <div class="label"><i class="mark" aria-hidden="true"></i><label for="fillHex">Fill</label><span class="sr" id="fillSrc">inherited from the parent</span></div>
           <div class="value anchor">
-            <button class="swatch" id="fillSwatch" style="--c: #8fb7e880" aria-haspopup="dialog" aria-expanded="false" aria-label="open colour picker for Fill" title="open colour picker for Fill"></button>
+            <button class="swatch" id="fillSwatch" style="--c: #8fb7e880" aria-haspopup="dialog" aria-expanded="false" aria-label="open colour picker for Fill" data-tip="open colour picker for Fill"></button>
             <input class="field mono hex" id="fillHex" value="#8fb7e880" aria-describedby="fillSrc" spellcheck="false">
             <div class="popover" id="fillPop" role="dialog" aria-label="Fill colour" hidden>
               <div class="picker"></div><div class="strip12 hue"></div><div class="strip12 alpha"></div>
@@ -322,7 +493,7 @@ body.scrubbing, body.scrubbing * { cursor: ew-resize !important; user-select: no
     </section>
 
     <section class="sect" aria-labelledby="s2h">
-      <div class="section-bar t-section-title"><h3 id="s2h"><button class="toggle t-section-title" aria-expanded="false" aria-controls="s2b">Transform</button></h3><span class="summary t-caption" title="10, 20 · 300 × 80">10, 20 · 300 × 80</span></div>
+      <div class="section-bar t-section-title"><h3 id="s2h"><button class="toggle t-section-title" aria-expanded="false" aria-controls="s2b">Transform</button></h3><span class="summary t-caption" data-tip="10, 20 · 300 × 80">10, 20 · 300 × 80</span></div>
       <div class="collapse shut" id="s2b" hidden inert aria-hidden="true"><div class="clip"><div class="body">
         <div class="row t-body" data-source="default">
           <div class="label scrub" data-scrub="x"><label for="x">X</label></div>
@@ -342,7 +513,7 @@ body.scrubbing, body.scrubbing * { cursor: ew-resize !important; user-select: no
     <div class="sel" id="selRow">
       <span class="tile" aria-hidden="true">◧</span>
       <span class="txt"><span class="name t-title">Temperature readout</span><span class="meta t-mono">widget · item 3</span></span>
-      <button class="icon danger" id="del" aria-label="delete Temperature readout. everything set on it goes." title="delete Temperature readout. everything set on it goes."><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.25h11"/><path d="M6 4.25V2.75a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 .75.75v1.5"/><path d="M3.75 4.25l.7 8.85a1 1 0 0 0 1 .9h5.1a1 1 0 0 0 1-.9l.7-8.85"/><path d="M6.75 7v4.25M9.25 7v4.25"/></svg></button>
+      <button class="icon danger" id="del" aria-label="delete Temperature readout. everything set on it goes." data-tip="delete Temperature readout. everything set on it goes."><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.25h11"/><path d="M6 4.25V2.75a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 .75.75v1.5"/><path d="M3.75 4.25l.7 8.85a1 1 0 0 0 1 .9h5.1a1 1 0 0 0 1-.9l.7-8.85"/><path d="M6.75 7v4.25M9.25 7v4.25"/></svg></button>
       <div class="confirm-wrap collapse shut" id="confirmWrap" hidden inert aria-hidden="true"><div class="clip"><span class="confirm t-caption" role="group" aria-label="delete Temperature readout?"><span>delete?</span><button class="word del t-caption" id="confirmDel">delete</button><button class="word t-caption" id="confirmKeep">keep</button></span></div></div>
     </div>
     <section class="sect" aria-labelledby="s3h">
@@ -358,58 +529,70 @@ body.scrubbing, body.scrubbing * { cursor: ew-resize !important; user-select: no
     </section>
   </section>
 </aside>
+<button class="handle" id="handle" aria-label="show sidebar" aria-expanded="false" aria-controls="panel" data-tip="Show sidebar (Ctrl+\)" hidden><i aria-hidden="true"></i></button>
+</div>
 
 <!-- The catalogue -->
 <main>
-  <div class="card"><h2>Colours</h2><div class="swatches"><div class="chipc"><i style="background: var(--color-primary)"></i><span>primary<br><code>#8fb7e8</code></span></div>
-<div class="chipc"><i style="background: var(--color-on-primary)"></i><span>on-primary<br><code>#eef5ff</code></span></div>
-<div class="chipc"><i style="background: var(--color-primary-fill)"></i><span>primary-fill<br><code>#2a3f5c</code></span></div>
-<div class="chipc"><i style="background: var(--color-primary-edge)"></i><span>primary-edge<br><code>#3b5f8c</code></span></div>
-<div class="chipc"><i style="background: var(--color-canvas)"></i><span>canvas<br><code>#07080a</code></span></div>
-<div class="chipc"><i style="background: var(--color-panel)"></i><span>panel<br><code>#0f1217</code></span></div>
-<div class="chipc"><i style="background: var(--color-panel-recessed)"></i><span>panel-recessed<br><code>#0a0c10</code></span></div>
-<div class="chipc"><i style="background: var(--color-bar)"></i><span>bar<br><code>#171b23</code></span></div>
-<div class="chipc"><i style="background: var(--color-bar-edge)"></i><span>bar-edge<br><code>#1f242e</code></span></div>
-<div class="chipc"><i style="background: var(--color-bar-shadow)"></i><span>bar-shadow<br><code>#0a0c10</code></span></div>
-<div class="chipc"><i style="background: var(--color-field)"></i><span>field<br><code>#0a0c10</code></span></div>
-<div class="chipc"><i style="background: var(--color-field-edge)"></i><span>field-edge<br><code>#232933</code></span></div>
-<div class="chipc"><i style="background: var(--color-field-edge-hover)"></i><span>field-edge-hover<br><code>#2e3542</code></span></div>
-<div class="chipc"><i style="background: var(--color-hover)"></i><span>hover<br><code>#1a1f28</code></span></div>
-<div class="chipc"><i style="background: var(--color-row-hover)"></i><span>row-hover<br><code>#12161c</code></span></div>
-<div class="chipc"><i style="background: var(--color-popover)"></i><span>popover<br><code>#151920</code></span></div>
-<div class="chipc"><i style="background: var(--color-toolbar-edge)"></i><span>toolbar-edge<br><code>#1b2028</code></span></div>
-<div class="chipc"><i style="background: var(--color-group-divider)"></i><span>group-divider<br><code>#262c36</code></span></div>
-<div class="chipc"><i style="background: var(--color-swatch-edge)"></i><span>swatch-edge<br><code>#2a303b</code></span></div>
-<div class="chipc"><i style="background: var(--color-ink)"></i><span>ink<br><code>#e8f1ff</code></span></div>
-<div class="chipc"><i style="background: var(--color-ink-2)"></i><span>ink-2<br><code>#b7c2d2</code></span></div>
-<div class="chipc"><i style="background: var(--color-heading)"></i><span>heading<br><code>#dbe4f2</code></span></div>
-<div class="chipc"><i style="background: var(--color-heading-hover)"></i><span>heading-hover<br><code>#ffffff</code></span></div>
-<div class="chipc"><i style="background: var(--color-label)"></i><span>label<br><code>#8f9aab</code></span></div>
-<div class="chipc"><i style="background: var(--color-quiet)"></i><span>quiet<br><code>#6b7889</code></span></div>
-<div class="chipc"><i style="background: var(--color-faint)"></i><span>faint<br><code>#4c586b</code></span></div>
-<div class="chipc"><i style="background: var(--color-fill-bar)"></i><span>fill-bar<br><code>#22344d</code></span></div>
-<div class="chipc"><i style="background: var(--color-own)"></i><span>own<br><code>#6f9fd8</code></span></div>
-<div class="chipc"><i style="background: var(--color-own-text)"></i><span>own-text<br><code>#9cc2ee</code></span></div>
-<div class="chipc"><i style="background: var(--color-inherited)"></i><span>inherited<br><code>#b8955c</code></span></div>
-<div class="chipc"><i style="background: var(--color-inherited-text)"></i><span>inherited-text<br><code>#c9ad7d</code></span></div>
-<div class="chipc"><i style="background: var(--color-danger)"></i><span>danger<br><code>#e8a08f</code></span></div>
-<div class="chipc"><i style="background: var(--color-danger-fill)"></i><span>danger-fill<br><code>#2a1414</code></span></div>
-<div class="chipc"><i style="background: var(--color-danger-strong)"></i><span>danger-strong<br><code>#ffc2b4</code></span></div>
-<div class="chipc"><i style="background: var(--color-danger-surface)"></i><span>danger-surface<br><code>#1a0e0e</code></span></div>
-<div class="chipc"><i style="background: var(--color-danger-edge)"></i><span>danger-edge<br><code>#5e2323</code></span></div>
-<div class="chipc"><i style="background: var(--color-success)"></i><span>success<br><code>#7ee2a8</code></span></div>
-<div class="chipc"><i style="background: var(--color-success-fill)"></i><span>success-fill<br><code>#10241a</code></span></div>
-<div class="chipc"><i style="background: var(--color-success-edge)"></i><span>success-edge<br><code>#23503a</code></span></div>
-<div class="chipc"><i style="background: var(--color-warning)"></i><span>warning<br><code>#e8c98f</code></span></div>
-<div class="chipc"><i style="background: var(--color-warning-fill)"></i><span>warning-fill<br><code>#261e10</code></span></div>
-<div class="chipc"><i style="background: var(--color-warning-edge)"></i><span>warning-edge<br><code>#5e4a23</code></span></div>
-<div class="chipc"><i style="background: var(--color-checker-light)"></i><span>checker-light<br><code>#6b7889</code></span></div>
-<div class="chipc"><i style="background: var(--color-checker-dark)"></i><span>checker-dark<br><code>#262c36</code></span></div>
-<div class="chipc"><i style="background: var(--color-scroll-thumb)"></i><span>scroll-thumb<br><code>#2e3542</code></span></div>
-<div class="chipc"><i style="background: var(--color-scroll-track)"></i><span>scroll-track<br><code>#0a0c10</code></span></div>
-<div class="chipc"><i style="background: var(--color-focus-ring)"></i><span>focus-ring<br><code>#8fb7e8</code></span></div>
-<div class="chipc"><i style="background: var(--color-popover-shadow)"></i><span>popover-shadow<br><code>rgba(0, 0, 0, 0.55)</code></span></div></div></div>
-  <div class="card"><h2>Type</h2><div class="types"><div><code>group-title<br>10.5px / 700</code><span class="t-group-title" style="text-transform: uppercase">Opacity 55% · Selected item 0123456789</span></div>
+  <div class="card"><h2>Colours</h2><div class="swatches">
+<!-- BEGIN generated swatches -->
+<div class="chipc"><i style="background: var(--color-primary)"></i><span>primary<br><code>#8fb7e8</code> <code>#1f5fae</code></span></div>
+<div class="chipc"><i style="background: var(--color-on-primary)"></i><span>on-primary<br><code>#eef5ff</code> <code>#0d2747</code></span></div>
+<div class="chipc"><i style="background: var(--color-primary-fill)"></i><span>primary-fill<br><code>#2a3f5c</code> <code>#d3e2f6</code></span></div>
+<div class="chipc"><i style="background: var(--color-primary-edge)"></i><span>primary-edge<br><code>#3b5f8c</code> <code>#2f6fc0</code></span></div>
+<div class="chipc"><i style="background: var(--color-canvas)"></i><span>canvas<br><code>#07080a</code> <code>#d5dae1</code></span></div>
+<div class="chipc"><i style="background: var(--color-panel)"></i><span>panel<br><code>#0f1217</code> <code>#f5f6f8</code></span></div>
+<div class="chipc"><i style="background: var(--color-panel-recessed)"></i><span>panel-recessed<br><code>#0a0c10</code> <code>#e9ecf0</code></span></div>
+<div class="chipc"><i style="background: var(--color-bar)"></i><span>bar<br><code>#171b23</code> <code>#fbfcfd</code></span></div>
+<div class="chipc"><i style="background: var(--color-bar-edge)"></i><span>bar-edge<br><code>#1f242e</code> <code>#ffffff</code></span></div>
+<div class="chipc"><i style="background: var(--color-bar-shadow)"></i><span>bar-shadow<br><code>#0a0c10</code> <code>#d6dae1</code></span></div>
+<div class="chipc"><i style="background: var(--color-field)"></i><span>field<br><code>#0a0c10</code> <code>#ffffff</code></span></div>
+<div class="chipc"><i style="background: var(--color-field-edge)"></i><span>field-edge<br><code>#232933</code> <code>#7a8391</code></span></div>
+<div class="chipc"><i style="background: var(--color-field-edge-hover)"></i><span>field-edge-hover<br><code>#2e3542</code> <code>#5a6473</code></span></div>
+<div class="chipc"><i style="background: var(--color-hover)"></i><span>hover<br><code>#1a1f28</code> <code>#e2e6ec</code></span></div>
+<div class="chipc"><i style="background: var(--color-row-hover)"></i><span>row-hover<br><code>#12161c</code> <code>#eceff3</code></span></div>
+<div class="chipc"><i style="background: var(--color-popover)"></i><span>popover<br><code>#151920</code> <code>#ffffff</code></span></div>
+<div class="chipc"><i style="background: var(--color-toolbar-edge)"></i><span>toolbar-edge<br><code>#1b2028</code> <code>#cdd2da</code></span></div>
+<div class="chipc"><i style="background: var(--color-group-divider)"></i><span>group-divider<br><code>#262c36</code> <code>#d5d9e0</code></span></div>
+<div class="chipc"><i style="background: var(--color-swatch-edge)"></i><span>swatch-edge<br><code>#2a303b</code> <code>#7a8391</code></span></div>
+<div class="chipc"><i style="background: var(--color-ink)"></i><span>ink<br><code>#e8f1ff</code> <code>#141a23</code></span></div>
+<div class="chipc"><i style="background: var(--color-ink-2)"></i><span>ink-2<br><code>#b7c2d2</code> <code>#2e3846</code></span></div>
+<div class="chipc"><i style="background: var(--color-heading)"></i><span>heading<br><code>#dbe4f2</code> <code>#1b2330</code></span></div>
+<div class="chipc"><i style="background: var(--color-heading-hover)"></i><span>heading-hover<br><code>#ffffff</code> <code>#000000</code></span></div>
+<div class="chipc"><i style="background: var(--color-label)"></i><span>label<br><code>#8f9aab</code> <code>#454f5e</code></span></div>
+<div class="chipc"><i style="background: var(--color-quiet)"></i><span>quiet<br><code>#6b7889</code> <code>#505a68</code></span></div>
+<div class="chipc"><i style="background: var(--color-faint)"></i><span>faint<br><code>#4c586b</code> <code>#5a6473</code></span></div>
+<div class="chipc"><i style="background: var(--color-fill-bar)"></i><span>fill-bar<br><code>#22344d</code> <code>#dce7f5</code></span></div>
+<div class="chipc"><i style="background: var(--color-own)"></i><span>own<br><code>#6f9fd8</code> <code>#2f6fc0</code></span></div>
+<div class="chipc"><i style="background: var(--color-own-text)"></i><span>own-text<br><code>#9cc2ee</code> <code>#1d5aa6</code></span></div>
+<div class="chipc"><i style="background: var(--color-inherited)"></i><span>inherited<br><code>#b8955c</code> <code>#9a6a1c</code></span></div>
+<div class="chipc"><i style="background: var(--color-inherited-text)"></i><span>inherited-text<br><code>#c9ad7d</code> <code>#7f5512</code></span></div>
+<div class="chipc"><i style="background: var(--color-danger)"></i><span>danger<br><code>#e8a08f</code> <code>#b3261e</code></span></div>
+<div class="chipc"><i style="background: var(--color-danger-fill)"></i><span>danger-fill<br><code>#2a1414</code> <code>#fbe7e5</code></span></div>
+<div class="chipc"><i style="background: var(--color-danger-strong)"></i><span>danger-strong<br><code>#ffc2b4</code> <code>#8c1d18</code></span></div>
+<div class="chipc"><i style="background: var(--color-danger-surface)"></i><span>danger-surface<br><code>#1a0e0e</code> <code>#fdf1f0</code></span></div>
+<div class="chipc"><i style="background: var(--color-danger-edge)"></i><span>danger-edge<br><code>#5e2323</code> <code>#c9605a</code></span></div>
+<div class="chipc"><i style="background: var(--color-success)"></i><span>success<br><code>#7ee2a8</code> <code>#1b6e3f</code></span></div>
+<div class="chipc"><i style="background: var(--color-success-fill)"></i><span>success-fill<br><code>#10241a</code> <code>#e1f3e8</code></span></div>
+<div class="chipc"><i style="background: var(--color-success-edge)"></i><span>success-edge<br><code>#23503a</code> <code>#3f8a5f</code></span></div>
+<div class="chipc"><i style="background: var(--color-warning)"></i><span>warning<br><code>#e8c98f</code> <code>#805200</code></span></div>
+<div class="chipc"><i style="background: var(--color-warning-fill)"></i><span>warning-fill<br><code>#261e10</code> <code>#fbf0d6</code></span></div>
+<div class="chipc"><i style="background: var(--color-warning-edge)"></i><span>warning-edge<br><code>#5e4a23</code> <code>#a5781f</code></span></div>
+<div class="chipc"><i style="background: var(--color-checker-light)"></i><span>checker-light<br><code>#6b7889</code> <code>#ffffff</code></span></div>
+<div class="chipc"><i style="background: var(--color-checker-dark)"></i><span>checker-dark<br><code>#262c36</code> <code>#d3d8df</code></span></div>
+<div class="chipc"><i style="background: var(--color-scroll-thumb)"></i><span>scroll-thumb<br><code>#2e3542</code> <code>#b4bbc6</code></span></div>
+<div class="chipc"><i style="background: var(--color-scroll-track)"></i><span>scroll-track<br><code>#0a0c10</code> <code>#eceff3</code></span></div>
+<div class="chipc"><i style="background: var(--color-focus-ring)"></i><span>focus-ring<br><code>#8fb7e8</code> <code>#1f5fae</code></span></div>
+<div class="chipc"><i style="background: var(--color-popover-shadow)"></i><span>popover-shadow<br><code>rgba(0, 0, 0, 0.55)</code> <code>rgba(20, 26, 35, 0.18)</code></span></div>
+<div class="chipc"><i style="background: var(--color-header)"></i><span>header<br><code>#0d1016</code> <code>#e9ecf0</code></span></div>
+<div class="chipc"><i style="background: var(--color-header-text)"></i><span>header-text<br><code>#9aa4b2</code> <code>#454f5e</code></span></div>
+<div class="chipc"><i style="background: var(--color-scrim)"></i><span>scrim<br><code>rgba(7, 8, 10, 0.7)</code> <code>rgba(245, 246, 248, 0.7)</code></span></div>
+<div class="chipc"><i style="background: var(--color-picker-ring)"></i><span>picker-ring<br><code>rgba(0, 0, 0, 0.6)</code> <code>rgba(0, 0, 0, 0.45)</code></span></div>
+<!-- END generated swatches -->
+</div></div>
+  <div class="card"><h2>Type</h2><div class="types">
+<!-- BEGIN generated types -->
+<div><code>group-title<br>10.5px / 700</code><span class="t-group-title" style="text-transform: uppercase">Opacity 55% · Selected item 0123456789</span></div>
 <div><code>section-title<br>11.5px / 600</code><span class="t-section-title">Opacity 55% · Selected item 0123456789</span></div>
 <div><code>body<br>11.5px / 400</code><span class="t-body">Opacity 55% · Selected item 0123456789</span></div>
 <div><code>number<br>11.5px / 400</code><span class="t-number">Opacity 55% · Selected item 0123456789</span></div>
@@ -418,13 +601,15 @@ body.scrubbing, body.scrubbing * { cursor: ew-resize !important; user-select: no
 <div><code>mono<br>10.5px / 400</code><span class="t-mono">Opacity 55% · Selected item 0123456789</span></div>
 <div><code>title<br>13px / 600</code><span class="t-title">Opacity 55% · Selected item 0123456789</span></div>
 <div><code>toolbar<br>12px / 400</code><span class="t-toolbar">Opacity 55% · Selected item 0123456789</span></div>
-<div><code>toolbar-strong<br>12px / 600</code><span class="t-toolbar-strong">Opacity 55% · Selected item 0123456789</span></div></div></div>
+<div><code>toolbar-strong<br>12px / 600</code><span class="t-toolbar-strong">Opacity 55% · Selected item 0123456789</span></div>
+<!-- END generated types -->
+</div></div>
 
   <div class="card"><h2>Property row</h2><p>Default, hover, set here (filled mark and reset), inherited (hollow ring), invalid with a reason.</p>
     <div class="panel" style="max-height: none; overflow: visible">
       <div class="row t-body"><div class="label"><span>Default</span></div><div class="value"><input class="field t-body" value="plain" aria-label="default"></div><div class="end"></div></div>
       <div class="row t-body is-hover"><div class="label"><span>Hover</span></div><div class="value"><input class="field t-body" value="row fills" aria-label="hover"></div><div class="end"></div></div>
-      <div class="row t-body" data-source="set"><div class="label"><i class="mark" aria-hidden="true"></i><span>Set here</span></div><div class="value"><input class="field t-body" value="12" aria-label="set here"></div><div class="end"><button class="icon" aria-label="reset to the default 0" title="reset to the default 0"><span aria-hidden="true">↺</span></button></div></div>
+      <div class="row t-body" data-source="set"><div class="label"><i class="mark" aria-hidden="true"></i><span>Set here</span></div><div class="value"><input class="field t-body" value="12" aria-label="set here"></div><div class="end"><button class="icon" aria-label="reset to the default 0" data-tip="reset to the default 0"><span aria-hidden="true">↺</span></button></div></div>
       <div class="row t-body" data-source="inherited"><div class="label"><i class="mark" aria-hidden="true"></i><span>Inherited</span></div><div class="value"><input class="field t-body" value="8" aria-label="inherited"></div><div class="end"></div></div>
       <div class="row t-body"><div class="label"><span>Invalid</span></div><div class="value"><input class="field t-body" value="12q" aria-invalid="true" aria-label="invalid" aria-describedby="why"></div><div class="end"></div><div class="reason t-caption" id="why">"12q" is not a number</div></div>
     </div></div>
@@ -473,9 +658,16 @@ body.scrubbing, body.scrubbing * { cursor: ew-resize !important; user-select: no
     <div class="state"><small>badge</small><span class="badge t-toolbar-strong">unsaved changes</span></div>
     <div class="state" style="width: 260px"><small>tabs</small><div class="tabs"><div role="tablist" aria-label="sample tabs"><button role="tab" class="tab t-body" aria-selected="true">Selected</button><button role="tab" class="tab t-body" aria-selected="false" tabindex="-1">Quiet</button></div></div></div>
   </div></div>
+  <div class="card"><h2>Resize handle, collapsed handle, tooltip, header and More</h2><p>The splitter's line shows on hover, focus and drag. The folded panel is a handle on the right edge. A tooltip, and a header whose overflow is in More.</p><div class="strip">
+    <div class="state"><small>splitter hover</small><span style="position: relative; display: block; width: 60px; height: 40px; background: var(--color-panel); border-left: 1px solid var(--color-toolbar-edge)"><span class="splitter is-hover" aria-hidden="true" style="position: absolute"></span></span></div>
+    <div class="state"><small>collapsed / hover</small><span style="display: flex; gap: 6px"><span class="handle" aria-hidden="true" style="min-height: 40px"><i></i></span><span class="handle is-hover" aria-hidden="true" style="min-height: 40px"><i></i></span></span></div>
+    <div class="state"><small>tooltip</small><span class="tooltip static" role="note">Undo (Ctrl+Z)</span></div>
+    <div class="state" style="width: 360px"><small>header, narrow</small><div class="header t-toolbar" id="headerDemo"><span>layout <select class="field t-body" aria-label="layout" style="width: auto"><option>desk</option></select></span><span class="end"><button class="btn t-caption">undo</button></span><button class="btn primary t-toolbar">save</button><span class="anchor"><button class="btn t-caption more" id="moreBtn" aria-label="more" aria-haspopup="dialog" aria-expanded="false" data-tip="More controls, and appearance"><span aria-hidden="true">⋯</span></button><div class="popover" id="morePop" role="dialog" aria-label="more items" hidden style="right: 0; top: 26px; width: max-content"><span class="brand t-toolbar-strong">perch · editor</span><span class="t-toolbar">1920x400 · letterboxed · 45%</span><span class="t-toolbar">sample data</span></div></span></div></div>
+  </div></div>
 </main>
 </div>
 
+<div class="tooltip" role="tooltip" id="tip" hidden></div>
 <script>
 'use strict';
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -622,7 +814,7 @@ hex.addEventListener('input', () => {
 function openPop(open, refocus) {
   pop.hidden = !open; swatch.setAttribute('aria-expanded', String(open));
   const verb = open ? 'close' : 'open';
-  swatch.setAttribute('aria-label', `${verb} colour picker for Fill`); swatch.title = `${verb} colour picker for Fill`;
+  swatch.setAttribute('aria-label', `${verb} colour picker for Fill`); swatch.dataset.tip = `${verb} colour picker for Fill`;
   if (open) { pop.style.left = '0'; pop.style.top = `${swatch.offsetHeight + 4}px`; pop.querySelector('input').focus(); }
   else if (refocus) swatch.focus();
 }
@@ -648,6 +840,93 @@ list.addEventListener('keydown', (e) => {
   rows.forEach((row, k) => { row.querySelector('.ix').textContent = String(rows.length - 1 - k); });
   li.querySelector('button').focus();
 });
+
+// Scheme: System follows prefers-color-scheme; Light and Dark set data-scheme on the root.
+roving(document.getElementById('scheme'), 'aria-checked');
+document.getElementById('scheme').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-scheme]'); if (!b) return;
+  if (b.dataset.scheme === 'system') delete document.documentElement.dataset.scheme;
+  else document.documentElement.dataset.scheme = b.dataset.scheme;
+});
+document.getElementById('scheme').addEventListener('keydown', () => {
+  setTimeout(() => document.querySelector('#scheme [aria-checked="true"]').click(), 0);
+});
+
+// Resize: 300 to 540, 420 by default. Drag, arrows (Shift x5), Home, End, Enter folds, double-click resets.
+// Dragged well past the narrowest, the panel shows faded at 300 and folds when let go.
+const panel = document.getElementById('panel'), splitter = document.getElementById('splitter'), handle = document.getElementById('handle');
+let width = 420;
+const clampW = (w) => Math.round(Math.min(540, Math.max(300, w)));
+function setWidth(w) { width = clampW(w); panel.style.setProperty('--panel-w', `${width}px`); splitter.setAttribute('aria-valuenow', String(width)); }
+function fold(folded) {
+  panel.hidden = folded; handle.hidden = !folded;
+  if (folded) handle.focus(); else splitter.focus();
+}
+splitter.addEventListener('keydown', (e) => {
+  const step = e.shiftKey ? 50 : 10;
+  const next = { ArrowLeft: width + step, ArrowUp: width + step, ArrowRight: width - step, ArrowDown: width - step, Home: 300, End: 540 }[e.key];
+  if (e.key === 'Enter') { e.preventDefault(); fold(true); return; }
+  if (next === undefined) return;
+  e.preventDefault(); setWidth(next);
+});
+splitter.addEventListener('dblclick', () => setWidth(420));
+splitter.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const x0 = e.clientX, w0 = width;
+  splitter.setPointerCapture(e.pointerId); document.body.classList.add('resizing');
+  const wanted = (x) => w0 + (x0 - x);
+  const move = (m) => { const w = wanted(m.clientX); panel.classList.toggle('snapping', w < 225); setWidth(w); };
+  const up = (u) => {
+    splitter.removeEventListener('pointermove', move); splitter.removeEventListener('pointerup', up);
+    document.body.classList.remove('resizing'); panel.classList.remove('snapping');
+    if (wanted(u.clientX) < 225) { setWidth(w0); fold(true); }
+  };
+  splitter.addEventListener('pointermove', move); splitter.addEventListener('pointerup', up);
+});
+handle.addEventListener('click', () => fold(false));
+document.addEventListener('keydown', (e) => { if (e.key === '\\' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); fold(!panel.hidden); } });
+
+// Tooltips: data-tip, after 500ms of hover or keyboard focus, at once from one to the next, gone on
+// leave, blur, press, scroll or Escape; placed below, flipped above, pinned on screen; the target's
+// description while shown, unless it only repeats the target's name.
+const tip = document.getElementById('tip');
+let tipTarget = null, tipTimer = 0, tipHidAt = -Infinity;
+function place(target) {
+  const a = target.getBoundingClientRect(), b = tip.getBoundingClientRect(), gap = 4;
+  let top = a.bottom + gap;
+  if (top + b.height > innerHeight - gap) top = a.top - gap - b.height >= gap ? a.top - gap - b.height : Math.max(gap, innerHeight - b.height - gap);
+  tip.style.top = `${top}px`; tip.style.left = `${Math.min(Math.max(gap, a.left), innerWidth - b.width - gap)}px`;
+}
+function showTip(target) {
+  tipTarget = target; tip.textContent = target.dataset.tip; tip.hidden = false; place(target);
+  const name = (target.getAttribute('aria-label') || target.textContent).trim();
+  if (name !== target.dataset.tip.trim()) target.setAttribute('aria-describedby', [target.getAttribute('aria-describedby'), 'tip'].filter(Boolean).join(' '));
+}
+function hideTip() {
+  clearTimeout(tipTimer);
+  if (tipTarget) {
+    const ids = (tipTarget.getAttribute('aria-describedby') || '').split(' ').filter((id) => id && id !== 'tip');
+    if (ids.length) tipTarget.setAttribute('aria-describedby', ids.join(' ')); else tipTarget.removeAttribute('aria-describedby');
+    tipHidAt = Date.now();
+  }
+  tipTarget = null; tip.hidden = true;
+}
+function soon(target) {
+  clearTimeout(tipTimer);
+  if (tipTarget || Date.now() - tipHidAt < 300) showTip(target); else tipTimer = setTimeout(() => showTip(target), 500);
+}
+document.addEventListener('pointerover', (e) => { if (e.pointerType === 'touch') return; const t = e.target.closest('[data-tip]'); if (t && t !== tipTarget) soon(t); });
+document.addEventListener('pointerout', (e) => { const t = e.target.closest('[data-tip]'); if (t && !(e.relatedTarget && (t.contains(e.relatedTarget) || tip.contains(e.relatedTarget)))) hideTip(); });
+document.addEventListener('focusin', (e) => { const t = e.target.closest('[data-tip]'); if (t && t.matches(':focus-visible')) soon(t); });
+document.addEventListener('focusout', hideTip);
+document.addEventListener('pointerdown', hideTip, true);
+addEventListener('scroll', hideTip, true);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && tipTarget) hideTip(); }, true);
+
+// More: a popover of what the header has no room for.
+const moreBtn = document.getElementById('moreBtn'), morePop = document.getElementById('morePop');
+moreBtn.addEventListener('click', () => { morePop.hidden = !morePop.hidden; moreBtn.setAttribute('aria-expanded', String(!morePop.hidden)); });
 </script>
 </body>
 </html>

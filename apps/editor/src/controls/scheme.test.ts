@@ -8,6 +8,8 @@
  * which `<html data-ed-scheme>` carries.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { EDITOR_STYLES } from '../app.js';
 import { INSPECTOR_STYLES } from '../inspector.js';
@@ -194,5 +196,43 @@ describe('the colour picker', () => {
       /\.react-colorful__interactive:focus-visible \.react-colorful__pointer \{[^}]*var\(--ed-focus-ring\)/,
     );
     expect(LIGHT['picker-ring']).toBeDefined();
+  });
+});
+
+describe('DESIGN.md', () => {
+  /** A front matter colour map, by DESIGN.md's name. */
+  function colours(key: string): Record<string, string> {
+    const text = readFileSync(join(import.meta.dirname, '../../../../DESIGN.md'), 'utf8');
+    const block = new RegExp(`^${key}:\\n((?:  .*\\n)+)`, 'm').exec(text)?.[1] ?? '';
+    const found: Record<string, string> = {};
+    for (const [, name, value] of block.matchAll(/^ {2}([a-z0-9-]+): "([^"]+)"$/gm)) {
+      if (name !== undefined && value !== undefined) found[name] = value;
+    }
+
+    return found;
+  }
+
+  /** DESIGN.md's names for the roles the chrome spells differently. */
+  const RENAMED: Readonly<Record<string, ChromeColour>> = {
+    primary: 'accent',
+    'on-primary': 'on-accent',
+    'primary-fill': 'accent-fill',
+    'primary-edge': 'accent-edge',
+    panel: 'bg',
+    'panel-recessed': 'bg-recessed',
+    ink: 'text',
+    'ink-2': 'text-2',
+  };
+
+  it.each([
+    ['colors', 'dark'],
+    ['colors-light', 'light'],
+  ] as const)('%s are the chrome %s palette, role for role', (key, scheme) => {
+    const documented = colours(key);
+    expect(Object.keys(documented).length).toBeGreaterThan(40);
+    for (const [name, value] of Object.entries(documented)) {
+      const role = RENAMED[name] ?? (name as ChromeColour);
+      expect(CHROME_SCHEMES[scheme][role], `${key}.${name}`).toBe(value);
+    }
   });
 });

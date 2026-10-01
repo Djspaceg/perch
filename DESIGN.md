@@ -2,7 +2,7 @@
 version: alpha
 name: Dense-inspector-panel
 description: |
-  A dark, dense, quiet inspector language for desktop authoring tools: one-line property rows (label left, control right) in folding sections, on a cool near-black ladder where fields are recessed wells and section bars are faintly raised. System sans at 11.5px and 10.5px, 22px rows, 20px fields, 3px corners. One blue accent means "this one"; two muted colours mean "set here" and "inherited"; a soft red is kept for deletion. Motion is short, height and opacity only, and off under reduced motion. Every value is both typeable and directly manipulable.
+  A dense, quiet inspector language for desktop authoring tools, dark by default with a light scheme that follows the system: one-line property rows (label left, control right) in folding sections of a resizable, foldable sidebar, on a cool near-black ladder (or its light counterpart) where fields are wells and section bars are faintly raised. System sans at 11.5px and 10.5px, 22px rows, 20px fields, 3px corners, 24px targets under touch. One blue accent means "this one"; two muted colours mean "set here" and "inherited"; a soft red is kept for deletion. Motion is short, height and opacity only, and off under reduced motion. Every value is both typeable and directly manipulable.
 
 colors:
   primary: "#8fb7e8"
@@ -53,6 +53,64 @@ colors:
   scroll-track: "#0a0c10"
   focus-ring: "#8fb7e8"
   popover-shadow: "rgba(0, 0, 0, 0.55)"
+  header: "#0d1016"
+  header-text: "#9aa4b2"
+  scrim: "rgba(7, 8, 10, 0.7)"
+  picker-ring: "rgba(0, 0, 0, 0.6)"
+
+colors-light:
+  primary: "#1f5fae"
+  on-primary: "#0d2747"
+  primary-fill: "#d3e2f6"
+  primary-edge: "#2f6fc0"
+  canvas: "#d5dae1"
+  panel: "#f5f6f8"
+  panel-recessed: "#e9ecf0"
+  bar: "#fbfcfd"
+  bar-edge: "#ffffff"
+  bar-shadow: "#d6dae1"
+  field: "#ffffff"
+  field-edge: "#7a8391"
+  field-edge-hover: "#5a6473"
+  hover: "#e2e6ec"
+  row-hover: "#eceff3"
+  popover: "#ffffff"
+  toolbar-edge: "#cdd2da"
+  group-divider: "#d5d9e0"
+  swatch-edge: "#7a8391"
+  ink: "#141a23"
+  ink-2: "#2e3846"
+  heading: "#1b2330"
+  heading-hover: "#000000"
+  label: "#454f5e"
+  quiet: "#505a68"
+  faint: "#5a6473"
+  fill-bar: "#dce7f5"
+  own: "#2f6fc0"
+  own-text: "#1d5aa6"
+  inherited: "#9a6a1c"
+  inherited-text: "#7f5512"
+  danger: "#b3261e"
+  danger-fill: "#fbe7e5"
+  danger-strong: "#8c1d18"
+  danger-surface: "#fdf1f0"
+  danger-edge: "#c9605a"
+  success: "#1b6e3f"
+  success-fill: "#e1f3e8"
+  success-edge: "#3f8a5f"
+  warning: "#805200"
+  warning-fill: "#fbf0d6"
+  warning-edge: "#a5781f"
+  checker-light: "#ffffff"
+  checker-dark: "#d3d8df"
+  scroll-thumb: "#b4bbc6"
+  scroll-track: "#eceff3"
+  focus-ring: "#1f5fae"
+  popover-shadow: "rgba(20, 26, 35, 0.18)"
+  header: "#e9ecf0"
+  header-text: "#454f5e"
+  scrim: "rgba(245, 246, 248, 0.7)"
+  picker-ring: "rgba(0, 0, 0, 0.45)"
 
 typography:
   group-title:
@@ -138,8 +196,16 @@ spacing:
   control: 18px
   field-height: 20px
   row-height: 22px
-  label-column: 38%
+  label-column: clamp(96px, 38%, 180px)
   sidebar-width: 420px
+  sidebar-min: 300px
+  sidebar-max: 540px
+  sidebar-handle: 14px
+  splitter-hit: 8px
+  work-area-min: 320px
+  touch-target: 24px
+  touch-field-height: 26px
+  touch-row-height: 30px
 
 components:
   panel:
@@ -147,8 +213,39 @@ components:
     textColor: "{colors.ink}"
     typography: "{typography.body}"
     rounded: "{rounded.none}"
-    width: 420px
+    width: "{spacing.sidebar-width}"
     borderColor: "{colors.toolbar-edge}"
+  sidebar-splitter:
+    width: "{spacing.splitter-hit}"
+    borderColor: "{colors.primary}"
+  sidebar-handle:
+    backgroundColor: "{colors.panel}"
+    textColor: "{colors.quiet}"
+    width: "{spacing.sidebar-handle}"
+    borderColor: "{colors.toolbar-edge}"
+  sidebar-handle-hover:
+    backgroundColor: "{colors.hover}"
+    textColor: "{colors.ink}"
+  tooltip:
+    backgroundColor: "{colors.popover}"
+    textColor: "{colors.ink}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.sm}"
+    padding: 3px 7px 4px
+    borderColor: "{colors.field-edge-hover}"
+    shadow: "0 4px 12px {colors.popover-shadow}"
+  header:
+    backgroundColor: "{colors.header}"
+    textColor: "{colors.header-text}"
+    typography: "{typography.toolbar}"
+    height: 44px
+    padding: 0 10px
+    borderColor: "{colors.toolbar-edge}"
+  header-more:
+    textColor: "{colors.ink}"
+    rounded: "{rounded.sm}"
+    height: 20px
+    borderColor: "{colors.field-edge}"
   panel-group-bar:
     backgroundColor: "{colors.panel-recessed}"
     textColor: "{colors.ink-2}"
@@ -322,9 +419,9 @@ components:
 
 ## Overview
 
-A working surface, not a showcase: the inspector of a design tool, a game engine or a settings pane, for people who adjust many small values quickly and want to see them all at once. Dark, cool, dense and calm. The chrome stays out of the way of the content, and every element earns its place by holding a value or saying where that value comes from.
+A working surface, not a showcase: the inspector of a design tool, a game engine or a settings pane, for people who adjust many small values quickly and want to see them all at once. Cool, dense and calm, dark by default and light where the system is. The chrome stays out of the way of the content, and every element earns its place by holding a value or saying where that value comes from.
 
-The mood comes from restraint. The only accent, `{colors.primary}`, always means "this one". Two muted provenance colours, `{colors.own}` and `{colors.inherited}`, answer the question every inspector raises: is this value mine, or am I seeing a default? Everything else is a ladder of near-black blue-greys.
+The mood comes from restraint. The only accent, `{colors.primary}`, always means "this one". Two muted provenance colours, `{colors.own}` and `{colors.inherited}`, answer the question every inspector raises: is this value mine, or am I seeing a default? Everything else is a ladder of blue-greys: near-black in the dark scheme, near-white in the light one.
 
 **Key characteristics:**
 - One property per 22px row: label left, control right, an end slot for undoing it.
@@ -335,7 +432,11 @@ The mood comes from restraint. The only accent, `{colors.primary}`, always means
 
 ## Colors
 
-The values are in the front matter; this section gives each colour's role.
+The values are in the front matter: `colors` is the dark scheme and `colors-light` the light one, with the same roles under the same names. This section gives each colour's role, which is the same in both.
+
+- **Schemes**: the system's by default (`prefers-color-scheme`), or one the author picks: System, Light or Dark. The pick lives where the host keeps settings (a desktop app's Settings window, or a browser page's More menu) and applies to every window. A scheme changes the chrome only: the content being edited keeps its own colours.
+- **The light ladder** is not an inversion of the dark one. The window is a mid grey so a light panel still reads as a panel, fields are white wells with a visible edge (a recess cannot be drawn darker than a light panel without looking like a hole), and raised bars are lighter than the panel with a darker edge below.
+- **Contrast**: in the light scheme every text role is at least 4.5:1 on every surface it is drawn on, and every control edge, mark and the focus ring at least 3:1 (WCAG 2.2 AA, 1.4.3 and 1.4.11).
 
 - **Surface ladder**: from darkest to lightest:
   - `{colors.canvas}`: the window.
@@ -354,6 +455,8 @@ The values are in the front matter; this section gives each colour's role.
   - Each of these has a dark fill and an edge.
 - **Checkerboard**: 8px squares of `{colors.checker-light}` and `{colors.checker-dark}`, behind any colour that may be translucent.
 - **Focus**: `{colors.focus-ring}`, 2px on `:focus-visible`, inset on controls that fill their row. Text fields show focus with a Primary border instead.
+- **Header**: `{colors.header}` behind `{colors.header-text}`, the window's toolbar strip.
+- **Scrim** (`{colors.scrim}`) veils a thumbnail while it loads. **Picker ring** (`{colors.picker-ring}`) is the dark hairline round a colour picker's white pointer, so it shows on white.
 - **Scrollbar**: thin, `{colors.scroll-thumb}` on `{colors.scroll-track}`, set once at the root.
 
 ## Typography
@@ -371,8 +474,8 @@ The values are in the front matter; this section gives each colour's role.
 ## Layout
 
 - **Rhythm**: the base unit is 4px (`{spacing.gap}`), with 2px, 3px and 6px for tight gaps. Controls are 18px, fields 20px and rows 22px. Every row, header and paragraph is inset 8px from the left (`{spacing.pad-x}`). There is no vertical scale: rows stack edge to edge, and a section body adds 3px above and 5px below.
-- **Row grid**: three columns. A 38% label column, right-aligned so every label sits next to its control; a value column (`minmax(0, 1fr)`); and an 18px end slot. The columns are 6px apart, and every cell can shrink to zero, so a long value truncates in its own column.
-- **Panel**: a fixed sidebar (`{spacing.sidebar-width}`) of groups, each a stack of folding sections. A folded section is one bar with a summary, so folded sections still map the whole. Rarely used properties go behind a nested "Advanced" fold, which says how many hidden values are set.
+- **Row grid**: three columns. A label column of 38% of the row, held between 96px and 180px (`{spacing.label-column}`) and right-aligned so every label sits next to its control; a value column (`minmax(0, 1fr)`); and an 18px end slot. The columns are 6px apart, and every cell can shrink to zero, so a long value truncates in its own column.
+- **Panel**: a sidebar of groups, each a stack of folding sections. It is `{spacing.sidebar-width}` by default and resizable from `{spacing.sidebar-min}` to `{spacing.sidebar-max}`, or folded to a `{spacing.sidebar-handle}` handle. A folded section is one bar with a summary, so folded sections still map the whole. Rarely used properties go behind a nested "Advanced" fold, which says how many hidden values are set.
 - **Scrolling**: the scroll gutter is always reserved, so rows never shift sideways, and nothing scrolls horizontally.
 
 ## Elevation & Depth
@@ -476,6 +579,28 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 - **The selected tab** (`tab-selected`) takes the panel colour and breaks the baseline, so the tab and its content read as one surface.
 - **Keyboard**: arrow keys move between tabs.
 
+### Resize handle
+- `sidebar-splitter` straddles the sidebar's inner edge: an 8px grab zone (`{spacing.splitter-hit}`), invisible until hovered, focused or dragged, when a 2px Primary line shows.
+- **Pointer**: drag to resize within `{spacing.sidebar-min}` to `{spacing.sidebar-max}`; a double-click returns to `{spacing.sidebar-width}`. Dragged well past the minimum, the sidebar shows at its narrowest, faded, and folds when let go.
+- **Keyboard**: it is a focusable window splitter (`role="separator"` with its value, minimum and maximum). Arrow keys nudge 10px (Shift for 50), Home and End go to either end, Enter folds.
+- The width is remembered, and gives way to the window so the work area keeps `{spacing.work-area-min}`.
+
+### Collapsed handle
+- `sidebar-handle` is what a folded sidebar leaves: a `{spacing.sidebar-handle}` strip on the window's right edge with an inward chevron. It hovers to `sidebar-handle-hover`.
+- Pressing it, or the fold's shortcut, brings the sidebar back at the width it had. Focus that was in the sidebar moves to the handle when it folds, and back to the splitter when it opens.
+- The fold is remembered. A window narrower than the minimum sidebar plus the minimum work area folds it on its own, without changing what is remembered.
+
+### Tooltip
+- `tooltip` is a small floating box, the popover's surface in either scheme, with no arrow.
+- **When**: after 500ms of hover or keyboard focus alike; at once when moving from one tip to the next; never for touch.
+- **Gone**: when the pointer leaves (the tooltip itself can be hovered), on blur, a press, scroll or Escape, which leaves focus where it was.
+- **Where**: below its target, above when there is no room, pinned inside the window, by the popover's own placement.
+- **Accessible**: while shown, and from the moment of keyboard focus, it is part of the target's description, after any it already had. A tip that only repeats a control's name is not added. A truncated label's tip shows only while it is truncated.
+
+### Header and More
+- `header` is one line that never wraps and never clips. Each item has a rank, and what does not fit moves into a `header-more` popover at the end of the line, least needed first, and comes back when there is room. The unsaved mark and the commit action never move.
+- In a browser, More also holds the colour scheme.
+
 ## Do's and Don'ts
 
 ### Principles
@@ -498,11 +623,11 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 
 ## Responsive Behavior
 
-- **No breakpoints.** The only media query is `prefers-reduced-motion`.
-- **Sidebar**: a fixed 420px column that never collapses. The work area takes the rest of the window.
-- **Rows**: at that width the label column is about 150px and the value column about 215px. Labels truncate and controls shrink. Only notes and errors wrap.
-- **Small windows**: the chrome does not adapt. The header toolbar doesn't wrap, and in a window narrower than 420px the sidebar is clipped. Popovers stay on screen at any size.
-- **Touch**: designed for mouse and keyboard. Targets of 18-22px are below WCAG 2.2's 24px minimum.
+- **Media queries**: `prefers-color-scheme` picks the scheme, `prefers-reduced-motion` turns motion off, and `pointer: coarse` grows the targets. There are no width breakpoints: the sidebar is sized by the author and the window, and the header by what fits.
+- **Sidebar**: `{spacing.sidebar-width}` by default, resizable from `{spacing.sidebar-min}` to `{spacing.sidebar-max}`, foldable to `{spacing.sidebar-handle}`. It gives way so the work area keeps `{spacing.work-area-min}`, and in a window narrower than the two together it folds on its own.
+- **Rows**: nothing wraps at any width in the range. The label column scales with the row between 96px and 180px, labels truncate with an ellipsis, chips and read-outs shrink, and controls take what is left. Only prose wraps: an empty state, a help line, an error.
+- **Small windows**: the header keeps one line by moving items into More. The sidebar folds. Popovers and tooltips stay on screen at any size.
+- **Touch**: under a coarse pointer only, rows grow to `{spacing.touch-row-height}`, fields to `{spacing.touch-field-height}` and every target to at least `{spacing.touch-target}` (WCAG 2.2, 2.5.8). A mouse keeps the density.
 
 ## Iteration Guide
 
@@ -511,12 +636,11 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 3. Describe properties as data, and draw every one through the same row and the same control for its kind.
 4. Before adding a component, check whether a row, a field, a button family, a chip or a popover already covers it.
 5. Add states as separate entries: `-hover`, `-focus`, `-set`, `-selected`, `-invalid`.
-6. After changing a token, open `preview.html`, which is built only from these tokens.
+6. A scheme is a second set of values for the same names. Never write a colour into a component: name the role.
+7. After changing a token, run `node tools/design-preview.mjs` to regenerate `preview.html`'s tokens from this front matter, then open it in both schemes.
 
 ## Known Gaps
 
-- **Dark only.** There is no light theme.
-- **No responsive layout.** Controls are sized for a pointer.
-- **Native tooltips.** Tooltips use the browser's `title` attribute, so their delay and look are the platform's.
-- **The picker itself.** The colour picker's gradient and strips are a third-party widget, so only its container is specified here.
+- **The dark scheme's own contrast.** The light scheme meets WCAG AA for text and 3:1 for edges; the dark scheme, as designed, does not everywhere: `{colors.quiet}` is about 4.2:1 on the panel, `{colors.faint}` about 2.6:1, and field edges about 1.3:1, with wells told apart by their fill.
+- **The picker itself.** The colour picker's gradients and strips are a third-party widget. Its frame, edges, checkerboard, pointer ring and focus are themed, but its gradients and pointer geometry are its own.
 - **Origin.** This was extracted from the perch layout editor's sidebar. Its tokens are in `apps/editor/src/controls/chrome.ts`.
