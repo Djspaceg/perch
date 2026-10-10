@@ -31,12 +31,27 @@ const TINY: LayoutTarget = { width: 100, height: 40, frameRate: 30 };
 const CPU_TEMP = sensorTopic('cpu', 'temperature');
 
 describe('ADDABLE_KINDS', () => {
-  it('offers a live reading, a chart and a label, and leaves media out', () => {
-    expect(ADDABLE_KINDS.map((entry) => entry.kind)).toEqual(['widget', 'chart', 'text']);
-    expect(ADDABLE_KINDS.map((entry) => entry.label)).toEqual(['Live reading', 'Chart', 'Label']);
-    expect(ADDABLE_KINDS.filter((entry) => entry.needsTopic).map((entry) => entry.kind)).toEqual([
+  it('offers every kind, media as an image beside the layout and a cloud video', () => {
+    expect(ADDABLE_KINDS.map((entry) => entry.kind)).toEqual([
       'widget',
       'chart',
+      'text',
+      'media',
+      'media',
+    ]);
+    expect(ADDABLE_KINDS.map((entry) => entry.label)).toEqual([
+      'Live reading',
+      'Chart',
+      'Label',
+      'Image',
+      'Video',
+    ]);
+    expect(ADDABLE_KINDS.map((entry) => entry.step)).toEqual([
+      'sensor',
+      'sensor',
+      null,
+      'local',
+      'cloud',
     ]);
   });
 });
@@ -44,8 +59,16 @@ describe('ADDABLE_KINDS', () => {
 describe('newElement', () => {
   for (const target of [DESK, TINY]) {
     for (const entry of ADDABLE_KINDS) {
-      it(`makes a ${entry.kind} that validates on a ${target.width}x${target.height} canvas`, () => {
-        const element = newElement(entry.kind, target, CPU_TEMP);
+      it(`makes a ${entry.label} that validates on a ${target.width}x${target.height} canvas`, () => {
+        const binding =
+          entry.step === 'sensor'
+            ? CPU_TEMP
+            : entry.step === 'local'
+              ? 'desk.assets/wall.png'
+              : entry.step === 'cloud'
+                ? 'thermalright:a042'
+                : undefined;
+        const element = newElement(entry.kind, target, binding);
         const result = validateLayout(addElement(element)(empty(target)), OPTIONS);
 
         expect(result.ok ? '' : formatLayoutIssues(result.issues)).toBe('');
@@ -74,6 +97,19 @@ describe('newElement', () => {
     expect(chart).toMatchObject({ kind: 'chart', widget: 'line-chart', topic: CPU_TEMP });
     // The line chart draws a scale, so the format requires a range: it gets one to start from.
     expect(chart.kind === 'chart' ? chart.range : undefined).toEqual(defaultRange(CPU_TEMP));
+  });
+
+  it('makes media from the chosen src, at a 16:9 size clamped to the canvas, covering it', () => {
+    const image = newElement('media', DESK, 'desk.assets/wall.png');
+    const video = newElement('media', TINY, 'thermalright:a042');
+
+    expect(image).toEqual({
+      kind: 'media',
+      src: 'desk.assets/wall.png',
+      rect: { x: 720, y: 65, w: 480, h: 270 },
+      fit: 'cover',
+    });
+    expect(video.rect).toEqual({ x: 0, y: 0, w: 100, h: 40 });
   });
 
   it('gives a label text to edit, never the empty string the format refuses', () => {

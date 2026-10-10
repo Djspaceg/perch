@@ -33,8 +33,8 @@
  *
  * ## Adding and deleting
  *
- * "+ Add" sits in the Selected-entity bar and offers the kinds that need nothing but a sensor or
- * nothing at all (`new-element.ts`); the new element is selected at once. Delete is in the selection
+ * "+ Add" sits in the Selected-entity bar and offers every kind, media as an Image beside the layout or
+ * a cloud Video (`new-element.ts`); the new element goes on top and is selected at once. Delete is in the selection
  * header, the red trash can the token panes also use for a removal nothing replaces, and it asks
  * once, inline, even though undo brings it back. The Delete and Backspace keys ask through the same confirm
  * when the canvas has focus (`app.tsx`), never while typing in a field. There is no deselect button:

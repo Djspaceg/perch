@@ -1,10 +1,12 @@
 /**
  * What the Add menu makes: one element of a kind, with defaults that validate.
  *
- * Three kinds, the ones that need nothing but a sensor or nothing at all: a live reading (`widget`
- * with `readout`), a chart (`chart` with `line-chart`), and a label (`text`). `media` is left out —
- * it needs an asset path, this editor has no asset management, and an image element whose `src`
- * points at nothing would paint the canvas's missing-asset box the moment it was made.
+ * Every kind: a live reading (`widget` with `readout`), a chart (`chart` with `line-chart`), a label
+ * (`text`), and media twice over, an Image from the files beside the layout and a Video from the
+ * cloud catalogue. Media was left out while choosing one meant typing a path, since an element whose
+ * `src` names nothing paints the missing-asset box the moment it is made. Both media entries choose
+ * from what is there instead: files the host found beside the layout, or a video downloaded before it
+ * is set, so a new media element always paints.
  *
  * Every default here is a value the author is expected to change, chosen so the element is valid and
  * visible straight away: centred on the canvas, at a size its widget draws legibly, and clamped to the
@@ -17,7 +19,13 @@ import { parseSensorTopic, type SensorMetric } from '@perch/sensor-contract';
 import { assertNever, type WidgetName } from '@perch/ui-kit';
 
 /** The element kinds the Add menu offers. */
-export type AddableKind = 'widget' | 'chart' | 'text';
+export type AddableKind = 'widget' | 'chart' | 'text' | 'media';
+
+/**
+ * What choosing an entry goes on to ask for: a sensor, a file beside the layout, a cloud video, or
+ * nothing.
+ */
+export type AddStep = 'sensor' | 'local' | 'cloud' | null;
 
 export interface AddableEntry {
   readonly kind: AddableKind;
@@ -25,14 +33,15 @@ export interface AddableEntry {
   readonly label: string;
   /** One line under the label, saying what it is. */
   readonly hint: string;
-  /** Whether choosing it goes on to choose a sensor. */
-  readonly needsTopic: boolean;
+  readonly step: AddStep;
 }
 
 export const ADDABLE_KINDS: readonly AddableEntry[] = Object.freeze([
-  { kind: 'widget', label: 'Live reading', hint: 'one sensor, as a number', needsTopic: true },
-  { kind: 'chart', label: 'Chart', hint: 'one sensor over time', needsTopic: true },
-  { kind: 'text', label: 'Label', hint: 'a line of text', needsTopic: false },
+  { kind: 'widget', label: 'Live reading', hint: 'one sensor, as a number', step: 'sensor' },
+  { kind: 'chart', label: 'Chart', hint: 'one sensor over time', step: 'sensor' },
+  { kind: 'text', label: 'Label', hint: 'a line of text', step: null },
+  { kind: 'media', label: 'Image', hint: 'a file beside the layout', step: 'local' },
+  { kind: 'media', label: 'Video', hint: 'a cloud video', step: 'cloud' },
 ]);
 
 /** The widget each bound kind is drawn with. Typed against `ui-kit`'s catalogue, so a rename fails here. */
@@ -50,20 +59,9 @@ const NEW_SIZE: Readonly<Record<AddableKind, { readonly w: number; readonly h: n
   widget: { w: 214, h: 150 },
   chart: { w: 352, h: 240 },
   text: { w: 360, h: 48 },
+  // 16:9, and short enough for a 400px-tall panel.
+  media: { w: 480, h: 270 },
 };
-
-/**
- * A new background: `ref` over the whole canvas, covering it. The Add menu's Background, once the
- * pick is cached; `app.tsx` puts it first, under everything.
- */
-export function newBackground(ref: string, target: LayoutTarget): LayoutElement {
-  return {
-    kind: 'media',
-    src: ref,
-    rect: { x: 0, y: 0, w: target.width, h: target.height },
-    fit: 'cover',
-  };
-}
 
 /** The rect a new element of `kind` gets: its size, clamped to the canvas, centred on it. */
 export function newRect(kind: AddableKind, target: LayoutTarget): Rect {
@@ -103,14 +101,15 @@ export function defaultRange(topic: string): Range {
 }
 
 /**
- * A new element of `kind`. `topic` is the sensor a reading or chart is bound to, chosen in the picker;
- * a label ignores it.
+ * A new element of `kind`. `binding` is what the entry's step chose: the sensor a reading or chart is
+ * bound to, or the `src` of media, a path beside the layout or a cloud reference. A label ignores it.
  */
 export function newElement(
   kind: AddableKind,
   target: LayoutTarget,
-  topic: string | undefined,
+  binding: string | undefined,
 ): LayoutElement {
+  const topic = binding;
   const rect = newRect(kind, target);
 
   switch (kind) {
@@ -127,6 +126,8 @@ export function newElement(
       };
     case 'text':
       return { kind: 'text', text: NEW_LABEL_TEXT, rect };
+    case 'media':
+      return { kind: 'media', src: binding ?? '', rect, fit: 'cover' };
     default:
       return assertNever(kind, 'addable kind');
   }

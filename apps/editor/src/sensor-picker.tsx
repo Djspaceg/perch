@@ -45,9 +45,9 @@ import {
   type ReactNode,
 } from 'react';
 import { FilterBar, usePopover } from './controls/index.js';
-import { BackgroundBrowser } from './background-picker.js';
+import { BackgroundBrowser, NO_LOCAL_MEDIA } from './background-picker.js';
 import { BackgroundContext, NO_BACKGROUND_CACHE } from './background-host.js';
-import { ADDABLE_KINDS, newBackground, newElement, type AddableEntry } from './new-element.js';
+import { ADDABLE_KINDS, newElement, type AddableEntry } from './new-element.js';
 import {
   catalogueTopics,
   filterCatalogue,
@@ -342,26 +342,55 @@ export function AddMenu({
   const anchor = useRef<HTMLButtonElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const popover = usePopover(anchor, box);
-  /** The second step: a sensor for this kind, or a background from the browser. */
-  const [kind, setKind] = useState<AddableEntry | 'background' | null>(null);
+  /** The second step: the entry chosen, until its sensor, file or video is. */
+  const [kind, setKind] = useState<AddableEntry | null>(null);
   const backgrounds = useContext(BackgroundContext);
+  const localMedia = backgrounds.localMedia ?? [];
+  const step = kind?.step ?? null;
 
   // The step changed inside an open popover, so the hook's focus-on-open does not run: the button
-  // that was pressed has gone, and focus follows the author into the search box, or the grid.
+  // that was pressed has gone, and focus follows the author into the search box, the grid or the list.
   useEffect(() => {
-    if (kind === null) return;
+    if (step === null) return;
     box.current
       ?.querySelector<HTMLElement>(
-        kind === 'background' ? '[role="option"][tabindex="0"]' : 'input',
+        step === 'cloud'
+          ? '[role="option"][tabindex="0"]'
+          : step === 'local'
+            ? '.perch-add__file'
+            : 'input',
       )
       ?.focus();
-  }, [kind]);
+  }, [step]);
 
   const finish = (element: LayoutElement): void => {
     setKind(null);
     popover.close(false);
     onAdd(element);
   };
+
+  /** Why an entry cannot be chosen here, or `undefined` when it can. */
+  const unavailable = (entry: AddableEntry): string | undefined =>
+    entry.step === 'cloud' && backgrounds.host === undefined
+      ? NO_BACKGROUND_CACHE
+      : entry.step === 'local' && localMedia.length === 0
+        ? NO_LOCAL_MEDIA
+        : undefined;
+
+  const back = (title: string): ReactNode => (
+    <div className="perch-add__step">
+      <button
+        type="button"
+        className="perch-add__back"
+        onClick={() => {
+          setKind(null);
+        }}
+      >
+        <span aria-hidden="true">‹</span> kinds
+      </button>
+      <span className="perch-add__step-title">{title}</span>
+    </div>
+  );
 
   return (
     <>
@@ -391,7 +420,7 @@ export function AddMenu({
           className={`perch-popover${
             kind === null
               ? ' perch-popover--menu'
-              : kind === 'background'
+              : step === 'cloud'
                 ? ' perch-popover--backgrounds'
                 : ' perch-popover--sensors'
           }`}
@@ -399,80 +428,73 @@ export function AddMenu({
           aria-label={
             kind === null
               ? 'add an element'
-              : kind === 'background'
-                ? 'choose a background'
-                : `choose a sensor for the new ${kind.label}`
+              : step === 'cloud'
+                ? 'choose a video'
+                : step === 'local'
+                  ? 'choose an image'
+                  : `choose a sensor for the new ${kind.label}`
           }
           style={popover.style}
         >
           {kind === null ? (
             <div className="perch-add__kinds">
-              {ADDABLE_KINDS.map((entry) => (
-                <button
-                  key={entry.kind}
-                  type="button"
-                  className="perch-add__kind"
-                  onClick={() => {
-                    if (entry.needsTopic) setKind(entry);
-                    else finish(newElement(entry.kind, target, undefined));
-                  }}
-                >
-                  <span className="perch-add__kind-label">{entry.label}</span>
-                  <span className="perch-add__kind-hint">{entry.hint}</span>
-                </button>
-              ))}
-              <button
-                type="button"
-                className="perch-add__kind"
-                disabled={backgrounds.host === undefined}
-                data-perch-tip={backgrounds.host === undefined ? NO_BACKGROUND_CACHE : undefined}
-                onClick={() => {
-                  setKind('background');
-                }}
-              >
-                <span className="perch-add__kind-label">Background</span>
-                <span className="perch-add__kind-hint">a cloud video under everything</span>
-              </button>
-            </div>
-          ) : kind === 'background' ? (
-            backgrounds.host === undefined ? null : (
-              <>
-                <div className="perch-add__step">
+              {ADDABLE_KINDS.map((entry) => {
+                const why = unavailable(entry);
+                return (
                   <button
+                    key={entry.label}
                     type="button"
-                    className="perch-add__back"
+                    className="perch-add__kind"
+                    disabled={why !== undefined}
+                    data-perch-tip={why}
                     onClick={() => {
-                      setKind(null);
+                      if (entry.step === null) finish(newElement(entry.kind, target, undefined));
+                      else setKind(entry);
                     }}
                   >
-                    <span aria-hidden="true">‹</span> kinds
+                    <span className="perch-add__kind-label">{entry.label}</span>
+                    <span className="perch-add__kind-hint">{entry.hint}</span>
                   </button>
-                  <span className="perch-add__step-title">new background: choose one</span>
-                </div>
+                );
+              })}
+            </div>
+          ) : step === 'cloud' ? (
+            backgrounds.host === undefined ? null : (
+              <>
+                {back('new video: choose one')}
                 <BackgroundBrowser
                   host={backgrounds.host}
                   target={target}
                   current=""
                   onPicked={(ref) => {
-                    finish(newBackground(ref, target));
+                    finish(newElement('media', target, ref));
                   }}
                 />
               </>
             )
+          ) : step === 'local' ? (
+            <>
+              {back('new image: choose a file')}
+              <ul className="perch-add__files" aria-label="files beside the layout">
+                {localMedia.map((src) => (
+                  <li key={src}>
+                    <button
+                      type="button"
+                      className="perch-add__file"
+                      data-perch-tip={src}
+                      onClick={() => {
+                        finish(newElement('media', target, src));
+                      }}
+                    >
+                      {src}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
           ) : (
             <>
-              <div className="perch-add__step">
-                <button
-                  type="button"
-                  className="perch-add__back"
-                  onClick={() => {
-                    setKind(null);
-                  }}
-                >
-                  <span aria-hidden="true">‹</span> kinds
-                </button>
-                <span className="perch-add__step-title">{`new ${kind.label.toLowerCase()}: choose its sensor`}</span>
-              </div>
+              {back(`new ${kind.label.toLowerCase()}: choose its sensor`)}
               <SensorList
                 onChoose={(topic) => {
                   finish(newElement(kind.kind, target, topic));
@@ -510,6 +532,24 @@ export const SENSOR_PICKER_STYLES = `
 .perch-popover--menu { width: 200px; gap: 2px; padding: 4px; }
 .perch-popover--sensors { width: 320px; max-height: calc(100vh - 8px); box-sizing: border-box; gap: 4px; padding: 6px 0 4px; }
 .perch-add__kinds { display: flex; flex-direction: column; gap: 2px; }
+.perch-add__files { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0 4px; list-style: none; max-height: min(50vh, 360px); overflow-y: auto; }
+.perch-add__file {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: var(--ed-radius);
+  background: none;
+  color: var(--ed-label);
+  font-family: var(--ed-mono);
+  font-size: var(--ed-font-small);
+  text-align: left;
+  padding: 4px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.perch-add__file:hover, .perch-add__file:focus-visible { background: var(--ed-accent-fill); color: var(--ed-text); outline: none; }
 .perch-add__kind {
   display: flex;
   flex-direction: column;
@@ -524,7 +564,9 @@ export const SENSOR_PICKER_STYLES = `
   padding: 4px 8px;
   cursor: pointer;
 }
-.perch-add__kind:hover, .perch-add__kind:focus-visible { background: var(--ed-accent-fill); outline: none; }
+.perch-add__kind:hover:not(:disabled), .perch-add__kind:focus-visible { background: var(--ed-accent-fill); outline: none; }
+.perch-add__kind:disabled { cursor: not-allowed; }
+.perch-add__kind:disabled .perch-add__kind-label, .perch-add__kind:disabled .perch-add__kind-hint { color: var(--ed-faint); }
 .perch-add__kind-label { font-size: var(--ed-font); font-weight: 600; }
 .perch-add__kind-hint { font-size: var(--ed-font-small); color: var(--ed-quiet); }
 .perch-add__step { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 0 8px; }

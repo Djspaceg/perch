@@ -141,7 +141,6 @@ import type { LayoutLibrary } from './layout-library.js';
 import { layerTarget, type LayerMove } from './layers.js';
 import {
   addElement,
-  insertElementFirst,
   moveElement,
   removeElement,
   setElementRect,
@@ -554,16 +553,14 @@ function EditorShell({
   );
 
   /**
-   * A new element: appended through the same validated path, then selected. A background (the Add
-   * menu's only media) goes first instead, under everything, since paint order is array order.
+   * A new element: appended on top through the same validated path, then selected. Media too: what
+   * goes under everything is the layout's background, which is its own row, not an element.
    */
   const onAdd = useCallback(
     (element: LayoutElement) => {
       if (!opened.ok) return;
-      const underneath = element.kind === 'media';
-      const index = underneath ? 0 : opened.state.draft.elements.length;
-      onEdit(underneath ? insertElementFirst(element) : addElement(element));
-      select(index);
+      onEdit(addElement(element));
+      select(opened.state.draft.elements.length);
     },
     [opened, onEdit, select],
   );

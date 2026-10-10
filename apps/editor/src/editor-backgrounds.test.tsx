@@ -1,6 +1,7 @@
 /**
- * Cloud backgrounds in the editor as an author meets them: the media element's background row, the
- * Add menu's Background, the preview playing the pick, and undo taking it back.
+ * Cloud backgrounds in the editor as an author meets them: the media element's cloud video row, the
+ * layout background's, the Add menu's Image and Video, the preview playing the pick, and undo taking
+ * it back.
  */
 
 import { LAYOUT_SCHEMA_VERSION, type Layout } from '@perch/layout-schema';
@@ -52,16 +53,19 @@ function host(): BackgroundHost & { ensure: ReturnType<typeof vi.fn> } {
   return made;
 }
 
-function renderEditor(backgrounds: BackgroundHost): ReturnType<typeof render> {
+function renderEditor(
+  backgrounds: BackgroundHost | undefined,
+  assets: Readonly<Record<string, string>> = {},
+): ReturnType<typeof render> {
   const source = createMockSource({ autoStart: false, seed: 1 });
   return render(
     <Editor
       platform="other"
-      library={createLayoutLibrary({ layouts: { desk: JSON.stringify(LAYOUT) } })}
+      library={createLayoutLibrary({ layouts: { desk: JSON.stringify(LAYOUT) }, assets })}
       source={source}
       topics={source.topics}
       transport={() => Promise.resolve({ ok: true, status: 204, text: () => Promise.resolve('') })}
-      backgrounds={backgrounds}
+      {...(backgrounds === undefined ? {} : { backgrounds })}
     />,
   );
 }
@@ -81,7 +85,7 @@ const srcField = (): HTMLInputElement => {
   return field;
 };
 
-describe('the background row', () => {
+describe("a media element's cloud video row", () => {
   it('sets the pick as the media src once it has downloaded, and the preview plays it', async () => {
     const backgrounds = host();
     const result = renderEditor(backgrounds);
@@ -123,26 +127,90 @@ describe('the background row', () => {
   });
 });
 
-describe("the Add menu's Background", () => {
-  it('adds a full-canvas background under everything, once it has downloaded', async () => {
+describe("the layout background's cloud video", () => {
+  it('sets the pick as the background, painted under every element', async () => {
+    const result = renderEditor(host());
+    fireEvent.click(result.getByTestId('perch-editor-background-row'));
+
+    fireEvent.click(screen.getByRole('button', { name: /choose a background/ }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('option', { name: 'Gallery 42' }));
+      await Promise.resolve();
+    });
+
+    expect(result.getByTestId('perch-editor-background-row')).toHaveTextContent(
+      'thermalright:a042',
+    );
+    await waitFor(() => {
+      const layer = result
+        .getByTestId('perch-canvas')
+        .querySelector('[data-perch-layer="background"]');
+      expect(layer?.querySelector('video')).toHaveAttribute(
+        'src',
+        'perch-cache://backgrounds/a042.mp4',
+      );
+    });
+    // The image element that was first is still element 0, painted over the background.
+    const canvas = result.getByTestId('perch-canvas');
+    expect(canvas.firstElementChild).toHaveAttribute('data-perch-layer', 'background');
+    expect(canvas.children[1]).toHaveAttribute('data-perch-element-index', '0');
+  });
+});
+
+const elementRows = (result: ReturnType<typeof render>): NodeListOf<Element> =>
+  result.getByTestId('perch-editor-elements').querySelectorAll('[data-perch-layer-index]');
+
+describe("the Add menu's Image and Video", () => {
+  it('adds a video on top, at the new media size, selected, once it has downloaded', async () => {
     const result = renderEditor(host());
 
     fireEvent.click(screen.getByRole('button', { name: 'add an element' }));
-    fireEvent.click(screen.getByRole('button', { name: /Background/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Video/ }));
     fireEvent.click(screen.getByRole('tab', { name: 'Tech' }));
     await act(async () => {
       fireEvent.click(screen.getByRole('option', { name: 'Tech 3' }));
       await Promise.resolve();
     });
 
-    const elements = result
-      .getByTestId('perch-editor-elements')
-      .querySelectorAll('[data-perch-layer-index]');
-    expect(elements).toHaveLength(3);
-    const first = result
+    expect(elementRows(result)).toHaveLength(3);
+    const added = result
       .getByTestId('perch-canvas')
-      .querySelector('[data-perch-element-index="0"]');
-    expect(first).toHaveAttribute('data-perch-element-kind', 'media');
+      .querySelector<HTMLElement>('[data-perch-element-index="2"]');
+    expect(added).toHaveAttribute('data-perch-element-kind', 'media');
+    expect(added?.style.width).toBe('480px');
+    expect(added?.style.height).toBe('270px');
     expect(srcField().value).toBe('thermalright:b003');
+  });
+
+  it('adds an image from the files beside the layout', () => {
+    const result = renderEditor(undefined, {
+      'desk.assets/rails.svg': '/assets/rails.svg',
+      'desk.assets/wall.png': '/assets/wall.png',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'add an element' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Image/ }));
+    const files = within(screen.getByRole('list', { name: 'files beside the layout' }));
+    expect(files.getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'desk.assets/rails.svg',
+      'desk.assets/wall.png',
+    ]);
+    fireEvent.click(files.getByRole('button', { name: 'desk.assets/wall.png' }));
+
+    expect(elementRows(result)).toHaveLength(3);
+    expect(
+      result.getByTestId('perch-canvas').querySelector('[data-perch-element-index="2"] img'),
+    ).toHaveAttribute('src', '/assets/wall.png');
+    expect(srcField().value).toBe('desk.assets/wall.png');
+  });
+
+  it('turns each off, saying why, when there is nothing to choose from', () => {
+    renderEditor(undefined);
+
+    fireEvent.click(screen.getByRole('button', { name: 'add an element' }));
+
+    expect(screen.getByRole('button', { name: /^Image/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Video/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Label/ })).toBeEnabled();
   });
 });
