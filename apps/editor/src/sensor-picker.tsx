@@ -429,9 +429,9 @@ export function AddMenu({
             kind === null
               ? 'add an element'
               : step === 'cloud'
-                ? 'choose a video'
+                ? 'choose a cloud video'
                 : step === 'local'
-                  ? 'choose an image'
+                  ? 'choose a file'
                   : `choose a sensor for the new ${kind.label}`
           }
           style={popover.style}
@@ -461,7 +461,7 @@ export function AddMenu({
           ) : step === 'cloud' ? (
             backgrounds.host === undefined ? null : (
               <>
-                {back('new video: choose one')}
+                {back('new cloud video: choose one')}
                 <BackgroundBrowser
                   host={backgrounds.host}
                   target={target}
@@ -474,7 +474,7 @@ export function AddMenu({
             )
           ) : step === 'local' ? (
             <>
-              {back('new image: choose a file')}
+              {back('new image or video: choose a file')}
               <ul className="perch-add__files" aria-label="files beside the layout">
                 {localMedia.map((src) => (
                   <li key={src}>

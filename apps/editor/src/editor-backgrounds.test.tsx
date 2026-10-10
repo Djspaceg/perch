@@ -160,12 +160,12 @@ describe("the layout background's cloud video", () => {
 const elementRows = (result: ReturnType<typeof render>): NodeListOf<Element> =>
   result.getByTestId('perch-editor-elements').querySelectorAll('[data-perch-layer-index]');
 
-describe("the Add menu's Image and Video", () => {
+describe("the Add menu's media", () => {
   it('adds a video on top, at the new media size, selected, once it has downloaded', async () => {
     const result = renderEditor(host());
 
     fireEvent.click(screen.getByRole('button', { name: 'add an element' }));
-    fireEvent.click(screen.getByRole('button', { name: /^Video/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Cloud video/ }));
     fireEvent.click(screen.getByRole('tab', { name: 'Tech' }));
     await act(async () => {
       fireEvent.click(screen.getByRole('option', { name: 'Tech 3' }));
@@ -204,13 +204,25 @@ describe("the Add menu's Image and Video", () => {
     expect(srcField().value).toBe('desk.assets/wall.png');
   });
 
+  it('adds a local video as a video, playing in the preview', () => {
+    const result = renderEditor(undefined, { 'desk.assets/loop.mp4': '/assets/loop.mp4' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'add an element' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Image or video/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'desk.assets/loop.mp4' }));
+
+    expect(
+      result.getByTestId('perch-canvas').querySelector('[data-perch-element-index="2"] video'),
+    ).toHaveAttribute('src', '/assets/loop.mp4');
+  });
+
   it('turns each off, saying why, when there is nothing to choose from', () => {
     renderEditor(undefined);
 
     fireEvent.click(screen.getByRole('button', { name: 'add an element' }));
 
     expect(screen.getByRole('button', { name: /^Image/ })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^Video/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Cloud video/ })).toBeDisabled();
     expect(screen.getByRole('button', { name: /^Label/ })).toBeEnabled();
   });
 });

@@ -362,7 +362,7 @@ export function BackgroundField({
 
 /** Why the Local list is empty, and what fills it. */
 export const NO_LOCAL_MEDIA =
-  'no images beside this layout: put .svg or .png files in its <name>.assets folder';
+  'no media beside this layout: put .svg, .png, .mp4 or .webm files in its <name>.assets folder';
 
 /**
  * A local file for a media `src`: a list of the media beside the open layout (`BackgroundContext`'s

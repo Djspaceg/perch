@@ -42,7 +42,15 @@ export interface DocumentPayload {
 }
 
 /** The media extensions the runtime's bundled catalogue picks up; see `layout-catalogue.ts`. */
-const MEDIA_EXTENSIONS = ['.svg', '.png'];
+/** The videos among them, served by byte ranges (`main.ts`) and played looping by the canvas. */
+const VIDEO_EXTENSIONS = ['.mp4', '.webm'];
+const MEDIA_EXTENSIONS = ['.svg', '.png', ...VIDEO_EXTENSIONS];
+
+/** Whether a media file is a video, by its extension, as the canvas decides it (`ui-kit`). */
+export function isVideoFile(path: string): boolean {
+  const lower = path.toLowerCase();
+  return VIDEO_EXTENSIONS.some((extension) => lower.endsWith(extension));
+}
 
 /** When to read the file again after a watch starts, past the window FSEvents does not cover. */
 const STREAM_SETTLE_MS = 250;

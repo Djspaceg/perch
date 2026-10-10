@@ -43,8 +43,8 @@ describe('ADDABLE_KINDS', () => {
       'Live reading',
       'Chart',
       'Label',
-      'Image',
-      'Video',
+      'Image or video',
+      'Cloud video',
     ]);
     expect(ADDABLE_KINDS.map((entry) => entry.step)).toEqual([
       'sensor',

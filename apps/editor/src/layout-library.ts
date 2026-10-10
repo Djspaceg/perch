@@ -79,7 +79,7 @@ const INVALID_LAYOUT_TEXT = import.meta.glob('../../../layouts/invalid/*.json', 
   eager: true,
 });
 
-const LAYOUT_ASSETS = import.meta.glob('../../../layouts/**/*.{svg,png}', {
+const LAYOUT_ASSETS = import.meta.glob('../../../layouts/**/*.{svg,png,mp4,webm}', {
   query: '?url',
   import: 'default',
   eager: true,

@@ -290,7 +290,7 @@ function renderText(element: TextElement): ReactNode {
 }
 
 /**
- * A media element, with its path already turned into a URL.
+ * A media element, with its path already turned into a URL: an image, or a video by its extension.
  *
  * The missing-asset box is reachable, unlike the missing-widget one: `layout-schema` checks that
  * `src` is a *well-formed relative path*, which it must — it has no filesystem and no bundler — but
@@ -307,7 +307,24 @@ function renderMedia(
     return <span className="perch-element__failure">{`missing asset: ${element.src}`}</span>;
   }
 
-  return <MediaFrame src={url} fit={mediaFit(element.fit)} />;
+  return isVideoPath(element.src) ? (
+    <VideoBackground src={url} fit={mediaFit(element.fit)} />
+  ) : (
+    <MediaFrame src={url} fit={mediaFit(element.fit)} />
+  );
+}
+
+/** The file extensions a local media `src` plays as a video rather than shows as an image. */
+export const VIDEO_EXTENSIONS: readonly string[] = Object.freeze(['.mp4', '.webm']);
+
+/**
+ * Whether a local media path names a video: by its extension, the only thing a layout says about the
+ * file. Played as a cloud background is, looping and muted, so a file beside the layout and a cloud
+ * video behave alike.
+ */
+export function isVideoPath(src: string): boolean {
+  const lower = src.toLowerCase();
+  return VIDEO_EXTENSIONS.some((extension) => lower.endsWith(extension));
 }
 
 /**

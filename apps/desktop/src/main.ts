@@ -15,7 +15,7 @@
 import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { BrowserWindow, Menu, app, net, protocol, session } from 'electron';
-import { createBackgroundCache } from '@perch/backgrounds/node';
+import { createBackgroundCache, serveCachedFile } from '@perch/backgrounds/node';
 import { appMenuTemplate, historyMenuTarget, menuEnabled, type MenuCommandId } from './app-menu.js';
 import {
   APP_SCHEME,
@@ -25,6 +25,7 @@ import {
   resolveAppRequest,
 } from './app-protocol.js';
 import { CACHE_SCHEME, backgroundsRoot, cacheUrlFor, serveCacheRequest } from './backgrounds.js';
+import { isVideoFile } from './document.js';
 import { createEditor, type Editor } from './editor.js';
 import {
   handoffData,
@@ -57,9 +58,13 @@ const resources = appResources({
 // and `'self'` in its policy means `app://runtime`. See `app-protocol.ts` for why not `file://`.
 //
 // The background cache's scheme is its own and adds `stream`, without which Electron hands a
-// `<video>` nothing it can play from a custom protocol. See `backgrounds.ts`.
+// `<video>` nothing it can play from a custom protocol. See `backgrounds.ts`. The app's scheme adds
+// it too, for a video file beside a layout (the human's call), which `serveApp` answers by ranges.
 protocol.registerSchemesAsPrivileged([
-  { scheme: APP_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  {
+    scheme: APP_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
   {
     scheme: CACHE_SCHEME,
     privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
@@ -104,6 +109,10 @@ async function serveApp(request: Request, runner: Runner, editor: Editor): Promi
     editorDocument: (key) => editor.documentFolder(key),
   });
   if (path === null) return new Response('not found', { status: 404 });
+  // A video beside a layout is read by byte ranges, as a cached background is, or it cannot loop.
+  if (isVideoFile(path)) {
+    return serveCachedFile(path, request.method, request.headers.get('range'));
+  }
 
   let response: Response;
   try {

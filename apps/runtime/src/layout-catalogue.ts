@@ -88,7 +88,7 @@ const INVALID_LAYOUT_TEXT = import.meta.glob('../../../layouts/invalid/*.json', 
  * page. The extension list is the set the layouts actually use — a format added later has to be
  * added here, and the failure is a visible missing-asset box rather than a broken image.
  */
-const LAYOUT_ASSETS = import.meta.glob('../../../layouts/**/*.{svg,png}', {
+const LAYOUT_ASSETS = import.meta.glob('../../../layouts/**/*.{svg,png,mp4,webm}', {
   query: '?url',
   import: 'default',
   eager: true,

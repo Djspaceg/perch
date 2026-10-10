@@ -116,7 +116,7 @@ describe('the editor hosts', () => {
 
     expect(policy).toContain("script-src 'self'");
     expect(policy).toContain('img-src app://editor-document perch-cache://backgrounds');
-    expect(policy).toContain('media-src perch-cache://backgrounds');
+    expect(policy).toContain('media-src app://editor-document perch-cache://backgrounds;');
     expect(policy).not.toContain('app://document');
     expect(policy).toContain('connect-src ws://127.0.0.1:19001');
     expect(policy).not.toContain('unsafe-eval');
@@ -143,7 +143,8 @@ describe('contentSecurityPolicy', () => {
     expect(policy).toContain("worker-src 'self' blob:");
     expect(policy).toContain('img-src app://document');
     expect(policy).not.toMatch(/img-src[^;]*perch-cache/);
-    expect(policy).toContain('media-src perch-cache://backgrounds');
+    // Video too from the document's folder, for a video file beside the layout.
+    expect(policy).toContain('media-src app://document perch-cache://backgrounds;');
     expect(policy).toContain('connect-src ws://127.0.0.1:19001');
     expect(policy).not.toContain('unsafe-eval');
   });

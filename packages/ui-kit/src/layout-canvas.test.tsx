@@ -23,7 +23,7 @@ import {
   type SensorTopic,
 } from '@perch/sensor-contract';
 import { SensorProvider, type BackgroundSource } from '@perch/ui-kit';
-import { LayoutCanvas } from './layout-canvas.js';
+import { LayoutCanvas, isVideoPath } from './layout-canvas.js';
 import { WIDGET_REGISTRY } from './widget-catalogue.js';
 
 const CPU_TEMP = sensorTopic('cpu', 'temperature');
@@ -528,5 +528,37 @@ describe('<LayoutCanvas> — the layout background and hidden layers', () => {
 
     expect(elements().map((element) => element.dataset['perchElementIndex'])).toEqual(['1']);
     expect(canvas().textContent).not.toContain('hidden');
+  });
+});
+
+describe('<LayoutCanvas> — a local video', () => {
+  it('plays a video file beside the layout, looping as a cloud background does', () => {
+    render(
+      <SensorProvider source={fakeSource()}>
+        <LayoutCanvas
+          layout={loadFixture({
+            ...ALL_KINDS,
+            schemaVersion: LAYOUT_SCHEMA_VERSION,
+            background: { src: 'loop.webm', fit: 'contain' },
+            elements: [{ kind: 'media', src: 'clip.MP4', rect: { x: 0, y: 0, w: 100, h: 100 } }],
+          })}
+          scale={1}
+          resolveAsset={(src) => `/assets/${src}`}
+        />
+      </SensorProvider>,
+    );
+
+    const [background, element] = elements();
+    expect(background?.querySelector('video')).toHaveAttribute('src', '/assets/loop.webm');
+    expect(background?.querySelector('.perch-media')).toHaveAttribute('data-fit', 'contain');
+    expect(element?.querySelector('video')).toHaveAttribute('src', '/assets/clip.MP4');
+    expect(element?.querySelector('img')).toBeNull();
+  });
+
+  it('tells a video from an image by its extension alone', () => {
+    expect(isVideoPath('a.assets/loop.mp4')).toBe(true);
+    expect(isVideoPath('a.assets/loop.webm')).toBe(true);
+    expect(isVideoPath('a.assets/loop.mp4.png')).toBe(false);
+    expect(isVideoPath('a.assets/wall.svg')).toBe(false);
   });
 });

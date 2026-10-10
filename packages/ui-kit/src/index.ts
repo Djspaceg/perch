@@ -158,8 +158,10 @@ export {
   ELEMENT_BOX_STYLES,
   LAYOUT_CANVAS_STYLES,
   LayoutCanvas,
+  VIDEO_EXTENSIONS,
   canvasToken,
   elementContentSize,
+  isVideoPath,
   type CanvasToken,
   type LayoutCanvasProps,
 } from './layout-canvas.js';

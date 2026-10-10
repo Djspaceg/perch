@@ -18,6 +18,7 @@ import { Readable } from 'node:stream';
 const TYPES: Readonly<Record<string, string>> = {
   mp4: 'video/mp4',
   png: 'image/png',
+  webm: 'video/webm',
 };
 
 export async function serveCachedFile(

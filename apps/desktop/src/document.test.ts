@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DOCUMENT_ASSET_ORIGIN } from './app-protocol.js';
-import { readLayoutDocument, watchDocument } from './document.js';
+import { isVideoFile, readLayoutDocument, watchDocument } from './document.js';
 
 /** Room for FSEvents' own delivery latency on a loaded machine, past Vitest's one second. */
 const WATCH_POLL = { timeout: 3000 };
@@ -20,6 +20,15 @@ afterEach(async () => {
   await rm(folder, { recursive: true, force: true });
 });
 
+describe('isVideoFile', () => {
+  it('is a video by its extension, whatever its case, and nothing else is', () => {
+    expect(isVideoFile('/l/desk.assets/loop.mp4')).toBe(true);
+    expect(isVideoFile('/l/desk.assets/LOOP.WEBM')).toBe(true);
+    expect(isVideoFile('/l/desk.assets/rails.svg')).toBe(false);
+    expect(isVideoFile('/l/desk.assets/mp4.png')).toBe(false);
+  });
+});
+
 describe('readLayoutDocument', () => {
   it('reads the text as it is on disk, and maps each media file beside it to a URL', async () => {
     await mkdir(join(folder, 'desk.assets'));
@@ -27,6 +36,8 @@ describe('readLayoutDocument', () => {
     await writeFile(join(folder, 'desk.assets', 'rails.svg'), '<svg/>');
     await writeFile(join(folder, 'desk.assets', 'grid lines.png'), '');
     await writeFile(join(folder, 'desk.assets', 'notes.txt'), '');
+    await writeFile(join(folder, 'desk.assets', 'loop.mp4'), '');
+    await writeFile(join(folder, 'desk.assets', 'loop.webm'), '');
 
     const payload = await readLayoutDocument({ name: 'desk', path: join(folder, 'desk.json') });
 
@@ -35,6 +46,8 @@ describe('readLayoutDocument', () => {
       text: '{ "not": "validated here" ,}',
       assets: {
         'desk.assets/grid lines.png': `${DOCUMENT_ASSET_ORIGIN}/desk.assets/grid%20lines.png`,
+        'desk.assets/loop.mp4': `${DOCUMENT_ASSET_ORIGIN}/desk.assets/loop.mp4`,
+        'desk.assets/loop.webm': `${DOCUMENT_ASSET_ORIGIN}/desk.assets/loop.webm`,
         'desk.assets/rails.svg': `${DOCUMENT_ASSET_ORIGIN}/desk.assets/rails.svg`,
       },
     });

@@ -18,6 +18,7 @@ beforeAll(async () => {
   video = join(folder, 'a042.mp4');
   await writeFile(video, BYTES);
   await writeFile(join(folder, 'a042.png'), 'png');
+  await writeFile(join(folder, 'loop.webm'), 'webm');
 });
 
 afterAll(async () => {
@@ -36,6 +37,11 @@ describe('serveCachedFile', () => {
     expect(response.headers.get('content-length')).toBe('1000');
     expect(response.headers.get('accept-ranges')).toBe('bytes');
     expect(await body(response)).toEqual(BYTES);
+  });
+
+  it('types a WebM video as one, for a video beside a layout', async () => {
+    const response = await serveCachedFile(join(folder, 'loop.webm'), 'GET', null);
+    expect(response.headers.get('content-type')).toBe('video/webm');
   });
 
   it('types a PNG as one', async () => {

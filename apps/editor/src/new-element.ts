@@ -2,8 +2,8 @@
  * What the Add menu makes: one element of a kind, with defaults that validate.
  *
  * Every kind: a live reading (`widget` with `readout`), a chart (`chart` with `line-chart`), a label
- * (`text`), and media twice over, an Image from the files beside the layout and a Video from the
- * cloud catalogue. Media was left out while choosing one meant typing a path, since an element whose
+ * (`text`), and media twice over, an image or video from the files beside the layout and a video
+ * from the cloud catalogue. Media was left out while choosing one meant typing a path, since an element whose
  * `src` names nothing paints the missing-asset box the moment it is made. Both media entries choose
  * from what is there instead: files the host found beside the layout, or a video downloaded before it
  * is set, so a new media element always paints.
@@ -40,8 +40,8 @@ export const ADDABLE_KINDS: readonly AddableEntry[] = Object.freeze([
   { kind: 'widget', label: 'Live reading', hint: 'one sensor, as a number', step: 'sensor' },
   { kind: 'chart', label: 'Chart', hint: 'one sensor over time', step: 'sensor' },
   { kind: 'text', label: 'Label', hint: 'a line of text', step: null },
-  { kind: 'media', label: 'Image', hint: 'a file beside the layout', step: 'local' },
-  { kind: 'media', label: 'Video', hint: 'a cloud video', step: 'cloud' },
+  { kind: 'media', label: 'Image or video', hint: 'a file beside the layout', step: 'local' },
+  { kind: 'media', label: 'Cloud video', hint: 'from the Thermalright catalogue', step: 'cloud' },
 ]);
 
 /** The widget each bound kind is drawn with. Typed against `ui-kit`'s catalogue, so a rename fails here. */

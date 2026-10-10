@@ -305,7 +305,8 @@ const LOCAL: ScalarProperty<LayoutElement> = {
   kind: 'scalar',
   id: 'local',
   label: 'local file',
-  description: 'An image beside the layout, in its .assets folder, covering the rectangle.',
+  description:
+    'An image or video beside the layout, in its .assets folder, covering the rectangle.',
   spec: { kind: 'localMedia' },
   get: (element) => (element.kind === 'media' ? element.src : ''),
   write: (text, index) => setElementSrc(index, text),
@@ -450,7 +451,7 @@ const BACKGROUND_LOCAL: ScalarProperty<BackgroundSubject> = {
   kind: 'scalar',
   id: 'local',
   label: 'local file',
-  description: 'An image beside the layout, in its .assets folder, under everything.',
+  description: 'An image or video beside the layout, in its .assets folder, under everything.',
   spec: { kind: 'localMedia' },
   get: (background) => background?.src ?? '',
   write: (text) => setBackgroundSrc(text),

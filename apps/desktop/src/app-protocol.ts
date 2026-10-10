@@ -157,7 +157,8 @@ export function isAppPage(url: string): boolean {
  *
  * Its own scripts and nothing inline; inline styles, because React hoists `ui-kit`'s sheets as
  * `<style>` elements and widgets set `style` attributes; images from the document's folder; video
- * from the background cache (`backgrounds.ts`); and exactly one connection, the in-process relay.
+ * from the document's folder and the background cache (`backgrounds.ts`); and exactly one
+ * connection, the in-process relay.
  * The editor's thumbnails are images from that cache too, so its policy adds it to `img-src`.
  *
  * `worker-src blob:` is for mqtt.js, which runs its keepalive timer in a worker built from a blob so
@@ -174,7 +175,7 @@ export function contentSecurityPolicy(
     "worker-src 'self' blob:",
     "style-src 'self' 'unsafe-inline'",
     `img-src ${mediaOrigin} 'self' data:`,
-    `media-src ${BACKGROUNDS_ORIGIN}`,
+    `media-src ${[...new Set([...mediaOrigin.split(' '), BACKGROUNDS_ORIGIN])].join(' ')}`,
     "font-src 'self'",
     `connect-src ${brokerUrl}`,
     "base-uri 'none'",
