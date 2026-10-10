@@ -5170,3 +5170,43 @@ Push: none. Work was done directly on local main, as the human asked. No CR: thi
 ## Residuals
 
 All checks ran in headless Chrome and jsdom; the Electron app was not launched, so `nativeTheme` and the View menu were checked by unit tests only. The sidebar does not wrap at 300/420/540 except for prose.
+
+# Background layer, media layers, duplicate - decisions
+
+Outcome: schema v4 gives a layout its own `background` (always the locked bottom layer) and an eye (`hidden`) on every layer. The Add menu adds image/video layers, any layer duplicates (Mod+D), and local .mp4/.webm play. 7 commits on local main, nothing pushed.
+
+Why no background settings showed: the only controls were Add > Background (last in the menu, off without a background cache) and a row on a selected media element. Nothing layout-wide, and no background in the layers list.
+
+## Decisions to evaluate
+
+D1 The background is a layout field `{src, fit, opacity, hidden}`, not a pinned element. Why: nothing can be reordered under it, so no reorder path has to police it. If overruled: a locked elements[0] guarded in move/drop/duplicate.
+D2 Migration 3->4 rewrites nothing: shipped backdrops (rails.svg, weave.svg) stay element 0. If overruled: move them into `background`.
+D3 The eye is on every layer, not only the background: same field, button and render skip. If overruled: drop `hidden` from elements.
+D4 Hiding is saved and hides on the panel too. A hidden element keeps its canvas handle only while selected.
+D5 Add menu: "Image or video" (files beside the layout) and "Cloud video". New media goes on top at 480x270, centred, clamped, fit cover. Add > Background is gone; the bottom row replaces it.
+D6 Duplicate: Mod+D (canvas, sidebar), a button on the selected row, desktop Edit > Duplicate (enabled while the editor is open). The background's copy is a media layer at index 0 over the full canvas, keeping src/fit/opacity/hidden.
+D7 Local video, approved by the human: app:// gains `stream`, video is served by byte range, and CSP media-src adds the document media origin. Supersedes: cloud video and local images only, because the human said yes.
+D8 Empty `src` on the background means none. The header's trash can removes it, asking first.
+
+## Open questions
+
+Q1 Local files are listed, not imported: no file dialog copies into `<name>.assets/`. Default: drop files in the folder by hand.
+Q2 In the browser editor the Local list shows every layouts/ asset (shared folder). Default: left as is.
+Q3 Opacity is on the background, which was not in the brief. Default: kept, as on every element.
+
+## Gate facts
+
+Push: none, local main only (human's standing rule). No CR and no AutoSDE: GitHub repo, no CRUX. No dependency added; lockfile untouched. Call sites: CALL_SITES.md, section "Background layer and hidden". Lanes at the docs commit: build.log 0, typecheck.log 0, test.log 0 (2644 tests, baseline 2564), lint.log 1 (one error in apps/desktop/src/packaging.test.ts, also present at b6aea90). Adversarial review rounds: 0 (waived for perch by the brief).
+
+## Evidence (under the checkout's .evidence/background-layers/)
+
+- baseline-*.log: starting state.
+- red-1..6-*.log: each slice's new tests failing at the commit before it.
+- build/typecheck/test/lint.log: final lanes.
+- live-*.js with cdp.mjs: headless Chrome on the dev server: background row, local file, eye, a real drag below the background, Mod+D, Add menu.
+- live-background-row.png, live-add-menu.png: what those runs showed.
+- local-video-posture.md: the brief behind D7.
+
+## Residuals
+
+Local video was checked in jsdom and by unit tests of the protocol and CSP. Electron was not launched and the human's perch.app was not touched. Another worker's desktop icon edits were staged in the same checkout. They are not in these commits.

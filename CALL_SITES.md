@@ -657,3 +657,32 @@ moved — what follows is what now exists to be called, and what a change to it 
   `descriptors.ts` (`tokenSpec`), ui-kit `layout-canvas.tsx` `resolveBoxToken`, `tokens.ts` `token()`.
 - `ui-kit` `TokenLabel` (`alpha` flag removed): editor `descriptors.ts` `tokenSpec`, `token-pane.tsx`
   `DeveloperRow` (both read it before; neither does now). No other reader.
+
+## Background layer and hidden: every call site of the `packages/*` symbols touched
+
+- `layout-schema` `LAYOUT_SCHEMA_VERSION` (3 -> 4) and `LAYOUT_MIGRATIONS` (+ `3 -> 4`, rewrites nothing):
+  editor `editor-host.ts` `blankLayoutLike` (stamps New); every `loadLayout`/`loadLayoutJson` caller
+  (runtime `app.tsx`, editor `open-layout.ts`, runtime `layouts.test.ts`, `layout-opacity.test.tsx`).
+  `layouts/desk-1920x400.json`, `tower-720x1280.json`, `trend-1920x400.json` stamped 4 (content
+  unchanged); `layouts/invalid/broken-desk.json` stays version 1 on purpose; `fixtures/` holds no layout.
+- `layout-schema` `Layout.background` / `LayoutBackground` (new, `layout-background.ts`): validated in
+  `layout.ts`; read by ui-kit `layout-canvas.tsx` `renderLayoutBackground`, `background-sources.ts`
+  `referencesIn`; editor `layout-edits.ts` (`setBackground*`, `clearBackground`, `duplicateBackground`),
+  `inspector.tsx` (`BackgroundHeader`, `BackgroundPanes`, the list's background row), `descriptors.ts`
+  `backgroundProperties`. The desktop main process never parses a layout.
+- `layout-schema` `backgroundAsElement` (new): ui-kit `layout-canvas.tsx`; editor `layout-edits.ts`
+  `duplicateBackground`.
+- `layout-schema` `Hidden` / element `hidden` (new on every kind): validated in `element.ts`; read by
+  ui-kit `layout-canvas.tsx` (skips), editor `canvas-handles.tsx` (no handle unless selected),
+  `inspector.tsx` `LayerEye`, `layout-edits.ts` `setElementHidden`.
+- `layout-schema` `validateMediaPath` (`elementIndex` now optional): `element.ts`, `layout-background.ts`.
+  `validateOptionalOpacity` / `validateOptionalHidden` exported for `layout-background.ts` only (not in
+  `index.ts`).
+- `ui-kit` `LayoutCanvas` (paints the background first, skips hidden layers, plays `.mp4`/`.webm`): runtime
+  `app.tsx` `Page`, editor `preview.tsx` `LayoutPreview`. No other renderer.
+- `ui-kit` `useBackgroundSources` (also asks for the background's cloud ref): runtime `app.tsx`, editor
+  `app.tsx`.
+- `ui-kit` `isVideoPath` / `VIDEO_EXTENSIONS` (new): `layout-canvas.tsx` only. Desktop keeps its own
+  list (`document.ts` `isVideoFile`), since it does not depend on ui-kit.
+- `backgrounds` `serveCachedFile` (types `.webm`): desktop `backgrounds.ts` `serveCacheRequest`, desktop
+  `main.ts` `serveApp` (new caller: local video by range), `dev-endpoint.ts`.
