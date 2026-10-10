@@ -32,7 +32,7 @@ import {
 import type { BackgroundCache, TargetSize } from '@perch/backgrounds/node';
 import { isRuntimePage } from './app-protocol.js';
 import { forPage } from './backgrounds.js';
-import { dockVisible } from './editor-close.js';
+import { dockAction, windowShowing } from './editor-close.js';
 import { readLayoutDocument, watchDocument, type DocumentPayload } from './document.js';
 import { watchLayoutsFolder } from './folder-watch.js';
 import {
@@ -261,7 +261,7 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
       documents,
       current: current?.path ?? null,
       notice,
-      windowVisible: window?.isVisible() ?? false,
+      windowVisible: windowShowing(window),
       startAtLogin: app.getLoginItemSettings().openAtLogin,
     };
   }
@@ -291,7 +291,7 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
             );
           },
           toggleWindow: () => {
-            if (window?.isVisible() === true) hideWindow();
+            if (windowShowing(window)) hideWindow();
             else showWindow();
           },
           openSettings: () => {
@@ -329,19 +329,20 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
     refreshTray();
   }
 
-  function updateDock(): void {
-    const visible = dockVisible({
-      runnerVisible: window?.isVisible() ?? false,
-      editorOpen: options.editorOpen(),
-      settingsOpen: options.settingsOpen(),
-    });
-    if (visible) app.dock?.show().catch(() => undefined);
-    else app.dock?.hide();
-  }
-
   // Set by `prepareQuit`, which `main.ts` calls once a quit is going ahead: a quit the editor's
   // unsaved-changes prompt calls off must leave this window hiding on close, as before.
   let quitting = false;
+
+  function updateDock(): void {
+    const action = dockAction({
+      quitting,
+      runner: window,
+      editorOpen: options.editorOpen(),
+      settingsOpen: options.settingsOpen(),
+    });
+    if (action === 'show') app.dock?.show().catch(() => undefined);
+    else if (action === 'hide') app.dock?.hide();
+  }
 
   return {
     brokerUrl,
@@ -377,7 +378,7 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
         folderListeners.delete(listener);
       };
     },
-    windowVisible: () => window?.isVisible() ?? false,
+    windowVisible: () => windowShowing(window),
     prepareQuit: () => {
       quitting = true;
     },
@@ -399,6 +400,11 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
         if (quitting) return;
         event.preventDefault();
         hideWindow();
+      });
+      // A quit destroys it; nothing may call into it after that (`windowShowing`).
+      window.on('closed', () => {
+        window = null;
+        reportPage = null;
       });
       window.on('show', refreshTray);
       window.on('hide', refreshTray);

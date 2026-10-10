@@ -62,3 +62,40 @@ export function dockVisible({
 }): boolean {
   return runnerVisible || editorOpen || settingsOpen;
 }
+
+/** The part of a `BrowserWindow` the dock reads. */
+export interface DockWindow {
+  isDestroyed(): boolean;
+  isVisible(): boolean;
+}
+
+/**
+ * Whether `window` is on screen. A destroyed window is not, and is never asked: Electron throws
+ * "Object has been destroyed" from every method of one, and a quit destroys the runner's window
+ * before the editor's and the Settings window's 'closed' ask for the dock.
+ */
+export function windowShowing(window: DockWindow | null): boolean {
+  return window !== null && !window.isDestroyed() && window.isVisible();
+}
+
+/** Show the dock icon, hide it, or, once a quit is going ahead, leave it as it is. */
+export type DockAction = 'show' | 'hide' | 'leave';
+
+/** What `updateDock` does to the dock icon, given the runner's window and the other two. */
+export function dockAction({
+  quitting,
+  runner,
+  editorOpen,
+  settingsOpen,
+}: {
+  quitting: boolean;
+  runner: DockWindow | null;
+  editorOpen: boolean;
+  settingsOpen: boolean;
+}): DockAction {
+  // Every window is closing; the icon goes with the app.
+  if (quitting) return 'leave';
+  return dockVisible({ runnerVisible: windowShowing(runner), editorOpen, settingsOpen })
+    ? 'show'
+    : 'hide';
+}
