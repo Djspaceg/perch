@@ -126,10 +126,28 @@ describe('packagingConfig: two launchers on each platform', () => {
 });
 
 describe('packagingConfig: signing', () => {
-  it('is off by default on every platform', () => {
-    expect(config.mac?.identity).toBeNull();
+  it('is off by default on every platform, but macOS signs ad hoc', () => {
+    // Ad hoc, not unsigned: Electron's own linker signature names the app "Electron" and seals
+    // nothing, so macOS cannot match it to perch's Local Network permission.
+    expect(config.mac?.identity).toBe('-');
+    // Hardened runtime is for notarization, which an ad hoc signature cannot have.
+    expect(config.mac?.hardenedRuntime).toBe(false);
     expect(config.mac?.notarize).toBe(false);
     expect(config.win?.signExecutable).toBe(false);
+  });
+
+  it('asks for Local Network access with a reason, signed or not', () => {
+    const signed = packagingConfig({
+      env: { PERCH_MAC_SIGN: '1' },
+      projectDir,
+      arch: 'arm64',
+      electronVersion: '44.4.5',
+    });
+    for (const mac of [config.mac, signed.mac]) {
+      expect(mac?.extendInfo).toEqual({
+        NSLocalNetworkUsageDescription: expect.stringMatching(/LibreHardwareMonitor.*local network/),
+      });
+    }
   });
 
   it('switches on from the environment', () => {
@@ -142,6 +160,7 @@ describe('packagingConfig: signing', () => {
 
     // Left to electron-builder, which reads CSC_NAME / CSC_LINK itself.
     expect(signed.mac).not.toHaveProperty('identity');
+    expect(signed.mac).not.toHaveProperty('hardenedRuntime');
     expect(signed.mac?.notarize).toBe(true);
     expect(signed.win?.signExecutable).toBe(true);
     expect(signed.afterSign).toBeTypeOf('function');

@@ -20,7 +20,8 @@
  * node_modules), and in the resources folder the two built pages and the seed layouts, under the
  * names `paths.ts` looks for when packaged.
  *
- * Signing is off unless the environment asks for it (`signingFromEnv`); the README has the steps.
+ * Signing is off unless the environment asks for it (`signingFromEnv`), except that macOS signs
+ * perch.app ad hoc then; the README has the steps.
  * Only `electron-builder.config.mjs` and a packaging run use this module: it is not in the app.
  */
 
@@ -52,6 +53,9 @@ const LINUX_EDITOR_ENTRY = 'perch-editor.desktop';
 const PAGE_FILES = ['**/*', '!**/*.map'];
 /** What electron-builder's AppImage entry passes, for its legacy toolset: no setuid sandbox. */
 const APPIMAGE_ARGS = '--no-sandbox';
+/** What macOS shows when it asks to let perch reach the local network. */
+const LOCAL_NETWORK_REASON =
+  'perch reads sensor data from LibreHardwareMonitor on a computer on your local network.';
 
 export interface Signing {
   /** Sign perch.app and perch editor.app, with the identity electron-builder finds (CSC_NAME). */
@@ -140,8 +144,14 @@ export function packagingConfig(options: PackagingOptions): Configuration {
     mac: {
       target: [{ target: 'dmg', arch: [macArch] }],
       category: 'public.app-category.utilities',
-      ...(signing.mac ? {} : { identity: null }),
+      // Unsigned, macOS signs ad hoc: an app left with Electron's own linker signature is named
+      // "Electron" and seals nothing, and Local Network privacy cannot match it to perch's
+      // permission, so every LAN host but the gateway is unreachable. Hardened runtime is for
+      // notarization, which an ad hoc signature cannot have.
+      ...(signing.mac ? {} : { identity: '-', hardenedRuntime: false }),
       notarize: signing.macNotarize,
+      // Without a reason macOS does not ask, and the relay's LAN polling fails.
+      extendInfo: { NSLocalNetworkUsageDescription: LOCAL_NETWORK_REASON },
     },
     // On electron-builder's 540x380 background, whose arrow is at its centre: both apps to the
     // left of it, stacked, Applications to the right.

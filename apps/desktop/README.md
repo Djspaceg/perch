@@ -183,7 +183,13 @@ open -a "$PWD/release/mac-arm64/perch editor.app" --args --user-data-dir=$T/user
 
 Off by default on every platform, because each needs your certificates. electron-builder would
 otherwise sign on its own with any Developer ID it finds in your keychain, so macOS signing is set
-off explicitly. To switch it on:
+explicitly: unsigned, `perch.app` is signed ad hoc (`identity: '-'`, no hardened runtime), which
+needs no certificate. Not leaving it unsigned matters: Electron's own linker signature names the
+app `Electron` and seals nothing, and macOS Local Network privacy cannot match that to perch's
+permission, so the relay cannot reach a LibreHardwareMonitor host on your LAN. `perch editor.app`
+stays unsigned in that build: it is a script that only `open`s `perch.app`, which makes every
+connection as its own process. Both builds carry `NSLocalNetworkUsageDescription`, so macOS asks
+to allow perch on the local network the first time the relay reaches it. To switch signing on:
 
 - **macOS signing.** `PERCH_MAC_SIGN=1`, and `CSC_NAME="Developer ID Application: <Name> (<TEAM>)"`
   (or `CSC_LINK` + `CSC_KEY_PASSWORD` for a .p12). electron-builder signs `perch.app` with the
@@ -197,6 +203,6 @@ off explicitly. To switch it on:
 - **Windows.** `PERCH_WIN_SIGN=1`, with `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD` (a .pfx).
 - **Linux.** Nothing to sign.
 
-Neither path has been run: there are no credentials here. An unsigned macOS download is refused by
-Gatekeeper on another Mac until you right-click Open it or clear its quarantine, and Apple silicon
-may call it damaged; a locally built one runs as is. Auto-update is not set up.
+Neither path has been run: there are no credentials here. An ad hoc signed macOS download is
+refused by Gatekeeper on another Mac until you right-click Open it or clear its quarantine; a
+locally built one runs as is. Auto-update is not set up.
