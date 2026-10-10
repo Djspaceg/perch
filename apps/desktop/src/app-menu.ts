@@ -5,7 +5,7 @@
  * perch (macOS)  About, Settings... (Mod+,), Services, Hide, Quit
  * File           New, Open..., Open preset >, Open recent >, Save, Save As...,
  *                Settings (Windows, Linux), Close, Quit (Windows, Linux)
- * Edit           Undo, Redo, the clipboard roles
+ * Edit           Undo, Redo, Duplicate (Mod+D), the clipboard roles
  * View           Toggle Sidebar (Mod+\), zoom, full screen, developer tools (unpackaged)
  * Window         Open editor, Show preview
  * ```
@@ -69,6 +69,7 @@ export const MENU_COMMANDS = [
   'document.saveAs',
   'history.undo',
   'history.redo',
+  'selection.duplicate',
   'app.settings',
   'view.toggleSidebar',
 ] as const;
@@ -83,6 +84,7 @@ const SHARED: Omit<MenuBindings, 'history.redo'> = {
   'document.save': ['Mod+S'],
   'document.saveAs': ['Mod+Shift+S'],
   'history.undo': ['Mod+Z'],
+  'selection.duplicate': ['Mod+D'],
   'app.settings': ['Mod+,'],
   'view.toggleSidebar': ['Mod+\\'],
 };
@@ -375,6 +377,10 @@ export function appMenuTemplate(
   const edit: MenuItemConstructorOptions[] = [
     command('Undo', 'history.undo', { enabled: state.enabled.undo }),
     command('Redo', 'history.redo', { enabled: state.enabled.redo }),
+    { type: 'separator' },
+    // The editor's selected layer, copied directly above itself; with nothing selected, it does
+    // nothing, so it is enabled whenever the editor is open, as Toggle Sidebar is.
+    command('Duplicate', 'selection.duplicate', { enabled: state.editorOpen }),
     { type: 'separator' },
     { role: 'cut' },
     { role: 'copy' },

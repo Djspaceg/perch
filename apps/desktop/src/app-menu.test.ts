@@ -118,6 +118,7 @@ describe("the menu's defaults and the editor's registry", () => {
       'document.saveAs': 'CommandOrControl+Shift+S',
       'history.undo': 'CommandOrControl+Z',
       'history.redo': 'CommandOrControl+Shift+Z',
+      'selection.duplicate': 'CommandOrControl+D',
       'app.settings': 'CommandOrControl+,',
       'view.toggleSidebar': 'CommandOrControl+\\',
     });
@@ -266,6 +267,24 @@ describe('appMenuTemplate', () => {
     const roles = edit.map((entry) => entry.role);
     for (const role of ['cut', 'copy', 'paste', 'selectAll'] as const)
       expect(roles).toContain(role);
+  });
+
+  it('offers Edit > Duplicate on Mod+D after Redo, sent to the editor, while it is open', () => {
+    const { actions, calls } = recording();
+    const edit = submenu(appMenuTemplate(state(), actions), 'Edit');
+    const duplicate = item(edit, 'Duplicate');
+
+    expect(duplicate.accelerator).toBe('CommandOrControl+D');
+    expect(edit.indexOf(duplicate)).toBeGreaterThan(edit.indexOf(item(edit, 'Redo')));
+    expect(duplicate.enabled).toBe(true);
+    click(duplicate);
+    expect(calls).toEqual(['selection.duplicate']);
+
+    const closed = submenu(
+      appMenuTemplate(state({ editorOpen: false }), recording().actions),
+      'Edit',
+    );
+    expect(item(closed, 'Duplicate').enabled).toBe(false);
   });
 
   it('never offers a reload, which would drop unsaved edits; developer tools only when asked', () => {

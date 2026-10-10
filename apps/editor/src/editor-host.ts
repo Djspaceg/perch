@@ -26,6 +26,7 @@ export const MENU_COMMAND_IDS = [
   'document.saveAs',
   'history.undo',
   'history.redo',
+  'selection.duplicate',
   'app.settings',
   'view.toggleSidebar',
 ] as const satisfies readonly CommandId[];

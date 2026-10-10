@@ -54,6 +54,13 @@ export const COMMANDS = {
     keys: ['Delete', 'Backspace'],
   },
   'selection.clear': { label: 'Deselect', scope: ['canvas', 'sidebar'], keys: ['Escape'] },
+  // Photoshop's and Figma's duplicate is Mod+J and Mod+D; D is the one nothing in the editor takes,
+  // and a browser's bookmark key is given up only while the canvas or the sidebar has focus.
+  'selection.duplicate': {
+    label: 'Duplicate',
+    scope: ['canvas', 'sidebar'],
+    keys: ['Mod+D'],
+  },
   // Paint order, on the brackets: Photoshop's and Illustrator's keys, and Figma's for one step. Front
   // and back add Shift, as Photoshop and Illustrator do (Figma uses the bare bracket for those).
   'selection.bringForward': {

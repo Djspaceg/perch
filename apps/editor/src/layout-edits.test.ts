@@ -8,6 +8,8 @@ import { describe, expect, it } from 'vitest';
 import {
   addElement,
   clearBackground,
+  duplicateBackground,
+  duplicateElement,
   moveElement,
   removeElement,
   setBackgroundFit,
@@ -159,5 +161,54 @@ describe('setElementHidden', () => {
     expect(after.elements[1]).toEqual({ ...before.elements[1], hidden: true });
     expect(after.elements[0]).toBe(before.elements[0]);
     expect(setElementHidden(1, false)(after).elements[1]).toEqual(before.elements[1]);
+  });
+});
+
+describe('duplicateElement', () => {
+  it('inserts a new object equal to the element directly above it', () => {
+    const before = layout();
+    const after = duplicateElement(0)(before);
+
+    expect(after.elements.map((element) => (element.kind === 'text' ? element.text : ''))).toEqual([
+      'a',
+      'a',
+      'b',
+      'c',
+    ]);
+    expect(after.elements[1]).toEqual(before.elements[0]);
+    expect(after.elements[1]).not.toBe(before.elements[0]);
+    expect(after.elements[0]).toBe(before.elements[0]);
+  });
+
+  it('is the same layout for an index that names no element', () => {
+    const before = layout();
+
+    expect(duplicateElement(-2)(before)).toBe(before);
+    expect(duplicateElement(3)(before)).toBe(before);
+  });
+});
+
+describe('duplicateBackground', () => {
+  it('adds the background as the first element, over the whole canvas, and keeps the background', () => {
+    const before: Layout = {
+      ...layout(),
+      background: { src: 'thermalright:a042', fit: 'contain' },
+    };
+    const after = duplicateBackground()(before);
+
+    expect(after.background).toBe(before.background);
+    expect(after.elements[0]).toEqual({
+      kind: 'media',
+      src: 'thermalright:a042',
+      rect: { x: 0, y: 0, w: 640, h: 200 },
+      fit: 'contain',
+    });
+    expect(after.elements.slice(1)).toEqual(before.elements);
+  });
+
+  it('is the same layout with no background', () => {
+    const before = layout();
+
+    expect(duplicateBackground()(before)).toBe(before);
   });
 });

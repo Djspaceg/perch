@@ -123,6 +123,8 @@ export interface InspectorProps {
   readonly onDelete: (index: number) => void;
   /** Move the element at `from` to index `to` in paint order, and select it there: one edit. */
   readonly onMove: (from: number, to: number) => void;
+  /** Duplicate the selected layer, and select the copy: one edit (`selection.duplicate`). */
+  readonly onDuplicate: () => void;
   /** Whether the selection header's delete is asking, for the Delete key on the canvas to open. */
   readonly deleteAsked: boolean;
   readonly onDeleteAsked: (asked: boolean) => void;
@@ -141,6 +143,7 @@ export function Inspector({
   onAdd,
   onDelete,
   onMove,
+  onDuplicate,
   deleteAsked,
   onDeleteAsked,
   topics,
@@ -258,6 +261,7 @@ export function Inspector({
               onSelect={onSelect}
               onMove={onMove}
               onEdit={onEdit}
+              onDuplicate={onDuplicate}
             />
           </Section>
         </Group>
@@ -750,6 +754,44 @@ function LayerEye({
   );
 }
 
+/**
+ * Duplicate, at the end of the selected row: the same command as Mod+D and the desktop's Edit >
+ * Duplicate, so it acts on the selection, which is why only the selected row shows it.
+ */
+function DuplicateButton({
+  onDuplicate,
+  copyIs = 'a copy directly above it',
+}: {
+  readonly onDuplicate: () => void;
+  /** Where the copy goes, for the tooltip. */
+  readonly copyIs?: string;
+}): ReactNode {
+  return (
+    <button
+      type="button"
+      className="perch-editor-eye perch-editor-duplicate"
+      aria-label="duplicate"
+      aria-keyshortcuts="Control+D Meta+D"
+      data-perch-tip={`duplicate: ${copyIs}`}
+      onClick={onDuplicate}
+    >
+      <svg
+        data-perch-glyph="duplicate"
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        aria-hidden="true"
+      >
+        <rect x="5.5" y="5.5" width="8.5" height="8.5" rx="1.5" />
+        <path d="M10.5 3.5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v6.5a1 1 0 0 0 1 1h.5" />
+      </svg>
+    </button>
+  );
+}
+
 /** Where a row of the list shows the drop line of a drag, if the drag would land beside it. */
 function dropMark(drag: RowDrag | null, row: number, count: number): 'above' | 'below' | undefined {
   if (drag === null || dropTarget(drag.from, drag.gap, count) === null) return undefined;
@@ -782,7 +824,11 @@ function ElementList({
   onSelect,
   onMove,
   onEdit,
-}: Pick<InspectorProps, 'state' | 'selected' | 'onSelect' | 'onMove' | 'onEdit'>): ReactNode {
+  onDuplicate,
+}: Pick<
+  InspectorProps,
+  'state' | 'selected' | 'onSelect' | 'onMove' | 'onEdit' | 'onDuplicate'
+>): ReactNode {
   const { background } = state.draft;
   const { rows, exited } = usePresence(state.draft.elements);
   const count = state.draft.elements.length;
@@ -881,6 +927,7 @@ function ElementList({
                 {describeElement(element)}
               </span>
             </button>
+            {index === selected && present ? <DuplicateButton onDuplicate={onDuplicate} /> : null}
           </div>
         </Collapse>
       ))}
@@ -924,6 +971,9 @@ function ElementList({
               {background?.src ?? NO_BACKGROUND}
             </span>
           </button>
+          {selected === BACKGROUND_SELECTED && background !== undefined ? (
+            <DuplicateButton onDuplicate={onDuplicate} copyIs="a media layer just above it" />
+          ) : null}
         </div>
       </li>
     </ul>

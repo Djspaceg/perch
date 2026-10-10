@@ -80,7 +80,7 @@ is the browser's undo of the typing.
 ## 5a. A host's menu
 
 A host with a menu bar (the desktop app, `src/editor-host.ts`) shows the document and history
-commands and Settings in it, with the accelerator of each command's first binding in effect, overrides included:
+commands, Duplicate and Settings in it, with the accelerator of each command's first binding in effect, overrides included:
 the editor sends the host its keymap whenever it changes. A menu item runs its command through the
 same registry as the key (`useCommandRunner`), with one exception: the menu's Undo and Redo while a
 text entry has focus are the platform's text undo and redo, as the keys are there. New, Open, Save
@@ -136,6 +136,7 @@ replaces that command's defaults on every platform. `[]` unbinds it; absence mea
 | `view.toggleSidebar`     | Toggle sidebar          | global          | ⌘\    | Ctrl+\               |
 | `selection.delete`       | Delete selected element | canvas          | ⌦, ⌫  | Delete, Backspace    |
 | `selection.clear`        | Deselect                | canvas, sidebar | ⎋     | Escape               |
+| `selection.duplicate`    | Duplicate               | canvas, sidebar | ⌘D    | Ctrl+D               |
 | `selection.bringForward` | Bring forward           | canvas, sidebar | ⌘]    | Ctrl+]               |
 | `selection.sendBackward` | Send backward           | canvas, sidebar | ⌘[    | Ctrl+[               |
 | `selection.bringToFront` | Bring to front          | canvas, sidebar | ⇧⌘]   | Ctrl+Shift+]         |
@@ -144,4 +145,7 @@ replaces that command's defaults on every platform. `[]` unbinds it; absence mea
 `selection.delete` asks first, through the selection header's confirm. `selection.clear` acts only
 while something is selected, and so do the four layer commands, which do nothing past the top or the
 bottom. Each move is one undo step, and the selection stays on the element that moved.
+`selection.duplicate` copies the selected layer directly above itself and selects the copy, as one
+undo step; the background's copy is an ordinary media element just above it, and the background stays.
+It is also the desktop menu's Edit > Duplicate.
 `document.new`, `document.open`, `document.saveAs` and `app.settings` act only with a host (section 5a); `document.save` acts everywhere, and for New's untitled document is a Save As.

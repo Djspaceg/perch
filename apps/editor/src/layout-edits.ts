@@ -43,15 +43,16 @@
  * validators use, and nothing here ever writes an explicit `undefined`.
  */
 
-import type {
-  ChartGap,
-  Layout,
-  LayoutBackground,
-  LayoutElement,
-  MediaFit,
-  Range,
-  Rect,
-  Style,
+import {
+  backgroundAsElement,
+  type ChartGap,
+  type Layout,
+  type LayoutBackground,
+  type LayoutElement,
+  type MediaFit,
+  type Range,
+  type Rect,
+  type Style,
 } from '@perch/layout-schema';
 
 /** One edit: a whole new layout from the old one. */
@@ -306,6 +307,39 @@ export function addElement(element: LayoutElement): LayoutUpdate {
 /** Put `element` first in paint order, under everything: where a background goes. */
 export function insertElementFirst(element: LayoutElement): LayoutUpdate {
   return (layout) => ({ ...layout, elements: [element, ...layout.elements] });
+}
+
+/**
+ * A copy of the element at `index`, directly above it in paint order, so at `index + 1`: everything
+ * set on it kept, its eye included. A new object, so the selection can follow the copy rather than the
+ * original. The same layout for an index that names no element.
+ */
+export function duplicateElement(index: number): LayoutUpdate {
+  return (layout) => {
+    const element = layout.elements[index];
+    if (element === undefined) return layout;
+    const copy: LayoutElement = { ...element };
+
+    return {
+      ...layout,
+      elements: [...layout.elements.slice(0, index + 1), copy, ...layout.elements.slice(index + 1)],
+    };
+  };
+}
+
+/**
+ * The background, duplicated as an ordinary media element: the same source, fit, opacity and eye over
+ * the whole canvas, placed first in `elements`, which is directly above the background. The background
+ * itself is untouched, and stays the locked bottom layer. The same layout when there is none.
+ */
+export function duplicateBackground(): LayoutUpdate {
+  return (layout) =>
+    layout.background === undefined
+      ? layout
+      : {
+          ...layout,
+          elements: [backgroundAsElement(layout.background, layout.target), ...layout.elements],
+        };
 }
 
 /**

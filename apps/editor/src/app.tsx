@@ -141,6 +141,8 @@ import type { LayoutLibrary } from './layout-library.js';
 import { layerTarget, type LayerMove } from './layers.js';
 import {
   addElement,
+  duplicateBackground,
+  duplicateElement,
   moveElement,
   removeElement,
   setElementRect,
@@ -172,6 +174,7 @@ import {
 import { saveDraft, type SaveTransport } from './save.js';
 import { openLayoutByName, openLayoutEntry, openNewLayout, type Opened } from './open-layout.js';
 import {
+  BACKGROUND_SELECTED,
   EditorStoreProvider,
   NOTHING_SELECTED,
   createEditorStore,
@@ -588,7 +591,31 @@ function EditorShell({
   );
 
   const hasSelection = opened.ok && opened.state.draft.elements[selected] !== undefined;
+  const onBackground = selected === BACKGROUND_SELECTED;
+  const hasBackground = opened.ok && opened.state.draft.background !== undefined;
   const count = opened.ok ? opened.state.draft.elements.length : 0;
+
+  /**
+   * Duplicate the selected layer as one edit, and select the copy. An element's copy goes directly
+   * above it; the background's is an ordinary media element just above the background, which stays
+   * as it was. Nothing to copy, nothing happens.
+   */
+  const onDuplicate = useCallback(() => {
+    if (!opened.ok) return;
+    if (selected === BACKGROUND_SELECTED) {
+      if (opened.state.draft.background === undefined) return;
+      onEdit(duplicateBackground());
+      select(0);
+      return;
+    }
+    if (opened.state.draft.elements[selected] === undefined) return;
+    onEdit(duplicateElement(selected));
+    select(selected + 1);
+  }, [opened, selected, onEdit, select]);
+
+  useCommand('selection.duplicate', onDuplicate, {
+    enabled: hasSelection || (onBackground && hasBackground),
+  });
   const moveSelection = (move: LayerMove): void => {
     const to = layerTarget(move, selected, count);
     if (to !== null) onMove(selected, to);
@@ -635,7 +662,7 @@ function EditorShell({
     () => {
       select(NOTHING_SELECTED);
     },
-    { enabled: hasSelection },
+    { enabled: hasSelection || onBackground },
   );
 
   const onPick = useCallback(
@@ -1105,6 +1132,7 @@ function EditorShell({
                 onAdd={onAdd}
                 onDelete={onDelete}
                 onMove={onMove}
+                onDuplicate={onDuplicate}
                 deleteAsked={deleteAsked}
                 onDeleteAsked={setDeleteAsked}
                 topics={topics}
