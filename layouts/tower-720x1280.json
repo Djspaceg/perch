@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "target": { "width": 720, "height": 1280, "frameRate": 24 },
   "theme": {
     "--perch-canvas-bg": "#f4efe6",

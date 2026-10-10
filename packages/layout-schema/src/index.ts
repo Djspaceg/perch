@@ -40,6 +40,7 @@ export {
   isElementKind,
   type ChartElement,
   type ElementKind,
+  type Hidden,
   type LayoutElement,
   type MediaElement,
   type Opacity,
@@ -55,6 +56,8 @@ export {
   DEFAULT_CHART_GAP,
   type ChartGap,
 } from './chart.js';
+
+export { type LayoutBackground } from './layout-background.js';
 
 export { rectIntersectsCanvas, type Rect } from './geometry.js';
 

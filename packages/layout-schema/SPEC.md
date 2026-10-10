@@ -25,6 +25,9 @@ type Layout = {
     frameRate: number   // capture ceiling, not a promise
   }
   theme: Record<string, string>   // CSS custom property tokens
+  background?: {                  // under every element, the whole canvas (version 4)
+    src: string; fit?: 'cover' | 'contain'; opacity?: number; hidden?: boolean
+  }
   elements: Element[]             // paint order = array order
 }
 
@@ -34,7 +37,10 @@ type Element = (
   | { kind: 'media';  src: string;    rect: Rect; fit?: 'cover' | 'contain' }  // src: a path, or thermalright:<id>
   | { kind: 'chart';  widget: string; topic: string; rect: Rect; style?: Style; range?: [number, number];
       windowMs: number; gap?: 'break' | 'span' }
-) & { opacity?: number }  // 0-1, absent = 1: CSS opacity on the element's box (version 3)
+) & {
+  opacity?: number   // 0-1, absent = 1: CSS opacity on the element's box (version 3)
+  hidden?: boolean   // painted nowhere while true; absent = shown (version 4)
+}
 
 type Rect = { x: number; y: number; w: number; h: number }
 ```
@@ -116,7 +122,15 @@ migrated forward and the result reported; a layout from the future is rejected
 with its version named. There is no "best effort" path — silently ignoring an
 unknown field is how authored work gets destroyed.
 
-**Current version: 3.** Version 3 gives every element kind an `opacity` (0 to 1, absent
+**Current version: 4.** Version 4 adds the layout's own `background`, one image or
+video painted first across the whole canvas, and a `hidden` flag on it and on every element
+(the editor's layer eye; a hidden layer paints nowhere). The background is a field of the
+layout rather than an element so that nothing can be reordered beneath it. Absent, there is no
+background and `--perch-canvas-bg` shows. Additive, like `1 -> 2`: the `3 -> 4` step rewrites
+nothing, so a version 3 file opens with no background and its full-bleed media element stays
+an element.
+
+**Version 3.** Version 3 gives every element kind an `opacity` (0 to 1, absent
 meaning solid) and retires the theme token `--perch-media-opacity`, which until then was the
 only way to fade anything and faded every media element at once. The `2 -> 3` step moves
 that token's value onto each media element that does not set its own opacity and drops it

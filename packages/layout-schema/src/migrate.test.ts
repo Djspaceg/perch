@@ -81,8 +81,12 @@ const options: LoadLayoutOptions = { widgets: TEST_WIDGETS };
 
 describe('the production table', () => {
   it('carries the steps into the current version, and only those steps', () => {
-    expect(LAYOUT_SCHEMA_VERSION).toBe(3);
-    expect(LAYOUT_MIGRATIONS.map((step) => `${step.from}->${step.to}`)).toEqual(['1->2', '2->3']);
+    expect(LAYOUT_SCHEMA_VERSION).toBe(4);
+    expect(LAYOUT_MIGRATIONS.map((step) => `${step.from}->${step.to}`)).toEqual([
+      '1->2',
+      '2->3',
+      '3->4',
+    ]);
   });
 
   it('is frozen, so nothing appends to it at runtime', () => {
@@ -510,8 +514,12 @@ describe('the version 1 to version 2 boundary: an old document in a new reader',
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.fromVersion).toBe(1);
-    expect(result.layout.schemaVersion).toBe(3);
-    expect(result.migrations.map((step) => `${step.from}->${step.to}`)).toEqual(['1->2', '2->3']);
+    expect(result.layout.schemaVersion).toBe(4);
+    expect(result.migrations.map((step) => `${step.from}->${step.to}`)).toEqual([
+      '1->2',
+      '2->3',
+      '3->4',
+    ]);
     expect(formatMigrationReport(result.migrations)).toContain('chart');
   });
 
@@ -520,7 +528,7 @@ describe('the version 1 to version 2 boundary: an old document in a new reader',
     const before = v1LayoutDocument();
     const result = migrateLayoutDocument(before);
 
-    expect(migrated(result)).toEqual({ ...before, schemaVersion: 3 });
+    expect(migrated(result)).toEqual({ ...before, schemaVersion: 4 });
   });
 
   it('reports no migration for a document already at the current version', () => {
@@ -619,7 +627,7 @@ describe('the version 1 to version 2 boundary: a chart layout in an old reader',
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.migrations.map((step) => `${step.from}->${step.to}`)).toEqual(['2->3']);
+    expect(result.migrations.map((step) => `${step.from}->${step.to}`)).toEqual(['2->3', '3->4']);
     expect(result.layout.elements[0]?.kind).toBe('chart');
   });
 
@@ -635,7 +643,7 @@ describe('the version 1 to version 2 boundary: a chart layout in an old reader',
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.fromVersion).toBe(1);
-    expect(result.layout.schemaVersion).toBe(3);
+    expect(result.layout.schemaVersion).toBe(4);
   });
 });
 
@@ -666,7 +674,7 @@ describe('the version 2 to version 3 boundary: media opacity moves onto the medi
     const after = migrated(migrateLayoutDocument(before));
 
     expect(after).toEqual({
-      schemaVersion: 3,
+      schemaVersion: 4,
       target: before['target'],
       theme: { '--perch-fg': '#e8f1ff' },
       elements: [{ ...image, opacity: 0.55 }, label, { ...video, opacity: 0.55 }],
@@ -697,7 +705,7 @@ describe('the version 2 to version 3 boundary: media opacity moves onto the medi
   it('changes nothing but the version in a document that never set the token', () => {
     const before = v2({ '--perch-fg': '#e8f1ff' }, [image, label]);
 
-    expect(migrated(migrateLayoutDocument(before))).toEqual({ ...before, schemaVersion: 3 });
+    expect(migrated(migrateLayoutDocument(before))).toEqual({ ...before, schemaVersion: 4 });
   });
 
   it('leaves a malformed document for the validator to name, rather than throwing', () => {

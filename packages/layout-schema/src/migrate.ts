@@ -16,7 +16,7 @@
  * tables: chaining, ordering, an unreachable old version, a future version, a step that throws,
  * and the no-op at the target.
  *
- * `LAYOUT_MIGRATIONS` now carries two real entries, and the synthetic tables are still there. They
+ * `LAYOUT_MIGRATIONS` now carries three real entries, and the synthetic tables are still there. They
  * are not redundant: only a synthetic table can exercise a step that throws, a step that forgets the
  * version, or a table that does not reach the target.
  *
@@ -149,12 +149,32 @@ function cssOpacity(token: unknown): number | undefined {
 }
 
 /**
+ * Version 3 to version 4: the layout's own background, and an eye on every layer.
+ *
+ * Additive, like 1 -> 2, so the rewrite is empty: version 4 adds an optional `background`
+ * (`layout-background.ts`) and an optional `hidden` on every element, and a version 3 file has
+ * neither, so it opens with no background and every layer shown. A full-bleed media element a file
+ * already paints first stays an element: it may carry an opacity the author set, and moving it would
+ * be a repair this step has no business making.
+ *
+ * Still a version, for the reason 1 -> 2 is: a version 3 build handed a file with a background must
+ * refuse it at `schemaVersion`, not paint it without its backdrop and show every hidden layer.
+ */
+const ADD_LAYOUT_BACKGROUND: LayoutMigration = {
+  from: 3,
+  to: 4,
+  description: 'add the layout background and the hidden flag; no version 3 field changes meaning',
+  migrate: (document) => ({ ...document }),
+};
+
+/**
  * Every migration this build knows, in ascending order, contiguous, ending at
  * `LAYOUT_SCHEMA_VERSION`.
  */
 export const LAYOUT_MIGRATIONS: readonly LayoutMigration[] = Object.freeze([
   ADD_CHART_ELEMENT,
   RETIRE_MEDIA_OPACITY,
+  ADD_LAYOUT_BACKGROUND,
 ]);
 
 /** Options for the migration runner. */

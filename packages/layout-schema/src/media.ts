@@ -51,7 +51,7 @@ export function validateMediaPath(
   src: string,
   path: string,
   collect: IssueCollector,
-  elementIndex: number,
+  elementIndex?: number,
 ): string | null {
   const reject = (
     code: 'malformed-media-path' | 'embedded-media' | 'malformed-background-ref',

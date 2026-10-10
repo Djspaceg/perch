@@ -157,7 +157,7 @@ describe('serializeLayout', () => {
     const text = serializeLayout(validLayout());
 
     expect(text.endsWith('}\n')).toBe(true);
-    expect(text).toContain('\n  "schemaVersion": 3');
+    expect(text).toContain('\n  "schemaVersion": 4');
   });
 
   it('round-trips through the loader unchanged', () => {

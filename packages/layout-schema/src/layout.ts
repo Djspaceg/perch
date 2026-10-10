@@ -21,6 +21,7 @@ import {
   requireRecord,
 } from './checks.js';
 import { validateElement, type LayoutElement } from './element.js';
+import { validateLayoutBackground, type LayoutBackground } from './layout-background.js';
 import {
   createIssueCollector,
   fieldPath,
@@ -41,7 +42,7 @@ import { validateTokenMap, type ThemeTokens } from './theme.js';
  * Bumped in the same change that adds the migration carrying the previous version forward, never
  * separately — a version with no migration into it is a version that can strand files.
  */
-export const LAYOUT_SCHEMA_VERSION = 3;
+export const LAYOUT_SCHEMA_VERSION = 4;
 
 /**
  * Largest canvas dimension accepted, in pixels.
@@ -83,11 +84,16 @@ export interface Layout {
   target: LayoutTarget;
   /** CSS custom property tokens, applied to the whole canvas. */
   theme: ThemeTokens;
+  /**
+   * The layer under every element, across the whole canvas (`layout-background.ts`). Absent, there is
+   * none and the theme's canvas colour shows. Painted before `elements[0]`, always.
+   */
+  background?: LayoutBackground;
   /** Paint order is array order: later elements paint over earlier ones. */
   elements: LayoutElement[];
 }
 
-const LAYOUT_FIELDS = ['schemaVersion', 'target', 'theme', 'elements'] as const;
+const LAYOUT_FIELDS = ['schemaVersion', 'target', 'theme', 'background', 'elements'] as const;
 const TARGET_FIELDS = ['width', 'height', 'frameRate'] as const;
 
 /** A validation outcome. Either a layout, or every reason it is not one. */
@@ -120,6 +126,7 @@ export function validateLayout(
   const schemaVersion = validateSchemaVersion(record, targetVersion, collect);
   const target = validateTarget(record, collect);
   const theme = validateTheme(record, collect);
+  const background = validateLayoutBackground(record, collect);
 
   const context: LayoutValidationContext = {
     widgets: options.widgets,
@@ -129,11 +136,26 @@ export function validateLayout(
   const elements = validateElements(record, context, collect);
 
   if (collect.issues.length > 0) return { ok: false, issues: collect.issues };
-  if (schemaVersion === null || target === null || theme === null || elements === null) {
+  if (
+    schemaVersion === null ||
+    target === null ||
+    theme === null ||
+    background === null ||
+    elements === null
+  ) {
     return { ok: false, issues: collect.issues };
   }
 
-  return { ok: true, layout: { schemaVersion, target, theme, elements } };
+  return {
+    ok: true,
+    layout: {
+      schemaVersion,
+      target,
+      theme,
+      ...(background === undefined ? {} : { background }),
+      elements,
+    },
+  };
 }
 
 /** Whether `candidate` is a valid layout at the current version. Discards the reasons. */

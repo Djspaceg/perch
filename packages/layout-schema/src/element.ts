@@ -51,6 +51,15 @@ export type ElementKind = (typeof ELEMENT_KINDS)[number];
 export type Opacity = number;
 
 /**
+ * Whether a layer is switched off: the eye in the editor's layers list. A hidden layer is kept in the
+ * file, with everything set on it, and painted nowhere, the editor's canvas and the panel alike, as a
+ * hidden Photoshop layer is. Absent means shown; an editor removes it rather than writing `false`.
+ * Added in schema version 4, with the layout's background (`layout-background.ts`), which carries it
+ * too.
+ */
+export type Hidden = boolean;
+
+/**
  * The authored scale a widget draws, as `[min, max]`.
  *
  * A design decision, not a measurement. A sensor source reports only observed running extremes —
@@ -75,6 +84,7 @@ export interface WidgetElement {
   /** Required when the widget draws a scale, per its registry entry. */
   range?: Range;
   opacity?: Opacity;
+  hidden?: Hidden;
 }
 
 /** A literal string painted at a rect. */
@@ -84,6 +94,7 @@ export interface TextElement {
   rect: Rect;
   style?: Style;
   opacity?: Opacity;
+  hidden?: Hidden;
 }
 
 /** An image or video, referenced by a path relative to the layout file, or a cloud background. */
@@ -94,6 +105,7 @@ export interface MediaElement {
   rect: Rect;
   fit?: MediaFit;
   opacity?: Opacity;
+  hidden?: Hidden;
 }
 
 /**
@@ -143,6 +155,7 @@ export interface ChartElement {
   /** What to draw across a stretch of time with no readings. `DEFAULT_CHART_GAP` when absent. */
   gap?: ChartGap;
   opacity?: Opacity;
+  hidden?: Hidden;
 }
 
 /**
@@ -155,9 +168,18 @@ export interface ChartElement {
  */
 export type LayoutElement = WidgetElement | TextElement | MediaElement | ChartElement;
 
-const WIDGET_FIELDS = ['kind', 'widget', 'topic', 'rect', 'style', 'range', 'opacity'] as const;
-const TEXT_FIELDS = ['kind', 'text', 'rect', 'style', 'opacity'] as const;
-const MEDIA_FIELDS = ['kind', 'src', 'rect', 'fit', 'opacity'] as const;
+const WIDGET_FIELDS = [
+  'kind',
+  'widget',
+  'topic',
+  'rect',
+  'style',
+  'range',
+  'opacity',
+  'hidden',
+] as const;
+const TEXT_FIELDS = ['kind', 'text', 'rect', 'style', 'opacity', 'hidden'] as const;
+const MEDIA_FIELDS = ['kind', 'src', 'rect', 'fit', 'opacity', 'hidden'] as const;
 const CHART_FIELDS = [
   'kind',
   'widget',
@@ -168,6 +190,7 @@ const CHART_FIELDS = [
   'range',
   'gap',
   'opacity',
+  'hidden',
 ] as const;
 
 type ElementValidator = (
@@ -250,6 +273,7 @@ function validateWidgetElement(
   const style = validateOptionalStyle(record, path, index, collect);
   const range = validateOptionalRange(record, path, index, collect);
   const opacity = validateOptionalOpacity(record, path, index, collect);
+  const hidden = validateOptionalHidden(record, path, index, collect);
   requireRangeIfScaled(record, widget, path, index, context, collect);
 
   if (collect.issues.length !== before) return null;
@@ -263,6 +287,7 @@ function validateWidgetElement(
     ...(style === undefined ? {} : { style }),
     ...(range === undefined ? {} : { range }),
     ...(opacity === undefined ? {} : { opacity }),
+    ...(hidden === undefined ? {} : { hidden }),
   };
 }
 
@@ -292,6 +317,7 @@ function validateChartElement(
   const range = validateOptionalRange(record, path, index, collect);
   const gap = validateOptionalChartGap(record, path, index, collect);
   const opacity = validateOptionalOpacity(record, path, index, collect);
+  const hidden = validateOptionalHidden(record, path, index, collect);
   requireRangeIfScaled(record, widget, path, index, context, collect);
 
   if (collect.issues.length !== before) return null;
@@ -307,6 +333,7 @@ function validateChartElement(
     ...(range === undefined ? {} : { range }),
     ...(gap === undefined ? {} : { gap }),
     ...(opacity === undefined ? {} : { opacity }),
+    ...(hidden === undefined ? {} : { hidden }),
   };
 }
 
@@ -361,6 +388,7 @@ function validateTextElement(
   const rect = validateRect(record, path, context.canvas, collect, index);
   const style = validateOptionalStyle(record, path, index, collect);
   const opacity = validateOptionalOpacity(record, path, index, collect);
+  const hidden = validateOptionalHidden(record, path, index, collect);
 
   if (collect.issues.length !== before) return null;
   if (text === null || rect === null) return null;
@@ -371,6 +399,7 @@ function validateTextElement(
     rect,
     ...(style === undefined ? {} : { style }),
     ...(opacity === undefined ? {} : { opacity }),
+    ...(hidden === undefined ? {} : { hidden }),
   };
 }
 
@@ -389,6 +418,7 @@ function validateMediaElement(
   const rect = validateRect(record, path, context.canvas, collect, index);
   const fit = optionalLiteral(record, path, 'fit', MEDIA_FITS, collect, index);
   const opacity = validateOptionalOpacity(record, path, index, collect);
+  const hidden = validateOptionalHidden(record, path, index, collect);
 
   if (collect.issues.length !== before) return null;
   if (src === null || rect === null) return null;
@@ -399,6 +429,7 @@ function validateMediaElement(
     rect,
     ...(fit === undefined ? {} : { fit }),
     ...(opacity === undefined ? {} : { opacity }),
+    ...(hidden === undefined ? {} : { hidden }),
   };
 }
 
@@ -484,10 +515,10 @@ function validateOptionalStyle(
  * A fraction, not a percentage: `55` is refused rather than read as 55%, because a format that took
  * both would have two spellings of one value, and CSS reads `55` as solid.
  */
-function validateOptionalOpacity(
+export function validateOptionalOpacity(
   record: Readonly<Record<string, unknown>>,
   path: string,
-  index: number,
+  index: number | undefined,
   collect: IssueCollector,
 ): Opacity | undefined {
   const value = readField(record, 'opacity');
@@ -508,6 +539,28 @@ function validateOptionalOpacity(
       'out-of-range',
       where,
       `expected an opacity from 0 (invisible) to 1 (solid), got ${value}; 55% is written 0.55`,
+      index,
+    );
+    return undefined;
+  }
+
+  return value;
+}
+
+/** A layer's `hidden`, or `undefined` for both "absent" and "rejected". */
+export function validateOptionalHidden(
+  record: Readonly<Record<string, unknown>>,
+  path: string,
+  index: number | undefined,
+  collect: IssueCollector,
+): Hidden | undefined {
+  const value = readField(record, 'hidden');
+  if (value === undefined) return undefined;
+  if (typeof value !== 'boolean') {
+    collect.add(
+      'wrong-type',
+      fieldPath(path, 'hidden'),
+      `expected true or false, got ${describeValue(value)}`,
       index,
     );
     return undefined;
