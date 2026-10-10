@@ -5,7 +5,17 @@
 
 import { LAYOUT_SCHEMA_VERSION, type Layout, type LayoutElement } from '@perch/layout-schema';
 import { describe, expect, it } from 'vitest';
-import { addElement, moveElement, removeElement } from './layout-edits.js';
+import {
+  addElement,
+  clearBackground,
+  moveElement,
+  removeElement,
+  setBackgroundFit,
+  setBackgroundHidden,
+  setBackgroundOpacity,
+  setBackgroundSrc,
+  setElementHidden,
+} from './layout-edits.js';
 
 function layout(): Layout {
   return {
@@ -98,5 +108,56 @@ describe('moveElement', () => {
     expect(moveElement(1, 1)(before)).toBe(before);
     expect(moveElement(-1, 0)(before)).toBe(before);
     expect(moveElement(0, 3)(before)).toBe(before);
+  });
+});
+
+describe('the background edits', () => {
+  it('makes a background from a source, and changes only the source of one there is', () => {
+    const made = setBackgroundSrc('thermalright:a042')(layout());
+    expect(made.background).toEqual({ src: 'thermalright:a042' });
+
+    const faded = setBackgroundOpacity(0.5)(made);
+    expect(setBackgroundSrc('a.assets/b.png')(faded).background).toEqual({
+      src: 'a.assets/b.png',
+      opacity: 0.5,
+    });
+  });
+
+  it('reads an empty source as none, removing the field', () => {
+    const made = setBackgroundSrc('thermalright:a042')(layout());
+
+    expect('background' in setBackgroundSrc('')(made)).toBe(false);
+    expect('background' in clearBackground()(made)).toBe(false);
+  });
+
+  it('is the same layout for an edit with no background to make it to', () => {
+    const before = layout();
+
+    expect(clearBackground()(before)).toBe(before);
+    expect(setBackgroundFit('contain')(before)).toBe(before);
+    expect(setBackgroundHidden(true)(before)).toBe(before);
+    expect(setBackgroundOpacity(0.2)(before)).toBe(before);
+  });
+
+  it('writes hidden as true and removes it to show, and opacity 1 as nothing', () => {
+    const made = setBackgroundSrc('thermalright:a042')(layout());
+    const hidden = setBackgroundHidden(true)(made);
+
+    expect(hidden.background).toEqual({ src: 'thermalright:a042', hidden: true });
+    expect(setBackgroundHidden(false)(hidden).background).toEqual({ src: 'thermalright:a042' });
+    expect(setBackgroundOpacity(1)(setBackgroundOpacity(0.3)(made)).background).toEqual({
+      src: 'thermalright:a042',
+    });
+  });
+});
+
+describe('setElementHidden', () => {
+  it('hides one element and leaves every other the same object', () => {
+    const before = layout();
+    const after = setElementHidden(1, true)(before);
+
+    expect(after.elements[1]).toEqual({ ...before.elements[1], hidden: true });
+    expect(after.elements[0]).toBe(before.elements[0]);
+    expect(setElementHidden(1, false)(after).elements[1]).toEqual(before.elements[1]);
   });
 });

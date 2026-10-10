@@ -79,6 +79,13 @@ import { DEFAULT_SIDEBAR, clampSidebarWidth, type SidebarSettings } from './side
 /** The selection when there is none. Any out-of-range index means the same. */
 export const NOTHING_SELECTED = -1;
 
+/**
+ * The selection when it is the layout's background: the bottom row of the layers list. Not an index
+ * into `elements`, so everything that acts on a selected element (move, delete, the canvas handles)
+ * reads it as nothing selected, and only the background's own row and panes recognise it.
+ */
+export const BACKGROUND_SELECTED = -2;
+
 /** The `localStorage` key the settings live under. */
 export const EDITOR_STORE_KEY = 'perch-editor';
 
@@ -256,7 +263,10 @@ export function createEditorStore(
               {
                 session: {
                   opened: { ok: true, state: moved.state },
-                  selected: followSelection(selected, opened.state, moved.state, NOTHING_SELECTED),
+                  selected:
+                    selected === BACKGROUND_SELECTED
+                      ? BACKGROUND_SELECTED
+                      : followSelection(selected, opened.state, moved.state, NOTHING_SELECTED),
                   history: moved.history,
                 },
               },

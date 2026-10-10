@@ -135,7 +135,9 @@ describe("the Add menu's Background", () => {
       await Promise.resolve();
     });
 
-    const elements = within(result.getByTestId('perch-editor-elements')).getAllByRole('button');
+    const elements = result
+      .getByTestId('perch-editor-elements')
+      .querySelectorAll('[data-perch-layer-index]');
     expect(elements).toHaveLength(3);
     const first = result
       .getByTestId('perch-canvas')

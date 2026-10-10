@@ -40,8 +40,13 @@ function renderEditor(): Result {
   );
 }
 
+/** The element rows, top first: not the eyes beside them, nor the background's row below them. */
 function rows(result: Result): HTMLElement[] {
-  return within(result.getByTestId('perch-editor-elements')).getAllByRole('button');
+  return [
+    ...result
+      .getByTestId('perch-editor-elements')
+      .querySelectorAll<HTMLElement>('[data-perch-layer-index]'),
+  ];
 }
 
 /** The list, top row first, as the text of each element. */

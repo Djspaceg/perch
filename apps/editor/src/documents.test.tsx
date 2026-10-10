@@ -6,7 +6,7 @@
 
 import { LAYOUT_SCHEMA_VERSION, type Layout } from '@perch/layout-schema';
 import { createMockSource } from '@perch/sensor-sources';
-import { act, fireEvent, render, within } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { Editor } from './app.js';
 import type { EditorHost } from './editor-host.js';
@@ -257,9 +257,9 @@ describe('New', () => {
 
     expect(openName(result)).toBe('untitled');
     expect(canvasWidth(result)).toBe('640');
-    expect(within(result.getByTestId('perch-editor-elements')).queryAllByRole('button')).toEqual(
-      [],
-    );
+    expect(
+      result.getByTestId('perch-editor-elements').querySelectorAll('[data-perch-layer-index]'),
+    ).toHaveLength(0);
     expect(states(recorded).at(-1)).toEqual(['state', { name: 'untitled', dirty: false }]);
   });
 

@@ -180,9 +180,7 @@ describe('switching layouts', () => {
     expect(result.container.querySelector('#perch-editor')?.getAttribute('data-perch-layout')).toBe(
       'tower-test',
     );
-    expect(within(result.getByTestId('perch-editor-elements')).getAllByRole('button')).toHaveLength(
-      2,
-    );
+    expect(elementCount(result)).toBe(2);
   });
 
   it('parks the switch rather than discarding unsaved edits', () => {
@@ -710,7 +708,11 @@ describe('long text stays inside the sidebar', () => {
 
 /** The element list's length, which is the document's. */
 function elementCount(result: ReturnType<typeof render>): number {
-  return within(result.getByTestId('perch-editor-elements')).getAllByRole('button').length;
+  // The element rows: not the background's row below them, nor the eyes beside them.
+  // A row on its way out is inert, and not counted.
+  return [
+    ...result.getByTestId('perch-editor-elements').querySelectorAll('[data-perch-layer-index]'),
+  ].filter((row) => row.closest('[inert]') === null).length;
 }
 
 /** Open the Add menu and pick a kind from it. */
@@ -985,8 +987,9 @@ describe('motion in the sidebar', () => {
     const leaving = result.getByTestId('perch-editor-selection');
     expect(leaving.closest('[inert]')).not.toBeNull();
     expect(leaving.closest('[aria-hidden="true"]')).not.toBeNull();
+    // Two element rows and the background's, which is always last.
     const rows = result.getByTestId('perch-editor-elements').querySelectorAll('li');
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(3);
     // Element 1 was the topmost, so its row is the list's first.
     expect(rows[0]).toHaveAttribute('inert');
     expect(elementCount(result)).toBe(1);
@@ -995,7 +998,7 @@ describe('motion in the sidebar', () => {
 
     finish(result);
     expect(result.queryByTestId('perch-editor-selection')).toBeNull();
-    expect(result.getByTestId('perch-editor-elements').querySelectorAll('li')).toHaveLength(1);
+    expect(result.getByTestId('perch-editor-elements').querySelectorAll('li')).toHaveLength(2);
   });
 
   it('grows a newly added row in, and never animates the canvas preview', () => {
@@ -1005,7 +1008,7 @@ describe('motion in the sidebar', () => {
     addKind(result, /^label/i);
 
     const rows = result.getByTestId('perch-editor-elements').querySelectorAll('li');
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
     // Added on top of everything, so it grows in at the top of the list.
     expect(rows[0]).toHaveAttribute('data-perch-phase', 'opening');
     expect(rows[2]).toHaveAttribute('data-perch-phase', 'open');

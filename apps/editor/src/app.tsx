@@ -823,6 +823,7 @@ function EditorShell({
     backgrounds?.ensure,
   );
   const backgroundTarget = opened.ok ? opened.state.rendered.target : undefined;
+  const localMedia = useMemo(() => library.media?.(name) ?? [], [library, name]);
   const backgroundContext = useMemo(
     () => ({
       host: backgrounds,
@@ -830,8 +831,9 @@ function EditorShell({
         width: backgroundTarget?.width ?? 1920,
         height: backgroundTarget?.height ?? 400,
       },
+      localMedia,
     }),
-    [backgrounds, backgroundTarget?.width, backgroundTarget?.height],
+    [backgrounds, backgroundTarget?.width, backgroundTarget?.height, localMedia],
   );
 
   /** The picker's options: every offered layout, plus the open one if it is not offered. */

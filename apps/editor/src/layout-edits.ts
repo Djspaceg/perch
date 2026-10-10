@@ -36,7 +36,7 @@
  *
  * ## Optional fields and `exactOptionalPropertyTypes`
  *
- * `style`, `range`, `fit`, `gap` and `opacity` are optional, and under `exactOptionalPropertyTypes` a key set to
+ * `style`, `range`, `fit`, `gap`, `opacity`, `hidden` and the layout's `background` are optional, and under `exactOptionalPropertyTypes` a key set to
  * `undefined` is a *different document* from an absent key — it survives `JSON.stringify` as nothing
  * at all, but it survives a `rejectUnknownFields` pass as a key that is there. So every rebuild below
  * uses the spread-or-nothing form `...(x === undefined ? {} : { x })` that `layout-schema`'s own
@@ -46,6 +46,7 @@
 import type {
   ChartGap,
   Layout,
+  LayoutBackground,
   LayoutElement,
   MediaFit,
   Range,
@@ -209,6 +210,58 @@ export function setElementOpacity(index: number, opacity: number | undefined): L
   });
 }
 
+/**
+ * Show or hide an element: its eye in the layers list. Shown removes the field rather than writing
+ * `false`, since an absent `hidden` is shown.
+ */
+export function setElementHidden(index: number, hidden: boolean): LayoutUpdate {
+  return mapElement(index, (element) => {
+    const { hidden: _dropped, ...rest } = element;
+
+    return hidden ? { ...rest, hidden: true } : rest;
+  });
+}
+
+/**
+ * Point the layout's background at `src`, making one if there is none. An empty `src` is "none": the
+ * background goes, with its fit, opacity and eye, and the theme's canvas colour shows.
+ */
+export function setBackgroundSrc(src: string): LayoutUpdate {
+  return (layout) => {
+    if (src === '') return withoutBackground(layout);
+
+    return { ...layout, background: { ...layout.background, src } };
+  };
+}
+
+/** No background at all. The same layout when there was none, so it records no undo step. */
+export function clearBackground(): LayoutUpdate {
+  return withoutBackground;
+}
+
+/** Set the background's fit. A no-op with no background. */
+export function setBackgroundFit(fit: MediaFit): LayoutUpdate {
+  return mapBackground((background) => ({ ...background, fit }));
+}
+
+/** The background's opacity, removed rather than written at 1, as an element's is. */
+export function setBackgroundOpacity(opacity: number | undefined): LayoutUpdate {
+  return mapBackground((background) => {
+    const { opacity: _dropped, ...rest } = background;
+
+    return opacity === undefined || opacity === 1 ? rest : { ...rest, opacity };
+  });
+}
+
+/** Show or hide the background: its eye. Saved, so it is hidden on the panel too. */
+export function setBackgroundHidden(hidden: boolean): LayoutUpdate {
+  return mapBackground((background) => {
+    const { hidden: _dropped, ...rest } = background;
+
+    return hidden ? { ...rest, hidden: true } : rest;
+  });
+}
+
 /** Set one of an element's own style tokens, adding it if absent. A no-op on a media element. */
 export function setElementStyleToken(index: number, name: string, value: string): LayoutUpdate {
   return mapElement(index, (element) => {
@@ -290,6 +343,20 @@ export function moveElement(from: number, to: number): LayoutUpdate {
 
     return { ...layout, elements: [...rest.slice(0, to), moving, ...rest.slice(to)] };
   };
+}
+
+/** Replace the background, if there is one; with none, the same layout. */
+function mapBackground(update: (background: LayoutBackground) => LayoutBackground): LayoutUpdate {
+  return (layout) =>
+    layout.background === undefined ? layout : { ...layout, background: update(layout.background) };
+}
+
+/** The layout without its `background` key at all, or the same layout when it had none. */
+function withoutBackground(layout: Layout): Layout {
+  if (layout.background === undefined) return layout;
+  const { background: _dropped, ...rest } = layout;
+
+  return rest;
 }
 
 /** Replace the element at `index`, leaving every other element and every other field alone. */

@@ -119,6 +119,11 @@ export interface LayoutLibrary {
    * layout shares `layouts/`; the desktop app's documents each have a folder of their own.
    */
   readonly resolveAsset: (src: string, name?: string) => string | undefined;
+  /**
+   * Every media `src` the document named `name` can write, sorted: the files `resolveAsset` knows
+   * beside it. What the source picker's Local tab lists. Absent, it lists nothing.
+   */
+  readonly media?: (name?: string) => readonly string[];
 }
 
 /**
@@ -157,6 +162,7 @@ export function createLayoutLibrary(options: {
     names,
     entry: (name: string) => entries.get(name),
     resolveAsset: (src: string) => assets.get(src),
+    media: () => [...assets.keys()].sort(),
   });
 }
 

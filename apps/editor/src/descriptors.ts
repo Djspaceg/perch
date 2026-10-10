@@ -22,6 +22,7 @@ import {
   DEFAULT_CHART_GAP,
   MEDIA_FITS,
   type Layout,
+  type LayoutBackground,
   type LayoutElement,
 } from '@perch/layout-schema';
 import { assertNever, type TokenLabel } from '@perch/ui-kit';
@@ -29,6 +30,8 @@ import type { BoxKind } from './controls/index.js';
 import {
   numberFromInput,
   numberToInput,
+  setBackgroundFit,
+  setBackgroundSrc,
   setElementFit,
   setElementGap,
   setElementRangeBound,
@@ -71,6 +74,8 @@ export type ControlSpec =
   | { readonly kind: 'topic' }
   /** A cloud background: its name, and the background browser (`background-picker.tsx`). */
   | { readonly kind: 'background' }
+  /** A media file beside the layout, from the ones the host found (`LocalMediaField`). */
+  | { readonly kind: 'localMedia' }
   | {
       readonly kind: 'segmented';
       readonly options: readonly { readonly value: string; readonly label: string }[];
@@ -288,9 +293,20 @@ const TEXT: ScalarProperty<LayoutElement> = {
 const BACKGROUND: ScalarProperty<LayoutElement> = {
   kind: 'scalar',
   id: 'background',
-  label: 'background',
+  label: 'cloud video',
   description: 'A cloud video, downloaded and cached when picked, covering the rectangle.',
   spec: { kind: 'background' },
+  get: (element) => (element.kind === 'media' ? element.src : ''),
+  write: (text, index) => setElementSrc(index, text),
+};
+
+/** A file beside the layout: the same field `src` edits, chosen from the files that are there. */
+const LOCAL: ScalarProperty<LayoutElement> = {
+  kind: 'scalar',
+  id: 'local',
+  label: 'local file',
+  description: 'An image beside the layout, in its .assets folder, covering the rectangle.',
+  spec: { kind: 'localMedia' },
   get: (element) => (element.kind === 'media' ? element.src : ''),
   write: (text, index) => setElementSrc(index, text),
 };
@@ -402,7 +418,7 @@ export function entitySections(element: LayoutElement): readonly PropertySection
       content = [TEXT];
       break;
     case 'media':
-      content = [BACKGROUND, SRC, FIT];
+      content = [BACKGROUND, LOCAL, SRC, FIT];
       break;
     case 'widget':
       content = withRange([WIDGET, TOPIC]);
@@ -415,6 +431,66 @@ export function entitySections(element: LayoutElement): readonly PropertySection
   }
 
   return [{ id: 'content', title: 'Content', properties: content }, transform];
+}
+
+/** The layout's background, or `undefined` for none: what the Background layer's rows read. */
+export type BackgroundSubject = LayoutBackground | undefined;
+
+const BACKGROUND_CLOUD: ScalarProperty<BackgroundSubject> = {
+  kind: 'scalar',
+  id: 'cloud',
+  label: 'cloud video',
+  description: 'A Thermalright cloud video, downloaded and cached when picked, under everything.',
+  spec: { kind: 'background' },
+  get: (background) => background?.src ?? '',
+  write: (text) => setBackgroundSrc(text),
+};
+
+const BACKGROUND_LOCAL: ScalarProperty<BackgroundSubject> = {
+  kind: 'scalar',
+  id: 'local',
+  label: 'local file',
+  description: 'An image beside the layout, in its .assets folder, under everything.',
+  spec: { kind: 'localMedia' },
+  get: (background) => background?.src ?? '',
+  write: (text) => setBackgroundSrc(text),
+};
+
+const BACKGROUND_SRC: ScalarProperty<BackgroundSubject> = {
+  kind: 'scalar',
+  id: 'src',
+  label: 'src',
+  description:
+    'The file, relative to the layout, or a cloud reference (thermalright:a042). Empty is no background.',
+  spec: { kind: 'text' },
+  get: (background) => background?.src ?? '',
+  write: (text) => setBackgroundSrc(text),
+};
+
+const BACKGROUND_FIT: ScalarProperty<BackgroundSubject> = {
+  kind: 'scalar',
+  id: 'fit',
+  label: 'fit',
+  description: 'How the background fills the canvas.',
+  spec: {
+    kind: 'segmented',
+    options: MEDIA_FITS.map((fit) => ({ value: fit, label: fit })),
+    unsetText: 'unset · cover',
+  },
+  get: (background) => background?.fit ?? '',
+  write: (text) => {
+    const fit = MEDIA_FITS.find((option) => option === text);
+    return fit === undefined ? (layout) => layout : setBackgroundFit(fit);
+  },
+};
+
+/** The Background layer's source rows; `fit` only once there is a source for it to fit. */
+export function backgroundProperties(
+  background: BackgroundSubject,
+): readonly Property<BackgroundSubject>[] {
+  const source = [BACKGROUND_CLOUD, BACKGROUND_LOCAL, BACKGROUND_SRC];
+
+  return background === undefined ? source : [...source, BACKGROUND_FIT];
 }
 
 type Target = Layout['target'];

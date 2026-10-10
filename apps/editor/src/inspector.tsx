@@ -56,8 +56,9 @@
  * does the work a rail would: each group is a stack of sections, and a folded section is one bar.
  *
  * Nothing is selected until something is chosen. `NOTHING_SELECTED` is a real state rather than
- * "element 0 by default": element 0 is usually the full-bleed background image, the least likely
- * thing an author came to edit.
+ * "element 0 by default": element 0 is often a full-bleed backdrop, the least likely thing an author
+ * came to edit. The layout's own background is chosen from the bottom row of the layers list
+ * (`BACKGROUND_SELECTED`), and Selected entity then shows its source, fit and opacity.
  *
  * ## No range control to add one
  *
@@ -67,7 +68,7 @@
  * retargeting an existing element to a widget that draws a scale is still out of this slice.
  */
 
-import type { LayoutElement } from '@perch/layout-schema';
+import type { LayoutBackground, LayoutElement } from '@perch/layout-schema';
 import { assertNever } from '@perch/ui-kit';
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import {
@@ -80,15 +81,20 @@ import {
 } from './controls/index.js';
 import {
   WIDGET_LIST_ID,
+  backgroundProperties,
   entitySections,
   targetProperties,
   type PropertySection,
 } from './descriptors.js';
 import type { DraftState } from './draft.js';
 import {
+  clearBackground,
   numberFromInput,
   removeElementStyleToken,
   removeThemeToken,
+  setBackgroundHidden,
+  setBackgroundOpacity,
+  setElementHidden,
   setElementOpacity,
   setElementStyleToken,
   setThemeToken,
@@ -98,11 +104,11 @@ import { dropTarget, layerTarget, listRow } from './layers.js';
 import { PropertyView } from './property-view.js';
 import { LAYER_INDEX_ATTRIBUTE, useRowDrag, type RowDrag } from './row-drag.js';
 import { AddMenu, SensorCatalogueProvider } from './sensor-picker.js';
-import { NOTHING_SELECTED } from './store.js';
+import { BACKGROUND_SELECTED, NOTHING_SELECTED } from './store.js';
 import { TokenPane } from './token-pane.js';
 
-/** The selection when there is none, kept with the selection in the editor store. */
-export { NOTHING_SELECTED };
+/** The selection when there is none, and when it is the background, kept in the editor store. */
+export { BACKGROUND_SELECTED, NOTHING_SELECTED };
 
 export interface InspectorProps {
   readonly state: DraftState;
@@ -141,6 +147,7 @@ export function Inspector({
   widgets,
 }: InspectorProps): ReactNode {
   const element = state.draft.elements[selected];
+  const onBackground = selected === BACKGROUND_SELECTED;
   const entityGroup = useRef<HTMLElement>(null);
   const { target } = state.draft;
 
@@ -204,6 +211,14 @@ export function Inspector({
           groupRef={entityGroup}
           action={<AddMenu target={target} onAdd={onAdd} />}
         >
+          <Collapse open={onBackground} focusOnClose={entityGroup}>
+            {onBackground ? (
+              <>
+                <BackgroundHeader background={state.draft.background} onEdit={onEdit} />
+                <BackgroundPanes background={state.draft.background} onEdit={onEdit} />
+              </>
+            ) : null}
+          </Collapse>
           <Collapse open={element !== undefined} focusOnClose={entityGroup}>
             {element === undefined ? null : (
               <>
@@ -225,7 +240,7 @@ export function Inspector({
               </>
             )}
           </Collapse>
-          <Collapse open={element === undefined}>
+          <Collapse open={element === undefined && !onBackground}>
             <p className="perch-editor-empty">
               nothing selected. click an entity on the canvas, or pick one from Elements below.
             </p>
@@ -242,6 +257,7 @@ export function Inspector({
               selected={selected}
               onSelect={onSelect}
               onMove={onMove}
+              onEdit={onEdit}
             />
           </Section>
         </Group>
@@ -402,18 +418,18 @@ function opacityPercent(opacity: number | undefined): string {
  * does, since an absent opacity is solid.
  */
 function OpacityRow({
-  element,
-  index,
-  onEdit,
+  opacity,
+  onOpacity,
 }: {
-  readonly element: LayoutElement;
-  readonly index: number;
-  readonly onEdit: (update: LayoutUpdate) => void;
+  /** The entity's own opacity, `undefined` where it sets none. */
+  readonly opacity: number | undefined;
+  /** Write one, or remove it with `undefined`. */
+  readonly onOpacity: (opacity: number | undefined) => void;
 }): ReactNode {
-  const own = element.opacity !== undefined;
-  const value = opacityPercent(element.opacity);
+  const own = opacity !== undefined;
+  const value = opacityPercent(opacity);
   const onValue = (text: string): void => {
-    onEdit(setElementOpacity(index, numberFromInput(text) / 100));
+    onOpacity(numberFromInput(text) / 100);
   };
 
   return (
@@ -432,7 +448,7 @@ function OpacityRow({
             subject="Opacity"
             returnsTo={{ source: 'default', value: '100%' }}
             onReset={() => {
-              onEdit(setElementOpacity(index, undefined));
+              onOpacity(undefined);
             }}
           />
         ) : null
@@ -497,7 +513,14 @@ function EntityPanes({
     </Section>
   ));
 
-  const opacity = <OpacityRow element={element} index={index} onEdit={onEdit} />;
+  const opacity = (
+    <OpacityRow
+      opacity={element.opacity}
+      onOpacity={(value) => {
+        onEdit(setElementOpacity(index, value));
+      }}
+    />
+  );
 
   if (element.kind === 'media') {
     return (
@@ -552,6 +575,181 @@ function EntityPanes({
   );
 }
 
+/** What the background row and header say there is, with no source. */
+const NO_BACKGROUND = 'none';
+
+/** Why the background row is never dragged or dropped on, as its tooltip says. */
+const BACKGROUND_LOCKED = 'locked: always the lowest layer, under every element';
+
+/**
+ * The background, named, as the selection header names an element: locked, always lowest, and the
+ * one control on it, which removes its source (asking first) so the theme's canvas colour shows.
+ */
+function BackgroundHeader({
+  background,
+  onEdit,
+}: {
+  readonly background: LayoutBackground | undefined;
+  readonly onEdit: (update: LayoutUpdate) => void;
+}): ReactNode {
+  const name = background?.src ?? NO_BACKGROUND;
+
+  return (
+    <div
+      className="perch-selection"
+      data-testid="perch-editor-selection"
+      data-perch-kind="background"
+    >
+      <span className="perch-selection__icon" aria-hidden="true">
+        <LockGlyph />
+      </span>
+      <span className="perch-selection__text">
+        <span className="perch-selection__name" data-perch-tip={name}>
+          {name}
+        </span>
+        <span className="perch-selection__meta">
+          <span className="perch-selection__kind">background</span>
+          <span>locked · always lowest</span>
+          {background?.hidden === true ? <span>hidden</span> : null}
+        </span>
+      </span>
+      {background === undefined ? null : (
+        <ResetButton
+          action="delete"
+          subject="the background"
+          consequence="its source, fit, opacity and eye go, and the canvas colour shows. undo brings them back."
+          ask="remove?"
+          onReset={() => {
+            onEdit(clearBackground());
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The background's sections: its source, chosen from the cloud catalogue or the files beside the
+ * layout or typed as a path, and its fit; then an Appearance holding its opacity. It has no rect,
+ * since it always covers the canvas, and no style, as a media element has none.
+ */
+function BackgroundPanes({
+  background,
+  onEdit,
+}: {
+  readonly background: LayoutBackground | undefined;
+  readonly onEdit: (update: LayoutUpdate) => void;
+}): ReactNode {
+  return (
+    <>
+      <Section id="entity/background" title="Source" summary={background?.src ?? NO_BACKGROUND}>
+        {backgroundProperties(background).map((property) => (
+          <PropertyView
+            key={property.id}
+            property={property}
+            subject={background}
+            index={NOTHING_SELECTED}
+            onEdit={onEdit}
+          />
+        ))}
+      </Section>
+      {background === undefined ? null : (
+        <Section
+          id="style/appearance"
+          title="Appearance"
+          testId="perch-editor-appearance"
+          summary={background.opacity === undefined ? undefined : '1 set'}
+          summaryActive={background.opacity !== undefined}
+        >
+          <OpacityRow
+            opacity={background.opacity}
+            onOpacity={(value) => {
+              onEdit(setBackgroundOpacity(value));
+            }}
+          />
+        </Section>
+      )}
+      <p className="perch-editor-empty">
+        the background is always the lowest layer and covers the whole canvas. with no source, or
+        hidden, the theme&apos;s canvas colour shows.
+      </p>
+    </>
+  );
+}
+
+/** A padlock: the background row cannot be moved. Decoration; the row says so in words too. */
+function LockGlyph(): ReactNode {
+  return (
+    <svg
+      data-perch-glyph="lock"
+      width="11"
+      height="11"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      aria-hidden="true"
+    >
+      <rect x="3" y="7" width="10" height="7.5" rx="1.5" />
+      <path d="M5.5 7V4.75a2.5 2.5 0 0 1 5 0V7" />
+    </svg>
+  );
+}
+
+/** An eye, open for a shown layer and struck through for a hidden one. */
+function EyeGlyph({ hidden }: { readonly hidden: boolean }): ReactNode {
+  return (
+    <svg
+      data-perch-glyph={hidden ? 'eye-closed' : 'eye'}
+      width="13"
+      height="13"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      aria-hidden="true"
+    >
+      <path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8Z" />
+      <circle cx="8" cy="8" r="2" />
+      {hidden ? <path d="M2.5 13.5 13.5 2.5" /> : null}
+    </svg>
+  );
+}
+
+/**
+ * A layer's eye: shows or hides it, everywhere, as one edit. Its own button beside the row rather than
+ * inside it, so a click on it neither selects the layer nor starts a drag.
+ */
+function LayerEye({
+  hidden,
+  what,
+  disabledTip,
+  onToggle,
+}: {
+  readonly hidden: boolean;
+  /** The layer, in the words of the label: `elements[3]`, `the background`. */
+  readonly what: string;
+  /** Set when there is nothing to show or hide: why. */
+  readonly disabledTip?: string | undefined;
+  readonly onToggle: () => void;
+}): ReactNode {
+  const label = `${hidden ? 'show' : 'hide'} ${what}`;
+
+  return (
+    <button
+      type="button"
+      className="perch-editor-eye"
+      aria-label={label}
+      data-perch-tip={disabledTip ?? label}
+      data-perch-hidden={hidden ? 'true' : 'false'}
+      disabled={disabledTip !== undefined}
+      onClick={onToggle}
+    >
+      <EyeGlyph hidden={hidden} />
+    </button>
+  );
+}
+
 /** Where a row of the list shows the drop line of a drag, if the drag would land beside it. */
 function dropMark(drag: RowDrag | null, row: number, count: number): 'above' | 'below' | undefined {
   if (drag === null || dropTarget(drag.from, drag.gap, count) === null) return undefined;
@@ -572,13 +770,20 @@ function dropMark(drag: RowDrag | null, row: number, count: number): 'above' | '
  *
  * Rows are keyed by the element rather than its index (`usePresence`), so a delete collapses the row
  * that went, with the rows around it closing up, and an add grows the new row in at the top.
+ *
+ * Every row has an eye before it, which hides its layer everywhere (`hidden`, saved), and the last row
+ * is always the layout's background: locked, never dragged or dropped below, selected as
+ * `BACKGROUND_SELECTED`. It is the layout's own field rather than an element, so no reorder has to
+ * remember to keep it lowest.
  */
 function ElementList({
   state,
   selected,
   onSelect,
   onMove,
-}: Pick<InspectorProps, 'state' | 'selected' | 'onSelect' | 'onMove'>): ReactNode {
+  onEdit,
+}: Pick<InspectorProps, 'state' | 'selected' | 'onSelect' | 'onMove' | 'onEdit'>): ReactNode {
+  const { background } = state.draft;
   const { rows, exited } = usePresence(state.draft.elements);
   const count = state.draft.elements.length;
   const list = useRef<HTMLUListElement>(null);
@@ -615,58 +820,112 @@ function ElementList({
             exited(key);
           }}
         >
+          <div
+            className="perch-editor-layer"
+            data-perch-hidden={element.hidden === true ? 'true' : 'false'}
+          >
+            <LayerEye
+              hidden={element.hidden === true}
+              what={`elements[${index}]`}
+              onToggle={() => {
+                if (present) onEdit(setElementHidden(index, element.hidden !== true));
+              }}
+            />
+            <button
+              type="button"
+              className="perch-editor-element"
+              aria-current={index === selected ? 'true' : undefined}
+              aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+              data-perch-selected={index === selected ? 'true' : 'false'}
+              {...(present ? { [LAYER_INDEX_ATTRIBUTE]: String(index) } : {})}
+              {...(drag?.from === index && present ? { 'data-perch-dragging': 'true' } : {})}
+              {...(present ? markOf(dropMark(drag, listRow(index, count), count)) : {})}
+              onPointerDown={(event) => {
+                if (present) begin(event, index);
+              }}
+              onFocus={() => {
+                focused.current = element;
+              }}
+              onBlur={() => {
+                focused.current = null;
+              }}
+              onClick={() => {
+                if (swallowClick()) return;
+                onSelect(index);
+              }}
+              onKeyDown={(event) => {
+                if (!present || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+                  return;
+                }
+                const move =
+                  event.key === 'ArrowUp'
+                    ? 'bringForward'
+                    : event.key === 'ArrowDown'
+                      ? 'sendBackward'
+                      : null;
+                if (move === null) return;
+                event.preventDefault();
+                const to = layerTarget(move, index, count);
+                if (to !== null) onMove(index, to);
+              }}
+            >
+              <span className="perch-editor-element__index">{index}</span>
+              <span className="perch-editor-element__glyph" aria-hidden="true">
+                {KIND_GLYPH[element.kind]}
+              </span>
+              <span className="perch-editor-element__kind">{element.kind}</span>
+              <span
+                className="perch-editor-element__summary"
+                data-perch-tip={describeElement(element)}
+              >
+                {describeElement(element)}
+              </span>
+            </button>
+          </div>
+        </Collapse>
+      ))}
+      {/*
+       * The background, always last: below every element in paint order, so at the bottom of the
+       * layers. Outside the drag's rows (it carries no layer index), so it is never dragged and never
+       * measured as a gap to drop into, and nothing can be put beneath it.
+       */}
+      <li>
+        <div
+          className="perch-editor-layer perch-editor-layer--background"
+          data-perch-hidden={background?.hidden === true ? 'true' : 'false'}
+        >
+          <LayerEye
+            hidden={background?.hidden === true}
+            what="the background"
+            disabledTip={background === undefined ? 'no background to hide' : undefined}
+            onToggle={() => {
+              onEdit(setBackgroundHidden(background?.hidden !== true));
+            }}
+          />
           <button
             type="button"
             className="perch-editor-element"
-            aria-current={index === selected ? 'true' : undefined}
-            aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-            data-perch-selected={index === selected ? 'true' : 'false'}
-            {...(present ? { [LAYER_INDEX_ATTRIBUTE]: String(index) } : {})}
-            {...(drag?.from === index && present ? { 'data-perch-dragging': 'true' } : {})}
-            {...(present ? markOf(dropMark(drag, listRow(index, count), count)) : {})}
-            onPointerDown={(event) => {
-              if (present) begin(event, index);
-            }}
-            onFocus={() => {
-              focused.current = element;
-            }}
-            onBlur={() => {
-              focused.current = null;
-            }}
+            data-testid="perch-editor-background-row"
+            aria-current={selected === BACKGROUND_SELECTED ? 'true' : undefined}
+            data-perch-selected={selected === BACKGROUND_SELECTED ? 'true' : 'false'}
+            data-perch-tip={BACKGROUND_LOCKED}
             onClick={() => {
-              if (swallowClick()) return;
-              onSelect(index);
-            }}
-            onKeyDown={(event) => {
-              if (!present || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
-                return;
-              }
-              const move =
-                event.key === 'ArrowUp'
-                  ? 'bringForward'
-                  : event.key === 'ArrowDown'
-                    ? 'sendBackward'
-                    : null;
-              if (move === null) return;
-              event.preventDefault();
-              const to = layerTarget(move, index, count);
-              if (to !== null) onMove(index, to);
+              onSelect(BACKGROUND_SELECTED);
             }}
           >
-            <span className="perch-editor-element__index">{index}</span>
-            <span className="perch-editor-element__glyph" aria-hidden="true">
-              {KIND_GLYPH[element.kind]}
+            <span className="perch-editor-element__index" aria-label="locked">
+              <LockGlyph />
             </span>
-            <span className="perch-editor-element__kind">{element.kind}</span>
-            <span
-              className="perch-editor-element__summary"
-              data-perch-tip={describeElement(element)}
-            >
-              {describeElement(element)}
+            <span className="perch-editor-element__glyph" aria-hidden="true">
+              {KIND_GLYPH.media}
+            </span>
+            <span className="perch-editor-element__kind">background</span>
+            <span className="perch-editor-element__summary">
+              {background?.src ?? NO_BACKGROUND}
             </span>
           </button>
-        </Collapse>
-      ))}
+        </div>
+      </li>
     </ul>
   );
 }
@@ -813,5 +1072,26 @@ body.perch-dragging, body.perch-dragging * { cursor: grabbing !important; user-s
 .perch-editor-element__glyph { flex: 0 0 1em; color: var(--ed-quiet); text-align: center; }
 .perch-editor-element__kind { flex: 0 0 3.6em; color: var(--ed-quiet); }
 .perch-editor-element__summary { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.perch-editor-layer { display: flex; align-items: center; min-width: 0; }
+.perch-editor-layer > .perch-editor-element { flex: 1 1 auto; min-width: 0; }
+.perch-editor-layer[data-perch-hidden='true'] > .perch-editor-element { color: var(--ed-faint); }
+.perch-editor-layer--background .perch-editor-element__kind { flex-basis: 5.6em; }
+.perch-editor-eye {
+  flex: 0 0 var(--ed-list-row-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--ed-list-row-h);
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--ed-quiet);
+  cursor: pointer;
+}
+.perch-editor-eye:hover:not(:disabled) { background: var(--ed-hover); color: var(--ed-text); }
+.perch-editor-eye[data-perch-hidden='true'] { color: var(--ed-faint); }
+.perch-editor-eye:disabled { color: var(--ed-faint); opacity: 0.5; cursor: default; }
+.perch-editor-eye:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: -2px; }
 .perch-editor-empty { margin: 0; padding: 6px var(--ed-pad-x); font-size: var(--ed-font-small); color: var(--ed-quiet); }
 `;

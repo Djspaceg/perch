@@ -96,6 +96,9 @@ export function CanvasHandles({
       {layout.elements.map((element, index) => {
         const { rect } = element;
         const isSelected = index === selected;
+        // A hidden layer paints nothing, so there is nothing on the canvas to point at; it is chosen
+        // from the layers list, and once chosen its box can still be moved.
+        if (element.hidden === true && !isSelected) return null;
 
         return (
           <Rnd

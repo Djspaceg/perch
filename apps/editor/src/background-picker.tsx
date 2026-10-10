@@ -21,7 +21,7 @@ import {
   categoryOf,
   type BackgroundCategory,
 } from '@perch/backgrounds';
-import { backgroundRef, parseBackgroundRef } from '@perch/layout-schema';
+import { backgroundRef, isBackgroundRef, parseBackgroundRef } from '@perch/layout-schema';
 import {
   useContext,
   useEffect,
@@ -357,6 +357,55 @@ export function BackgroundField({
         </div>
       ) : null}
     </span>
+  );
+}
+
+/** Why the Local list is empty, and what fills it. */
+export const NO_LOCAL_MEDIA =
+  'no images beside this layout: put .svg or .png files in its <name>.assets folder';
+
+/**
+ * A local file for a media `src`: a list of the media beside the open layout (`BackgroundContext`'s
+ * `localMedia`). A path the document holds that the list does not is shown first, so the control can
+ * always show the current value; a cloud reference or no source shows the prompt instead. Choosing
+ * writes the path as the layout would spell it.
+ */
+export function LocalMediaField({
+  id,
+  describedBy,
+  value,
+  onValue,
+}: {
+  readonly id: string;
+  readonly describedBy?: string | undefined;
+  readonly value: string;
+  readonly onValue: (value: string) => void;
+}): ReactNode {
+  const { localMedia = [] } = useContext(BackgroundContext);
+  const local = value !== '' && !isBackgroundRef(value);
+  const options = local && !localMedia.includes(value) ? [value, ...localMedia] : localMedia;
+
+  return (
+    <select
+      id={id}
+      className="perch-input"
+      value={local ? value : ''}
+      disabled={options.length === 0}
+      data-perch-tip={options.length === 0 ? NO_LOCAL_MEDIA : undefined}
+      {...(describedBy === undefined ? {} : { 'aria-describedby': describedBy })}
+      onChange={(event) => {
+        if (event.target.value !== '') onValue(event.target.value);
+      }}
+    >
+      <option value="" disabled>
+        {options.length === 0 ? 'no files beside this layout' : 'choose a file'}
+      </option>
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
   );
 }
 

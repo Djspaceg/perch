@@ -22,10 +22,15 @@ export interface BackgroundHost {
   ) => Promise<Thumbnail>;
 }
 
-/** The host, and the canvas it picks for, for every background control below it. */
+/**
+ * The host, the canvas it picks for, and the local media the open layout can name, for every source
+ * control below it.
+ */
 export const BackgroundContext = createContext<{
   readonly host: BackgroundHost | undefined;
   readonly target: { readonly width: number; readonly height: number };
+  /** Media files beside the open layout, as the `src` it would write (`LayoutLibrary.media`). */
+  readonly localMedia?: readonly string[];
 }>({ host: undefined, target: { width: 1920, height: 400 } });
 
 /** Why the background control is off: nothing to download into. */

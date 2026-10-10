@@ -144,6 +144,8 @@ export function desktopLibrary(documents: readonly DesktopEditorDocument[]): Lay
     },
     resolveAsset: (src: string, name?: string) =>
       name === undefined ? undefined : byName.get(name)?.assets[src],
+    media: (name?: string) =>
+      name === undefined ? [] : Object.keys(byName.get(name)?.assets ?? {}).sort(),
   });
 }
 

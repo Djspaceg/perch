@@ -134,7 +134,7 @@ describe('entitySections', () => {
       ['transform', ['position', 'size']],
     ]);
     expect(shape({ kind: 'media', src: 'a.svg', rect: READOUT.rect })).toEqual([
-      ['content', ['background', 'src', 'fit']],
+      ['content', ['background', 'local', 'src', 'fit']],
       ['transform', ['position', 'size']],
     ]);
     expect(
