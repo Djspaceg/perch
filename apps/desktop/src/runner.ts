@@ -52,7 +52,7 @@ import {
 } from './runner-channels.js';
 import { createRunnerWindow } from './runner-window.js';
 import { SETTINGS_FILENAME, createSettingsStore, type ColourScheme } from './settings.js';
-import { trayIconBitmap } from './tray-icon.js';
+import { trayIcon } from './tray-icon.js';
 import { trayMenuTemplate, type TrayState } from './tray-menu.js';
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -383,20 +383,10 @@ export async function startRunner(options: RunnerOptions): Promise<Runner> {
     },
     updateDock,
     open: () => {
-      const bitmapColour =
-        process.platform === 'darwin' ? { r: 0, g: 0, b: 0 } : { r: 154, g: 164, b: 178 };
-      const icon = nativeImage.createFromBitmap(trayIconBitmap(16, bitmapColour), {
-        width: 16,
-        height: 16,
-        scaleFactor: 1,
-      });
-      icon.addRepresentation({
-        buffer: trayIconBitmap(32, bitmapColour),
-        width: 32,
-        height: 32,
-        scaleFactor: 2,
-      });
-      if (process.platform === 'darwin') icon.setTemplateImage(true);
+      const image = trayIcon(process.platform);
+      const icon = nativeImage.createEmpty();
+      for (const representation of image.representations) icon.addRepresentation(representation);
+      icon.setTemplateImage(image.template);
       tray = new Tray(icon);
       tray.setToolTip('perch');
 

@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { APP_ICON_PNG } from './app-icon.js';
 import { EDITOR_SWITCH } from './launch.js';
 import {
   APP_ID,
@@ -39,6 +40,12 @@ describe('packagingConfig: identity', () => {
 });
 
 describe('packagingConfig: what is inside', () => {
+  it('names the committed app icon, which electron-builder makes every platform icon from', () => {
+    // electron-builder finds no icon unless one is named, and then uses Electron's.
+    expect(config.icon).toBe(APP_ICON_PNG);
+    expect(statSync(join(projectDir, APP_ICON_PNG)).isFile()).toBe(true);
+  });
+
   it('ships both built pages and the seed layouts where the packaged app looks for them', () => {
     const resources = config.extraResources as { from: string; to: string; filter?: string[] }[];
     const by = (to: string) => resources.find((entry) => entry.to === to);
@@ -145,7 +152,9 @@ describe('packagingConfig: signing', () => {
     });
     for (const mac of [config.mac, signed.mac]) {
       expect(mac?.extendInfo).toEqual({
-        NSLocalNetworkUsageDescription: expect.stringMatching(/LibreHardwareMonitor.*local network/),
+        NSLocalNetworkUsageDescription: expect.stringMatching(
+          /LibreHardwareMonitor.*local network/,
+        ),
       });
     }
   });

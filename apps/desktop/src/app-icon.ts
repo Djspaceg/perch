@@ -1,85 +1,27 @@
 /**
- * The placeholder app icon: the tray's perch mark, light on a dark rounded tile, as a PNG.
+ * The app icon: the songbird on a sensor trace, on a graphite tile ("Signal"). Committed as two
+ * files under `apps/desktop/icons/`:
  *
- * Generated at packaging time (`packaging.ts` writes it where electron-builder looks, and
- * electron-builder makes the .icns, .ico and Linux sizes from it), for the reason `tray-icon.ts`
- * gives: no binary asset to keep in step. A designed icon replaces this by replacing the file.
+ * ```text
+ * app-icon.svg   the master, on Apple's grid: a 1024 canvas, an 824 tile with continuous corners
+ * app-icon.png   the master rendered at 1024, RGBA
+ * ```
  *
- * Pure: returns PNG bytes, so it is testable without Electron.
+ * electron-builder makes the .icns, the .ico and the Linux sizes from the PNG, which the packaging
+ * config names (`packaging.ts`). The PNG is committed rather than rendered here because the
+ * master's gradients, glow and shadows need a browser's renderer. After editing the SVG, render it
+ * again with headless Chrome, at 1024 on a clear background (it may not exit once it has written
+ * the file):
+ *
+ * ```sh
+ * chrome --headless=new --force-device-scale-factor=1 --default-background-color=00000000 \
+ *   --window-size=1024,1024 --screenshot=app-icon.png app-icon.svg
+ * ```
+ *
+ * The tray icon is not this: it is a template silhouette of the same bird, `tray-icon.ts`.
  */
 
-import { crc32, deflateSync } from 'node:zlib';
-import { trayIconBitmap, type Rgb } from './tray-icon.js';
-
-const TILE: Rgb = { r: 27, g: 31, b: 39 };
-const MARK: Rgb = { r: 230, g: 233, b: 239 };
-
-/** A `size`x`size` RGBA PNG of the icon. macOS's grid: a tile inset by a tenth, round corners. */
-export function appIconPng(size: number): Buffer {
-  const margin = size * 0.1;
-  const radius = size * 0.18;
-  const markSize = Math.round(size * 0.62);
-  const markOffset = Math.round((size - markSize) / 2);
-  const mark = trayIconBitmap(markSize, MARK);
-  const samples = 4;
-
-  const stride = size * 4 + 1;
-  const raw = Buffer.alloc(stride * size);
-  for (let y = 0; y < size; y += 1) {
-    // Each row starts with its filter type, 0: the bytes as they are.
-    raw[y * stride] = 0;
-    for (let x = 0; x < size; x += 1) {
-      let covered = 0;
-      for (let sy = 0; sy < samples; sy += 1) {
-        for (let sx = 0; sx < samples; sx += 1) {
-          const px = x + (sx + 0.5) / samples;
-          const py = y + (sy + 0.5) / samples;
-          if (inRoundedSquare(px, py, margin, size - margin, radius)) covered += 1;
-        }
-      }
-
-      const mx = x - markOffset;
-      const my = y - markOffset;
-      const inMark = mx >= 0 && my >= 0 && mx < markSize && my < markSize;
-      const markAlpha = inMark ? (mark[(my * markSize + mx) * 4 + 3] ?? 0) / 255 : 0;
-
-      const offset = y * stride + 1 + x * 4;
-      raw[offset] = blend(TILE.r, MARK.r, markAlpha);
-      raw[offset + 1] = blend(TILE.g, MARK.g, markAlpha);
-      raw[offset + 2] = blend(TILE.b, MARK.b, markAlpha);
-      raw[offset + 3] = Math.round((covered / (samples * samples)) * 255);
-    }
-  }
-
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(size, 0);
-  header.writeUInt32BE(size, 4);
-  header[8] = 8; // bits per channel
-  header[9] = 6; // RGBA
-  return Buffer.concat([
-    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    chunk('IHDR', header),
-    chunk('IDAT', deflateSync(raw)),
-    chunk('IEND', Buffer.alloc(0)),
-  ]);
-}
-
-function inRoundedSquare(x: number, y: number, low: number, high: number, radius: number): boolean {
-  if (x < low || x > high || y < low || y > high) return false;
-  const cx = Math.min(Math.max(x, low + radius), high - radius);
-  const cy = Math.min(Math.max(y, low + radius), high - radius);
-  return Math.hypot(x - cx, y - cy) <= radius;
-}
-
-function blend(under: number, over: number, alpha: number): number {
-  return Math.round(under + (over - under) * alpha);
-}
-
-function chunk(type: string, data: Buffer): Buffer {
-  const length = Buffer.alloc(4);
-  length.writeUInt32BE(data.length);
-  const body = Buffer.concat([Buffer.from(type, 'latin1'), data]);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(body));
-  return Buffer.concat([length, body, crc]);
-}
+/** The SVG master, relative to apps/desktop. */
+export const APP_ICON_MASTER = 'icons/app-icon.svg';
+/** Its 1024 PNG, relative to apps/desktop. */
+export const APP_ICON_PNG = 'icons/app-icon.png';

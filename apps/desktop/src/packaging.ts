@@ -29,7 +29,7 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { AfterPackContext, Configuration } from 'electron-builder';
-import { appIconPng } from './app-icon.js';
+import { APP_ICON_PNG } from './app-icon.js';
 import { EDITOR_SWITCH } from './launch.js';
 import { RESOURCE_FOLDERS } from './paths.js';
 
@@ -113,6 +113,9 @@ export function packagingConfig(options: PackagingOptions): Configuration {
       homepage: 'https://github.com/Djspaceg/perch',
     },
     directories: { output: OUTPUT, buildResources: GENERATED },
+    // Named, or electron-builder uses Electron's icon: it finds none by itself. It makes the .icns,
+    // the .ico and the Linux sizes from this, looking in buildResources and then here.
+    icon: APP_ICON_PNG,
     files: [
       'package.json',
       'dist/**/*.js',
@@ -212,11 +215,10 @@ export function packagingConfig(options: PackagingOptions): Configuration {
   };
 }
 
-/** Write what electron-builder reads from `dist/packaging/`: the icon and the two editor entries. */
+/** Write what electron-builder reads from `dist/packaging/`: the two editor entries. */
 export function writePackagingResources(projectDir: string): void {
   const folder = join(projectDir, GENERATED);
   mkdirSync(folder, { recursive: true });
-  writeFileSync(join(folder, 'icon.png'), appIconPng(1024));
   writeFileSync(join(folder, 'installer.nsh'), nsisEditorShortcuts());
   writeFileSync(join(folder, LINUX_EDITOR_ENTRY), linuxEditorDesktopEntry());
 }
