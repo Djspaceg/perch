@@ -34,8 +34,9 @@
  * ## Paint order
  *
  * `elements` is painted in array order, and array order is z-order: later elements paint over
- * earlier ones. That falls out of source order here — no `z-index` anywhere — which is why a
- * full-bleed media element is written first in a layout file and everything else after it.
+ * earlier ones. That falls out of source order here — no `z-index` anywhere. The layout's own
+ * `background` is painted before all of them, so it is under everything by construction; a hidden
+ * layer, the background included, is not painted at all.
  *
  * ## Where a theme lands
  *
@@ -66,6 +67,7 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 import {
+  backgroundAsElement,
   isBackgroundRef,
   type ChartElement,
   type Layout,
@@ -142,7 +144,9 @@ export function LayoutCanvas({
       data-perch-canvas-height={layout.target.height}
       style={canvasStyle(layout, scale)}
     >
+      {renderLayoutBackground(layout, resolveAsset, resolveBackground)}
       {layout.elements.map((element, index) => {
+        if (element.hidden === true) return null;
         const style = styleOf(element);
         const content = boxOf(element, style, layout.theme);
 
@@ -161,6 +165,35 @@ export function LayoutCanvas({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * The layout's background, first so it paints under every element, over the whole canvas; nothing
+ * when there is none or it is hidden, so the theme's canvas colour shows. Drawn as the media element
+ * it is equivalent to, through the same renderer, so an image or a cloud video paints, fades and fails
+ * exactly as one would. It carries no element index: it is not in `elements`, and nothing that finds
+ * an element by index may find it.
+ */
+function renderLayoutBackground(
+  layout: Layout,
+  resolveAsset: (src: string) => string | undefined,
+  resolveBackground: (ref: string) => BackgroundSource,
+): ReactNode {
+  const { background } = layout;
+  if (background === undefined || background.hidden === true) return null;
+  const element = backgroundAsElement(background, layout.target);
+  const content = boxOf(element, undefined, layout.theme);
+
+  return (
+    <div
+      className="perch-element"
+      data-perch-element-kind="media"
+      data-perch-layer="background"
+      style={elementStyle(element, undefined, content, layout.theme)}
+    >
+      {renderElement(element, content, resolveAsset, resolveBackground)}
     </div>
   );
 }

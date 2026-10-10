@@ -57,7 +57,7 @@ export {
   type ChartGap,
 } from './chart.js';
 
-export { type LayoutBackground } from './layout-background.js';
+export { backgroundAsElement, type LayoutBackground } from './layout-background.js';
 
 export { rectIntersectsCanvas, type Rect } from './geometry.js';
 

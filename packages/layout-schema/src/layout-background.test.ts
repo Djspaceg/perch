@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  backgroundAsElement,
   ELEMENT_KINDS,
   LAYOUT_SCHEMA_VERSION,
   loadLayout,
@@ -103,6 +104,32 @@ describe('the layout background', () => {
 
     expect(codesOf(result)).toEqual([code]);
     expect(issueAt(result, `background.${field}`).code).toBe(code);
+  });
+});
+
+describe('backgroundAsElement', () => {
+  it('is the media element the background paints as: every field kept, the whole canvas covered', () => {
+    expect(
+      backgroundAsElement(
+        { src: 'thermalright:a042', fit: 'contain', opacity: 0.3, hidden: true },
+        { width: 1920, height: 400 },
+      ),
+    ).toEqual({
+      kind: 'media',
+      src: 'thermalright:a042',
+      rect: { x: 0, y: 0, w: 1920, h: 400 },
+      fit: 'contain',
+      opacity: 0.3,
+      hidden: true,
+    });
+  });
+
+  it('writes no field the background does not set', () => {
+    expect(backgroundAsElement({ src: 'a.assets/b.png' }, { width: 720, height: 1280 })).toEqual({
+      kind: 'media',
+      src: 'a.assets/b.png',
+      rect: { x: 0, y: 0, w: 720, h: 1280 },
+    });
   });
 });
 

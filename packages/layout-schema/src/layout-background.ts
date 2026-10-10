@@ -24,6 +24,7 @@ import {
   validateOptionalHidden,
   validateOptionalOpacity,
   type Hidden,
+  type MediaElement,
   type Opacity,
 } from './element.js';
 import { type IssueCollector } from './issues.js';
@@ -77,5 +78,23 @@ export function validateLayoutBackground(
     ...(fit === undefined ? {} : { fit }),
     ...(opacity === undefined ? {} : { opacity }),
     ...(hidden === undefined ? {} : { hidden }),
+  };
+}
+
+/**
+ * The background as the media element it paints as: its source, fit, opacity and eye, over the whole
+ * canvas. What a renderer draws for it, and what duplicating it makes.
+ */
+export function backgroundAsElement(
+  background: LayoutBackground,
+  target: { readonly width: number; readonly height: number },
+): MediaElement {
+  return {
+    kind: 'media',
+    src: background.src,
+    rect: { x: 0, y: 0, w: target.width, h: target.height },
+    ...(background.fit === undefined ? {} : { fit: background.fit }),
+    ...(background.opacity === undefined ? {} : { opacity: background.opacity }),
+    ...(background.hidden === undefined ? {} : { hidden: background.hidden }),
   };
 }

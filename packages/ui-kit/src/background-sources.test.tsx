@@ -94,4 +94,18 @@ describe('useBackgroundSources', () => {
     renderHook(() => useBackgroundSources(null, ensure));
     expect(ensure).not.toHaveBeenCalled();
   });
+
+  it('asks for the layout background too, hidden or not, so showing it again waits on nothing', () => {
+    const ensure = vi.fn<EnsureBackground>(() => new Promise<BackgroundSource>(() => undefined));
+    const layout: Layout = {
+      ...layoutWith(['thermalright:a001']),
+      background: { src: 'thermalright:b002', hidden: true },
+    };
+    renderHook(() => useBackgroundSources(layout, ensure));
+
+    expect(ensure.mock.calls.map(([ref]) => ref)).toEqual([
+      'thermalright:b002',
+      'thermalright:a001',
+    ]);
+  });
 });

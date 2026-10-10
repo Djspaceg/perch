@@ -464,3 +464,69 @@ describe('<LayoutCanvas> — visible failures', () => {
     expect(failure.closest('.perch-element')?.getAttribute('data-perch-element-index')).toBe('3');
   });
 });
+
+describe('<LayoutCanvas> — the layout background and hidden layers', () => {
+  const withLayoutBackground = (background: unknown, elements: unknown[] = []): unknown => ({
+    ...ALL_KINDS,
+    schemaVersion: LAYOUT_SCHEMA_VERSION,
+    background,
+    elements,
+  });
+  const label = { kind: 'text', text: 'over it', rect: { x: 10, y: 10, w: 100, h: 20 } };
+
+  it('paints the background first, under every element, across the whole canvas', () => {
+    mount(withLayoutBackground({ src: 'shipped.svg', fit: 'contain', opacity: 0.5 }, [label]));
+
+    const [background, text] = elements();
+    expect(background).toHaveAttribute('data-perch-layer', 'background');
+    expect(background).not.toHaveAttribute('data-perch-element-index');
+    expect(background?.querySelector('img')).toHaveAttribute('src', '/assets/shipped-abc123.svg');
+    expect(background?.querySelector('.perch-media')).toHaveAttribute('data-fit', 'contain');
+    expect(background?.style.left).toBe('0px');
+    expect(background?.style.top).toBe('0px');
+    expect(background?.style.width).toBe('800px');
+    expect(background?.style.height).toBe('400px');
+    expect(background?.style.opacity).toBe('0.5');
+    expect(text).toHaveAttribute('data-perch-element-index', '0');
+  });
+
+  it('plays a cloud background through the host, as a media element would', () => {
+    render(
+      <SensorProvider source={fakeSource()}>
+        <LayoutCanvas
+          layout={loadFixture(withLayoutBackground({ src: 'thermalright:a042' }))}
+          scale={1}
+          resolveAsset={() => undefined}
+          resolveBackground={() => ({ status: 'ready', url: 'perch-cache://a042.mp4' })}
+        />
+      </SensorProvider>,
+    );
+
+    expect(elements()[0]?.querySelector('video')).toHaveAttribute('src', 'perch-cache://a042.mp4');
+  });
+
+  it('paints nothing for a hidden background, so the canvas colour shows', () => {
+    mount(withLayoutBackground({ src: 'shipped.svg', hidden: true }, [label]));
+
+    expect(canvas().querySelector('[data-perch-layer="background"]')).toBeNull();
+    expect(elements()).toHaveLength(1);
+  });
+
+  it('paints nothing for a layout with no background', () => {
+    mount({ ...ALL_KINDS, schemaVersion: LAYOUT_SCHEMA_VERSION, elements: [label] });
+
+    expect(canvas().querySelector('[data-perch-layer="background"]')).toBeNull();
+  });
+
+  it('skips a hidden element, and every other element keeps its index', () => {
+    mount(
+      withLayoutBackground(undefined, [
+        { ...label, text: 'hidden', hidden: true },
+        { ...label, text: 'shown', hidden: false },
+      ]),
+    );
+
+    expect(elements().map((element) => element.dataset['perchElementIndex'])).toEqual(['1']);
+    expect(canvas().textContent).not.toContain('hidden');
+  });
+});

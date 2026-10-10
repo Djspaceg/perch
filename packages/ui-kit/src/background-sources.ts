@@ -86,10 +86,14 @@ function keyOf(ref: string, width: number, height: number): string {
   return `${ref}@${String(width)}x${String(height)}`;
 }
 
-/** Each distinct background reference among the layout's media, in paint order. */
+/** Each distinct background reference the layout's background and media name, in paint order. */
 function referencesIn(layout: Layout | null): string[] {
   if (layout === null) return [];
   const found = new Set<string>();
+  // Hidden layers too: showing one again should not wait on a download.
+  if (layout.background !== undefined && isBackgroundRef(layout.background.src)) {
+    found.add(layout.background.src);
+  }
   for (const element of layout.elements) {
     if (element.kind === 'media' && isBackgroundRef(element.src)) found.add(element.src);
   }
