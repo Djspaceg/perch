@@ -1184,7 +1184,8 @@ ${TRANSFORM_STYLES}
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding: 4px var(--ed-pad-x) 6px;
+  /* Room above, and more below before the tabs, so the header reads as a block of its own. */
+  padding: var(--ed-space-sm) var(--ed-pad-x) var(--ed-space-md);
   background: var(--ed-bg-recessed);
 }
 .perch-selection__icon {
@@ -1199,7 +1200,7 @@ ${TRANSFORM_STYLES}
   color: var(--ed-text);
   font-size: 0.875rem;
 }
-.perch-selection__text { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+.perch-selection__text { flex: 1 1 auto; display: flex; flex-direction: column; gap: var(--ed-space-xs); min-width: 0; }
 .perch-selection__name {
   overflow: hidden;
   text-overflow: ellipsis;

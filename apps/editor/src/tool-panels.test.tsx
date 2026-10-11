@@ -10,7 +10,9 @@ import { createMockSource } from '@perch/sensor-sources';
 import { act, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Editor } from './app.js';
+import { CHROME_STYLES } from './controls/chrome.js';
 import { PROPERTY_ROW_STYLES } from './controls/property-row.js';
+import { INSPECTOR_STYLES } from './inspector.js';
 import { createLayoutLibrary } from './layout-library.js';
 
 const LAYOUT: Layout = {
@@ -526,5 +528,35 @@ describe('dragging panels', () => {
     });
 
     expect(panelTitles(global).slice(0, 2)).toEqual(['Global Target', 'Global Clock']);
+  });
+});
+
+describe('the selected entity header', () => {
+  const sheet = (): string => INSPECTOR_STYLES.replace(/\s+/g, ' ');
+  const rule = (selector: string): string => {
+    const css = sheet();
+    const at = css.indexOf(`${selector} {`);
+    if (at === -1) throw new Error(`no rule for ${selector}`);
+    return css.slice(at, css.indexOf('}', at));
+  };
+
+  it('spaces its name line from its kind and path line, in a spacing token', () => {
+    expect(rule('.perch-selection__text')).toMatch(/gap: var\(--ed-space-xs\)/);
+    expect(CHROME_STYLES.replace(/\s+/g, ' ')).toMatch(/--ed-space-xs: 3px;/);
+  });
+
+  it('leaves room above and below it, before the tabs', () => {
+    expect(rule('.perch-selection')).toMatch(
+      /padding: var\(--ed-space-sm\) var\(--ed-pad-x\) var\(--ed-space-md\);/,
+    );
+    const chrome = CHROME_STYLES.replace(/\s+/g, ' ');
+    expect(chrome).toMatch(/--ed-space-sm: 6px;/);
+    expect(chrome).toMatch(/--ed-space-md: 10px;/);
+  });
+
+  it('still keeps each line to one line, ellipsised', () => {
+    expect(rule('.perch-selection__name')).toMatch(/white-space: nowrap/);
+    expect(rule('.perch-selection__name')).toMatch(/text-overflow: ellipsis/);
+    expect(rule('.perch-selection__meta')).toMatch(/white-space: nowrap/);
   });
 });

@@ -254,6 +254,10 @@ export const CHROME_STYLES = `
      narrow sidebar keeps a readable label and a wide one gives its extra room to the values. */
   --ed-label-col: clamp(96px, 38%, 180px);
   --ed-pad-x: 8px;
+  /* DESIGN.md's spacing.xs, .sm and .md, for the few places that breathe more than a row. */
+  --ed-space-xs: 3px;
+  --ed-space-sm: 6px;
+  --ed-space-md: 10px;
   --ed-gap: 4px;
   --ed-radius: 3px;
   --ed-font: 0.71875rem;
