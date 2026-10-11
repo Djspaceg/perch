@@ -567,6 +567,12 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 - It takes focus when it opens.
 - Escape, or a press outside, closes it; Escape returns focus to the anchor.
 
+### Template insert
+- A text element's text field has a `{}` button that opens a `popover` with three tabs: **Sensor** (the sensor picker), **Clock** (each token beside how it reads now) and **Style**.
+- **Style** wraps the selection in a style span (`{#label}`, `{#unit}`, `{#value}`, `{#note}`), adds a filter (`| fit`, `| hold`, `| note`, ...) to the sensor placeholder at the caret, or turns that placeholder into a readout's three rows.
+- With the caret in no sensor placeholder, the filters and the readout button are disabled, and the group's heading says to put the caret in one.
+- Whatever is inserted, the field's validator judges the result as it would typing, and the preview paints it live.
+
 ### List row
 - `list-row` shows a faint index, a quiet kind and a truncating summary. It hovers to `{colors.hover}`; selected is `list-row-selected`.
 - **Reordering**: a 2px Primary line marks where the row will drop, and the same move works from the keyboard.

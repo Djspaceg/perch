@@ -132,6 +132,16 @@ by default); any other name is a localized clock token (`{time}`, `{date:long}`,
 are literal braces. The `4 -> 5` step doubles every brace already in a caption, so it paints
 as it did, and a version 4 build refuses a version 5 file rather than painting `{time}`.
 
+Within version 5, templates gained annotations for a readout's rows
+(`docs/template-annotations.md`): the filters `| fit` (the value sized to the box, as a
+readout's number, with its unit small and dim), `| hold` (the last value while stale; the
+fallback only before the first) and `| note` (`waiting`, `no reading`, `stale 8s`, in the warn
+and alert colours), and style spans `{#label}...{/label}`, `{#unit}`, `{#value}` and `{#note}`,
+nested and closed in order, each painted with that readout row's theme tokens. No version bump:
+the stored shape is still a string, and the grammar refused every `{#`, `{/` and those filter
+names before, so no valid layout changes meaning. A build from before them refuses a template
+that uses one as a malformed template, naming the character.
+
 **Version 4.** Version 4 adds the layout's own `background`, one image or
 video painted first across the whole canvas, and a `hidden` flag on it and on every element
 (the editor's layer eye; a hidden layer paints nowhere). The background is a field of the
