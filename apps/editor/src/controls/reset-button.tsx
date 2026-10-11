@@ -54,11 +54,10 @@ export type ResetButtonProps =
       readonly confirming?: boolean | undefined;
       readonly onConfirming?: ((confirming: boolean) => void) | undefined;
       /**
-       * Set when there is nothing to delete just now — the Elements list with nothing selected: why.
-       * The can stays, dimmed and `aria-disabled`, so the bar keeps its shape and focus that was on
-       * the confirm can come back to it.
+       * The can's name and tooltip, where the whole sentence is more than the can needs: an Elements
+       * row's `Delete element`, which the row already says which. The confirm still names it all.
        */
-      readonly unavailable?: string | undefined;
+      readonly label?: string | undefined;
     };
 
 export function ResetButton(props: ResetButtonProps): ReactNode {
@@ -98,28 +97,28 @@ export function ResetButton(props: ResetButtonProps): ReactNode {
     );
   }
 
-  const { subject, onReset, unavailable } = props;
+  const { subject, onReset } = props;
   const ask = `delete ${subject}. ${props.consequence ?? GONE}`;
+  const name = props.label ?? ask;
 
   return (
     <>
-      {confirming && unavailable === undefined ? null : (
+      {confirming ? null : (
         <button
           ref={deleteRef}
           type="button"
           className="perch-reset perch-reset--delete"
-          aria-label={unavailable ?? ask}
-          data-perch-tip={unavailable ?? ask}
-          aria-disabled={unavailable === undefined ? undefined : 'true'}
+          aria-label={name}
+          data-perch-tip={name}
           onClick={() => {
-            if (unavailable === undefined) setConfirming(true);
+            setConfirming(true);
           }}
         >
           <TrashGlyph />
         </button>
       )}
       <Collapse
-        open={confirming && unavailable === undefined}
+        open={confirming}
         appear
         as="span"
         className="perch-reset__unfold"
@@ -216,8 +215,7 @@ export const RESET_BUTTON_STYLES = `
 .perch-reset--revert { color: var(--ed-accent); }
 .perch-reset--revert:hover { background: var(--ed-hover); color: var(--ed-text); }
 .perch-reset--delete { color: var(--ed-danger); }
-.perch-reset--delete[aria-disabled='true'] { color: var(--ed-faint); opacity: 0.5; cursor: default; }
-.perch-reset--delete:not([aria-disabled='true']):hover { background: var(--ed-danger-fill); color: var(--ed-danger-strong); }
+.perch-reset--delete:hover { background: var(--ed-danger-fill); color: var(--ed-danger-strong); }
 /*
  * The confirm floats over the row's value, right-aligned to the slot, so the row does not reflow; it
  * unfolds from the row's middle, through Collapse, rather than appearing.

@@ -204,3 +204,74 @@ describe('the text field', () => {
     expect(result.getByTestId('perch-editor-prop-widget')).not.toHaveClass('perch-row--stacked');
   });
 });
+
+describe('delete on the selected row', () => {
+  const list = (result: Result): HTMLElement => result.getByTestId('perch-editor-elements');
+  const rowOf = (result: Result, index: number): HTMLElement => {
+    const button = list(result).querySelector(`[data-perch-layer-index="${index}"]`);
+    const row = button?.closest('.perch-editor-layer');
+    if (!(row instanceof HTMLElement)) throw new Error(`no row for element ${index}`);
+    return row;
+  };
+
+  it('sits right after Duplicate, named and tipped "Delete element"', () => {
+    const result = renderEditor();
+    selectElement(result, 1);
+    const row = rowOf(result, 1);
+    const duplicate = within(row).getByRole('button', { name: 'duplicate' });
+    const trash = within(row).getByRole('button', { name: 'Delete element' });
+
+    expect(duplicate.nextElementSibling).toBe(trash);
+    expect(trash).toHaveAttribute('data-perch-tip', 'Delete element');
+    expect(within(rowOf(result, 0)).queryByRole('button', { name: 'Delete element' })).toBeNull();
+  });
+
+  it('asks inline, then deletes that element', () => {
+    const result = renderEditor();
+    selectElement(result, 1);
+    fireEvent.click(within(rowOf(result, 1)).getByRole('button', { name: 'Delete element' }));
+    fireEvent.click(within(list(result)).getByRole('button', { name: /^confirm: delete elements\[1\]/ }));
+
+    expect(list(result).querySelectorAll('[data-perch-layer-index]')).toHaveLength(1);
+  });
+
+  it('is no longer in the Elements bar', () => {
+    const result = renderEditor();
+    selectElement(result, 1);
+    const bar = group(result, 'Elements').querySelector('.perch-editor-group__bar');
+    if (!(bar instanceof HTMLElement)) throw new Error('no Elements bar');
+
+    expect(within(bar).queryByRole('button', { name: /delete/i })).toBeNull();
+  });
+
+  it('opens from the Delete key on the canvas, on the selected row', () => {
+    const result = renderEditor();
+    selectElement(result, 0);
+    fireEvent.keyDown(result.getByTestId('perch-editor-preview'), { key: 'Delete' });
+
+    expect(
+      within(rowOf(result, 0)).getByRole('button', { name: /^confirm: delete elements\[0\]/ }),
+    ).toHaveFocus();
+  });
+
+  it('is not offered on the background row', () => {
+    const result = renderEditor();
+    fireEvent.click(result.getByTestId('perch-editor-background-row'));
+    const background = result.getByTestId('perch-editor-background-row').closest('.perch-editor-layer');
+    if (!(background instanceof HTMLElement)) throw new Error('no background row');
+
+    expect(within(background).queryByRole('button', { name: /delete/i })).toBeNull();
+    expect(within(list(result)).queryByRole('button', { name: /delete/i })).toBeNull();
+  });
+
+  it('says "element", never "layer", in what the list shows and tips', () => {
+    const result = renderEditor();
+    fireEvent.click(result.getByTestId('perch-editor-background-row'));
+    const words = [...list(result).querySelectorAll('*')].flatMap((node) => [
+      node.getAttribute('aria-label') ?? '',
+      node.getAttribute('data-perch-tip') ?? '',
+    ]);
+
+    expect(words.filter((text) => /layer/i.test(text))).toEqual([]);
+  });
+});

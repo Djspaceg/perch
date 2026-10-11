@@ -128,7 +128,7 @@ describe('Add and Delete live in the Elements list', () => {
     expect(groupBar?.querySelector('button')).toBeNull();
   });
 
-  it('deletes the selected element from the list, asking first, and not from its header', () => {
+  it('deletes the selected element from its row, asking first, and not from its header', () => {
     const result = renderEditor();
     selectElement(result, 1);
 
@@ -138,7 +138,7 @@ describe('Add and Delete live in the Elements list', () => {
       }),
     ).toBeNull();
     const list = elementsPanel(result);
-    fireEvent.click(within(list).getByRole('button', { name: /^delete elements\[1\]/ }));
+    fireEvent.click(within(list).getByRole('button', { name: 'Delete element' }));
     fireEvent.click(within(list).getByRole('button', { name: /^confirm: delete elements\[1\]/ }));
 
     expect(
@@ -156,27 +156,22 @@ describe('Add and Delete live in the Elements list', () => {
     ).toHaveFocus();
   });
 
-  it('removes the background’s source from the list, as its header did, and never the row', () => {
+  it('offers no delete for the background, in the list or its header', () => {
     const result = renderEditor();
     selectBackground(result);
 
     expect(
       within(result.getByTestId('perch-editor-selection')).queryByRole('button', {
-        name: /^delete/,
+        name: /^delete/i,
       }),
     ).toBeNull();
-    const list = elementsPanel(result);
-    fireEvent.click(within(list).getByRole('button', { name: /^delete the background/ }));
-    fireEvent.click(within(list).getByRole('button', { name: /^confirm: delete the background/ }));
-
-    expect(result.getByTestId('perch-editor-background-row')).toHaveTextContent('none');
+    expect(within(elementsPanel(result)).queryByRole('button', { name: /delete/i })).toBeNull();
   });
 
   it('offers no delete with nothing selected', () => {
     const result = renderEditor();
-    const trash = within(elementsPanel(result)).getByRole('button', { name: /select a layer/ });
 
-    expect(trash).toHaveAttribute('aria-disabled', 'true');
+    expect(within(elementsPanel(result)).queryByRole('button', { name: /delete/i })).toBeNull();
   });
 });
 

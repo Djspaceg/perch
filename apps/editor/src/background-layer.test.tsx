@@ -167,13 +167,14 @@ describe('the background row', () => {
     expect(rows[rows.length - 1]).toContainElement(backgroundRow(result));
   });
 
-  it('removes its source from the Elements bar, asking first, so the canvas colour shows', () => {
+  it('has no delete; emptying its src in Content removes it, so the canvas colour shows', () => {
     const { result } = renderEditor({ ...LAYOUT, background: { src: WALL, opacity: 0.5 } });
     fireEvent.click(backgroundRow(result));
 
-    const bar = within(result.getByRole('region', { name: 'Elements' }));
-    fireEvent.click(bar.getByRole('button', { name: /^delete the background/ }));
-    fireEvent.click(bar.getByRole('button', { name: /^confirm: delete the background/ }));
+    const elements = within(result.getByRole('region', { name: 'Elements' }));
+    expect(elements.queryByRole('button', { name: /delete/i })).toBeNull();
+    const src = within(screen.getByTestId('perch-editor-prop-src')).getByRole('textbox');
+    fireEvent.change(src, { target: { value: '' } });
 
     expect(painted(result)).toBeNull();
     expect(backgroundRow(result)).toHaveTextContent('none');

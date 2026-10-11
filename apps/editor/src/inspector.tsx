@@ -33,14 +33,14 @@
  *
  * ## Adding and deleting
  *
- * Both are in the Elements list's bar, so the list is where layers are made, ordered and removed.
- * "+ Add" offers every kind, media as an Image beside the layout or a cloud Video (`new-element.ts`);
- * the new element goes on top and is selected at once. Beside it is Delete, the red trash can the
- * token panes also use for a removal nothing replaces, acting on the selection; it asks once, inline,
- * even though undo brings it back. The Delete and Backspace keys ask through the same confirm when
- * the canvas has focus (`app.tsx`), never while typing in a field. With the background selected the
- * same can removes its source, as the background's own header used to, and never the row. Duplicate
- * stays at the end of the selected row. There is no deselect button: a click on empty canvas
+ * Both are in the Elements list, so the list is where elements are made, ordered and removed.
+ * "+ Add" in its bar offers every kind, media as an Image beside the layout or a cloud Video
+ * (`new-element.ts`); the new element goes on top and is selected at once. The selected row ends in
+ * Duplicate and then Delete, the red trash can the token panes also use for a removal nothing
+ * replaces; it asks once, inline, even though undo brings it back. The Delete and Backspace keys ask
+ * through the same confirm when the canvas has focus (`app.tsx`), never while typing in a field. The
+ * background's row has no delete: it is never removed as an element is, and its source is cleared in
+ * its own Content section (an empty `src`). There is no deselect button: a click on empty canvas
  * deselects, and so does Escape (`app.tsx`).
  *
  * ## Nothing appears or vanishes
@@ -101,7 +101,6 @@ import {
 } from './descriptors.js';
 import type { DraftState } from './draft.js';
 import {
-  clearBackground,
   numberFromInput,
   removeElementStyleToken,
   removeThemeToken,
@@ -170,6 +169,7 @@ export function Inspector({
         ? { kind: 'background', background: state.draft.background }
         : null;
   const entityGroup = useRef<HTMLElement>(null);
+  const elementsGroup = useRef<HTMLElement>(null);
   const inspector = useRef<HTMLDivElement>(null);
   const { target } = state.draft;
 
@@ -251,17 +251,11 @@ export function Inspector({
         <Group
           id="elements"
           title="Elements"
+          groupRef={elementsGroup}
           hint={`${state.draft.elements.length} · topmost first`}
           action={
             <div className="perch-editor-group__actions">
               <AddMenu target={target} onAdd={onAdd} />
-              <DeleteLayer
-                subject={subject}
-                deleteAsked={deleteAsked}
-                onDeleteAsked={onDeleteAsked}
-                onDelete={onDelete}
-                onEdit={onEdit}
-              />
             </div>
           }
         >
@@ -274,6 +268,10 @@ export function Inspector({
             onMove={onMove}
             onEdit={onEdit}
             onDuplicate={onDuplicate}
+            onDelete={onDelete}
+            deleteAsked={deleteAsked}
+            onDeleteAsked={onDeleteAsked}
+            focusOnClose={elementsGroup}
           />
         </Group>
 
@@ -401,67 +399,6 @@ function EntityHeader({ subject }: { readonly subject: Subject }): ReactNode {
         </span>
       </span>
     </div>
-  );
-}
-
-/**
- * Delete, in the Elements list's bar beside Add: the red trash can, acting on the selection, asking
- * once, inline, even though undo brings it back. For an element it deletes the element, and the
- * Delete and Backspace keys on the canvas ask through the same confirm (`deleteAsked`). For the
- * background it is what the background's header offered: its source goes and the theme's canvas
- * colour shows, and the row stays, since the background is never removed as an element is. With
- * nothing to delete it stays where it is, dimmed, saying why.
- */
-function DeleteLayer({
-  subject,
-  deleteAsked,
-  onDeleteAsked,
-  onDelete,
-  onEdit,
-}: {
-  readonly subject: Subject | null;
-  readonly deleteAsked: boolean;
-  readonly onDeleteAsked: (asked: boolean) => void;
-  readonly onDelete: (index: number) => void;
-  readonly onEdit: (update: LayoutUpdate) => void;
-}): ReactNode {
-  if (subject?.kind === 'element') {
-    const { element, index } = subject;
-
-    return (
-      <ResetButton
-        action="delete"
-        subject={`elements[${index}]`}
-        consequence={`the ${element.kind} and everything set on it go. undo brings them back.`}
-        ask="delete?"
-        confirming={deleteAsked}
-        onConfirming={onDeleteAsked}
-        onReset={() => {
-          onDelete(index);
-        }}
-      />
-    );
-  }
-
-  return (
-    <ResetButton
-      action="delete"
-      subject="the background"
-      consequence="its source, fit, opacity and eye go, and the canvas colour shows. undo brings them back."
-      ask="remove?"
-      confirming={deleteAsked}
-      onConfirming={onDeleteAsked}
-      unavailable={
-        subject === null
-          ? 'nothing to delete: select a layer first'
-          : subject.background === undefined
-            ? 'nothing to delete: the background has no source'
-            : undefined
-      }
-      onReset={() => {
-        onEdit(clearBackground());
-      }}
-    />
   );
 }
 
@@ -719,7 +656,7 @@ const NO_TOKENS: Readonly<Record<string, string>> = Object.freeze({});
 const NO_BACKGROUND = 'none';
 
 /** Why the background row is never dragged or dropped on, as its tooltip says. */
-const BACKGROUND_LOCKED = 'locked: always the lowest layer, under every element';
+const BACKGROUND_LOCKED = 'locked: always lowest, under every element';
 
 /** A padlock: the background row cannot be moved. Decoration; the row says so in words too. */
 function LockGlyph(): ReactNode {
@@ -865,9 +802,24 @@ function ElementList({
   onMove,
   onEdit,
   onDuplicate,
-}: Pick<
+  onDelete,
+  deleteAsked,
+  onDeleteAsked,
+  focusOnClose,
+}: {
+  /** Where focus goes from a row that is leaving: a deleted element's, its confirm focused. */
+  readonly focusOnClose: RefObject<HTMLElement | null>;
+} & Pick<
   InspectorProps,
-  'state' | 'selected' | 'onSelect' | 'onMove' | 'onEdit' | 'onDuplicate'
+  | 'state'
+  | 'selected'
+  | 'onSelect'
+  | 'onMove'
+  | 'onEdit'
+  | 'onDuplicate'
+  | 'onDelete'
+  | 'deleteAsked'
+  | 'onDeleteAsked'
 >): ReactNode {
   const { background } = state.draft;
   const { rows, exited } = usePresence(state.draft.elements);
@@ -902,6 +854,7 @@ function ElementList({
           as="li"
           open={present}
           appear={arrived}
+          focusOnClose={focusOnClose}
           onExited={() => {
             exited(key);
           }}
@@ -967,7 +920,23 @@ function ElementList({
                 {describeElement(element)}
               </span>
             </button>
-            {index === selected && present ? <DuplicateButton onDuplicate={onDuplicate} /> : null}
+            {index === selected && present ? (
+              <>
+                <DuplicateButton onDuplicate={onDuplicate} />
+                <ResetButton
+                  action="delete"
+                  label="Delete element"
+                  subject={`elements[${index}]`}
+                  consequence={`the ${element.kind} and everything set on it go. undo brings them back.`}
+                  ask="delete?"
+                  confirming={deleteAsked}
+                  onConfirming={onDeleteAsked}
+                  onReset={() => {
+                    onDelete(index);
+                  }}
+                />
+              </>
+            ) : null}
           </div>
         </Collapse>
       ))}
@@ -1012,7 +981,7 @@ function ElementList({
             </span>
           </button>
           {selected === BACKGROUND_SELECTED && background !== undefined ? (
-            <DuplicateButton onDuplicate={onDuplicate} copyIs="a media layer just above it" />
+            <DuplicateButton onDuplicate={onDuplicate} copyIs="a media element just above it" />
           ) : null}
         </div>
       </li>
@@ -1166,7 +1135,8 @@ body.perch-dragging, body.perch-dragging * { cursor: grabbing !important; user-s
 .perch-editor-element__glyph { flex: 0 0 1em; color: var(--ed-quiet); text-align: center; }
 .perch-editor-element__kind { flex: 0 0 3.6em; color: var(--ed-quiet); }
 .perch-editor-element__summary { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.perch-editor-layer { display: flex; align-items: center; min-width: 0; }
+/* Positioned: a row's delete confirm floats over the row, right-aligned, as it does over any row. */
+.perch-editor-layer { position: relative; display: flex; align-items: center; min-width: 0; }
 .perch-editor-layer > .perch-editor-element { flex: 1 1 auto; min-width: 0; }
 .perch-editor-layer[data-perch-hidden='true'] > .perch-editor-element { color: var(--ed-faint); }
 .perch-editor-layer--background .perch-editor-element__kind { flex-basis: 5.6em; }

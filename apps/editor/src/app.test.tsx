@@ -570,11 +570,11 @@ describe('the selection header and the sections', () => {
     expect(header).toHaveTextContent('readout');
     expect(header).toHaveTextContent('widget');
     expect(header).toHaveTextContent('sensors/cpu/0/temperature/0');
-    // Delete is in the Elements list's bar; deselecting is Escape or empty canvas.
+    // Delete is on the selected row of the Elements list; deselecting is Escape or empty canvas.
     expect(within(header).queryByRole('button')).toBeNull();
     expect(
       within(result.getByRole('region', { name: 'Elements' })).getByRole('button', {
-        name: /^delete elements\[1\]/,
+        name: 'Delete element',
       }),
     ).toBeInTheDocument();
   });
@@ -806,11 +806,11 @@ describe('adding an element', () => {
 });
 
 describe('deleting an element', () => {
-  it('asks once, inline in the header, then deletes and selects nothing', () => {
+  it('asks once, inline on the row, then deletes and selects nothing', () => {
     const { result } = renderEditor();
     selectElement(result, 1);
 
-    fireEvent.click(result.getByRole('button', { name: /^delete elements\[1\]/ }));
+    fireEvent.click(result.getByRole('button', { name: 'Delete element' }));
     // Asked, not done: the first press only asks.
     expect(elementCount(result)).toBe(2);
     const ask = result.getByRole('group', { name: /delete elements\[1\]/ });
@@ -826,7 +826,7 @@ describe('deleting an element', () => {
     const { result } = renderEditor();
     selectElement(result, 1);
 
-    fireEvent.click(result.getByRole('button', { name: /^delete elements\[1\]/ }));
+    fireEvent.click(result.getByRole('button', { name: 'Delete element' }));
     fireEvent.click(result.getByRole('button', { name: /^keep elements\[1\]/ }));
 
     expect(elementCount(result)).toBe(2);
@@ -920,7 +920,7 @@ describe('deselecting with Escape', () => {
   it('only backs out of a delete confirm on Escape, handing focus back to the trash can', () => {
     const { result } = renderEditor();
     selectElement(result, 1);
-    fireEvent.click(result.getByRole('button', { name: /^delete elements\[1\]/ }));
+    fireEvent.click(result.getByRole('button', { name: 'Delete element' }));
     const confirm = within(result.getByRole('group', { name: /delete elements\[1\]/ })).getByRole(
       'button',
       { name: /^confirm/ },
@@ -931,25 +931,27 @@ describe('deselecting with Escape', () => {
 
     expect(result.queryByRole('group', { name: /delete elements\[1\]/ })).toBeNull();
     expect(header(result)).toBeInTheDocument();
-    expect(result.getByRole('button', { name: /^delete elements\[1\]/ })).toHaveFocus();
+    expect(result.getByRole('button', { name: 'Delete element' })).toHaveFocus();
     expect(elementCount(result)).toBe(2);
   });
 });
 
 describe('the element delete', () => {
-  it('is the red trash can, named and titled with what it deletes, with no deselect beside it', () => {
+  it('is the red trash can, "Delete element", its confirm naming what goes, with no deselect beside it', () => {
     const { result } = renderEditor();
     selectElement(result, 1);
-    const destroy = within(result.getByRole('region', { name: 'Elements' })).getByRole('button', {
-      name: /^delete elements\[1\]/,
-    });
+    const elements = within(result.getByRole('region', { name: 'Elements' }));
+    const destroy = elements.getByRole('button', { name: 'Delete element' });
 
-    expect(destroy).toHaveAccessibleName(
-      'delete elements[1]. the widget and everything set on it go. undo brings them back.',
+    expect(destroy).toHaveAttribute('data-perch-tip', 'Delete element');
+    fireEvent.click(destroy);
+    expect(elements.getByRole('button', { name: /^confirm/ })).toHaveAccessibleName(
+      'confirm: delete elements[1]. the widget and everything set on it go. undo brings them back.',
     );
-    expect(destroy).toHaveAttribute('data-perch-tip', destroy.getAttribute('aria-label'));
-    expect(destroy).toHaveClass('perch-reset--delete');
-    expect(destroy.querySelector('svg[data-perch-glyph="trash"]')).not.toBeNull();
+    fireEvent.keyDown(elements.getByRole('button', { name: /^confirm/ }), { key: 'Escape' });
+    const kept = elements.getByRole('button', { name: 'Delete element' });
+    expect(kept).toHaveClass('perch-reset--delete');
+    expect(kept.querySelector('svg[data-perch-glyph="trash"]')).not.toBeNull();
     expect(result.queryByRole('button', { name: /^deselect/i })).toBeNull();
   });
 });
@@ -980,7 +982,7 @@ describe('motion in the sidebar', () => {
     withDuration();
     const { result } = renderEditor();
     selectElement(result, 1);
-    fireEvent.click(result.getByRole('button', { name: /^delete elements\[1\]/ }));
+    fireEvent.click(result.getByRole('button', { name: 'Delete element' }));
     fireEvent.click(result.getByRole('button', { name: /^confirm: delete elements\[1\]/ }));
 
     // The canvas is not animated: the element is gone from it at once.
@@ -995,13 +997,9 @@ describe('motion in the sidebar', () => {
     // Element 1 was the topmost, so its row is the list's first.
     expect(rows[0]).toHaveAttribute('inert');
     expect(elementCount(result)).toBe(1);
-    // Focus was on the confirm: it goes back to the trash can, which now has nothing to delete,
-    // rather than onto the page.
-    expect(
-      within(result.getByRole('region', { name: 'Elements' })).getByRole('button', {
-        name: /^nothing to delete/,
-      }),
-    ).toHaveFocus();
+    // Focus was on the confirm, in the row now leaving: it goes to the Elements group, rather than
+    // onto the page.
+    expect(result.getByRole('region', { name: 'Elements' })).toHaveFocus();
 
     finish(result);
     expect(result.queryByTestId('perch-editor-selection')).toBeNull();
