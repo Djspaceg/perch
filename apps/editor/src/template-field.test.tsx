@@ -3,13 +3,20 @@
  * caret, the preview paints it live, and a malformed template is refused by character.
  */
 
-import { LAYOUT_SCHEMA_VERSION, type Layout } from '@perch/layout-schema';
+import { LAYOUT_SCHEMA_VERSION, readoutTemplate, type Layout } from '@perch/layout-schema';
 import { createMockSource } from '@perch/sensor-sources';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { Editor } from './app.js';
 import { createLayoutLibrary } from './layout-library.js';
-import { CLOCK_PLACEHOLDERS, insertAt } from './template-field.js';
+import {
+  CLOCK_PLACEHOLDERS,
+  asReadout,
+  insertAt,
+  sensorAt,
+  withFilter,
+  wrapInStyle,
+} from './template-field.js';
 
 const LAYOUT: Layout = {
   schemaVersion: LAYOUT_SCHEMA_VERSION,
@@ -106,5 +113,94 @@ describe('the text field as a template', () => {
 
     expect(result.container.textContent).toContain('at character 5: unknown token "mmm"');
     expect(painted(result)).toBe('fan ');
+  });
+});
+
+const FAN = 'sensors/cooler/0/fan/0';
+
+describe('the annotation edits', () => {
+  it('wraps the selection in a style span, or opens an empty one at the caret', () => {
+    expect(wrapInStyle('a 12 V', 2, 4, 'value')).toEqual({
+      text: 'a {#value}12{/value} V',
+      caret: 20,
+    });
+    expect(wrapInStyle('ab', 1, 1, 'unit')).toEqual({ text: 'a{#unit}{/unit}b', caret: 8 });
+  });
+
+  it('finds the sensor placeholder at the caret, inside it or just after it', () => {
+    const text = `x {${FAN} | fixed:0 || -} {time}`;
+    expect(sensorAt(text, 5)?.topic).toBe(FAN);
+    expect(sensorAt(text, text.indexOf(' {time}'))?.topic).toBe(FAN);
+    expect(sensorAt(text, text.length - 1)).toBeNull();
+    expect(sensorAt(text, 0)).toBeNull();
+  });
+
+  it('adds a filter before any fallback, once', () => {
+    const text = `x {${FAN} | fixed:0 || -} y`;
+    expect(withFilter(text, 5, 'fit')).toEqual({
+      text: `x {${FAN} | fixed:0 | fit || -} y`,
+      caret: `x {${FAN} | fixed:0 | fit || -}`.length,
+    });
+    expect(withFilter(`{${FAN} | fit}`, 3, 'fit')?.text).toBe(`{${FAN} | fit}`);
+    expect(withFilter('plain', 2, 'fit')).toBeNull();
+  });
+
+  it('turns the sensor at the caret into a readout', () => {
+    expect(asReadout(`a {${FAN}} b`, 4)?.text).toBe(`a ${readoutTemplate(FAN)} b`);
+    expect(asReadout('{time}', 2)).toBeNull();
+  });
+});
+
+describe('the Style tab', () => {
+  const openStyle = (caret: number): HTMLElement => {
+    textField().setSelectionRange(caret, caret);
+    openPicker();
+    fireEvent.click(screen.getByRole('tab', { name: 'Style' }));
+    return screen.getByRole('dialog', { name: 'insert a placeholder' });
+  };
+
+  it('adds fit to the sensor at the caret, and the preview fits it', () => {
+    const { result } = renderEditor();
+    fireEvent.change(textField(), { target: { value: `fan {${FAN}}` } });
+
+    fireEvent.click(within(openStyle(6)).getByRole('button', { name: /^\| fit/ }));
+
+    expect(textField().value).toBe(`fan {${FAN} | fit}`);
+    expect(result.getByTestId('perch-canvas').querySelector('.perch-text__fit')).not.toBeNull();
+  });
+
+  it('turns the sensor at the caret into a readout, label, number and note', () => {
+    const { result } = renderEditor();
+    fireEvent.change(textField(), { target: { value: `{${FAN}}` } });
+
+    fireEvent.click(within(openStyle(2)).getByRole('button', { name: /^readout/ }));
+
+    expect(textField().value).toBe(readoutTemplate(FAN));
+    const canvas = result.getByTestId('perch-canvas');
+    expect(canvas.querySelector('.perch-text__style--label')).not.toBeNull();
+    expect(canvas.querySelector('.perch-text__note')?.textContent).toBe('waiting');
+  });
+
+  it('wraps the selection in a style', () => {
+    const { result } = renderEditor();
+    textField().setSelectionRange(0, 3);
+    openPicker();
+    fireEvent.click(screen.getByRole('tab', { name: 'Style' }));
+
+    fireEvent.click(screen.getByRole('button', { name: /^\{#label\}/ }));
+
+    expect(textField().value).toBe('{#label}fan{/label} ');
+    expect(
+      result.getByTestId('perch-canvas').querySelector('.perch-text__style--label')?.textContent,
+    ).toBe('fan');
+  });
+
+  it('offers the sensor filters only with the caret in a sensor, and says so', () => {
+    renderEditor();
+    const dialog = openStyle(0);
+
+    expect(within(dialog).getByRole('button', { name: /^\| fit/ })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: /^readout/ })).toBeDisabled();
+    expect(dialog.textContent).toContain('put the caret in a {sensors/...} placeholder');
   });
 });
