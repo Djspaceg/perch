@@ -157,10 +157,13 @@ export function usePopover(
   }, [open, close, anchorRef, popoverRef]);
 
   // Opened, focus goes in: a keyboard user pressed Enter on the anchor in order to use what it opens.
+  // Once placed, not before: for its first frame the box is `visibility: hidden` while it is
+  // measured, and a browser will not focus anything inside a hidden box.
+  const placed = position !== null;
   useEffect(() => {
-    if (!open) return;
+    if (!open || !placed) return;
     popoverRef.current?.querySelector<HTMLElement>('[tabindex="0"], input, button')?.focus();
-  }, [open, popoverRef]);
+  }, [open, placed, popoverRef]);
 
   return {
     open,
