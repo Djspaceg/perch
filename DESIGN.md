@@ -509,6 +509,7 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 - **Properties**: only height and opacity change.
 - **Focus**: a closing region is inert, and any focus inside it moves somewhere sensible.
 - **Changing what is selected**: sections have stable names, so a section two selections share stays where it is, folded or open, and only its values change. Sections and rows that do not carry over shrink away while the new ones grow, in the same 180ms. Nothing scrolls.
+- **Sideways, once**: Transform's content alignment grid folds out sideways when the selection has no placement, and back in when it does, by its column in the same 180ms; it is the one region that moves sideways, because the fields beside it take its width.
 - **Reduced motion**: `prefers-reduced-motion` makes every change instant.
 - **Disclosure triangles** turn in 80ms.
 
@@ -516,7 +517,9 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 - `panel` holds groups, each headed by an uppercase `{typography.group-title}` bar.
 - `section-bar` is a raised 22px header. Its title is the disclosure button, with a quiet triangle beside it.
 - `section-summary` sits at the right edge of the header and truncates first. It turns `section-summary-set` when anything inside the section is set.
-- A header can end in actions for what the section holds. The Elements list is the first section of Selected entity, above the selected entity's own sections, and its header carries Add and Delete. Delete acts on the selection and is dimmed when nothing is selected. Its confirm floats over the header.
+- The panel's groups, top to bottom: **Global** (each of its panels titled "Global ...": Global Target, Global Clock, Global Appearance and so on), **Elements**, then **Selected entity**, which opens with the selection header.
+- **No category filter.** Every section is always listed; its disclosure triangle is what hides it. The Customize and Developer tabs switch what a token pane shows, and its search filters by text; neither is a category filter.
+- **Drag handle.** Every top-level section of Global and of Selected entity has a six-dot grip just before its triangle, faint until hovered. Dragging it moves the section: a 0.3-opacity copy of its header follows the pointer, and a 2px Primary line marks the gap it will drop into. Escape lets go. With the grip focused, Alt+ArrowUp and Alt+ArrowDown move it one place. Sections move only within their group, and the order is remembered per group; the selected entity's order is one order for every element.
 - **States**:
   - Hover brightens the title to `{colors.heading-hover}`.
   - Focus shows an inset ring.
@@ -529,6 +532,7 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 - **Inherited** (`property-row-inherited`): a hollow `source-mark-inherited` and a tinted label.
 - **Default**: plain.
 - The property's description is the label's tooltip and the control's accessible description, never a line under the row.
+- **Stacked** (`property-row-stacked`): prose and templates, a text element's text, have no label column. The label is a line of its own above, and the field spans the row and grows with the sidebar. The `{}` insert button sits at the field's top-right; the field resizes vertically.
 
 ### Text and number field
 - `text-field` is a 20px recessed well.
@@ -544,6 +548,7 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 ### Select and segmented control
 - **Few closed options**: a `segmented-control`, one well split by 1px dividers, with the checked option in `segmented-option-checked` and arrow keys to move the choice.
 - **Long closed lists**: a native select, styled as a text field.
+- **Long closed lists that can hold a value they leave out** (the layout clock's locale and time zone): a searchable dropdown. The field shows the choice's words; it opens a popover with a search and the list, the choice marked and in view, "System default" first. A stored value the list lacks is listed after System default and stays selected; a search that matches nothing but is itself a valid value is offered as "use ...".
 - **Open vocabularies**: stay as text fields with suggestions, because a closed list cannot show a value it doesn't contain.
 
 ### Buttons
@@ -555,6 +560,7 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 ### Chip and search
 - `search-field` is an 18px pill that matches every word typed. Escape clears it.
 - `chip` is an 18px toggle in a named group. A pressed chip becomes `chip-pressed`.
+- A chip is as wide as its whole label and never truncates. The strip is one line that scrolls sideways when the chips do not fit: a trackpad swipe, a vertical mouse wheel, or focus. The edge with more chips past it fades out.
 - Chips and search filter the same list. A search opens the sections that match it.
 
 ### Swatch and colour input
@@ -564,7 +570,7 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 
 ### Popover
 - `popover` is anchored to its control and flips or pins to stay on screen.
-- It takes focus when it opens.
+- It takes focus when it opens, once it is placed (it is hidden for the one frame it is measured in).
 - Escape, or a press outside, closes it; Escape returns focus to the anchor.
 
 ### Template insert
@@ -574,8 +580,17 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 - Whatever is inserted, the field's validator judges the result as it would typing, and the preview paints it live.
 
 ### List row
-- `list-row` shows a faint index, a quiet kind and a truncating summary. It hovers to `{colors.hover}`; selected is `list-row-selected`.
+- `list-row` (the Elements list, after Photoshop's Layers palette): the eye in a fixed first column, a 16px kind glyph or thumbnail (T, a chart line, a gauge for a reading, an image's own picture or a picture glyph), the truncating name, and the element's index, faint, at the right. It hovers to `{colors.hover}`; selected is `list-row-selected`, and ends in Duplicate and Delete.
+- **The background row** is last: "Background" in italics, its source quiet after it, a lock at the right edge, and no delete (its source is cleared in its Content section).
+- **Above the list**: a "Kind" label with Text, Media, Chart and Reading toggles, which list only the kinds pressed (the background stays) and title the panel "Elements (filtered)", with a clear while any is on; and beside them the selected element's opacity, the same scrubbing field as its Appearance row.
+- **Panel options**: a three-line button in the Elements bar opens a menu: Show thumbnails, Clear kind filter, Reset panel order.
 - **Reordering**: a 2px Primary line marks where the row will drop, and the same move works from the keyboard.
+- Everything here says "element", never "layer".
+
+### Transform
+- One block: the content alignment grid at the left, x/y and w/h as two rows of fields beside it with no label column, and a caption under them giving the grid's value in words with its source mark and reset.
+- The grid is where the content sits inside the box (a text's lines, a readout's number), never where the box sits. Its name and tooltip say "Content alignment: left, top".
+- A kind with no placement shows only the fields, at the full width. Below 200px of block width the grid goes on its own row above the fields.
 
 ### Status indicator
 - `status-dot` is Faint when idle, Inherited while working, Success when good and Danger when lost. It always sits beside words.
@@ -633,7 +648,7 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 
 - **Media queries**: `prefers-color-scheme` picks the scheme, `prefers-reduced-motion` turns motion off, and `pointer: coarse` grows the targets. There are no width breakpoints: the sidebar is sized by the author and the window, and the header by what fits.
 - **Sidebar**: `{spacing.sidebar-width}` by default, resizable from `{spacing.sidebar-min}` to `{spacing.sidebar-max}`, foldable to `{spacing.sidebar-handle}`. It gives way so the work area keeps `{spacing.work-area-min}`, and in a window narrower than the two together it folds on its own.
-- **Rows**: nothing wraps at any width in the range. The label column scales with the row between 96px and 180px, labels truncate with an ellipsis, chips and read-outs shrink, and controls take what is left. Only prose wraps: an empty state, a help line, an error.
+- **Rows**: nothing wraps at any width in the range. The label column scales with the row between 96px and 180px, labels truncate with an ellipsis, read-outs shrink, chips scroll sideways rather than shrink, and controls take what is left. Only prose wraps: an empty state, a help line, an error, and a stacked text field.
 - **Small windows**: the header keeps one line by moving items into More. The sidebar folds. Popovers and tooltips stay on screen at any size.
 - **Touch**: under a coarse pointer only, rows grow to `{spacing.touch-row-height}`, fields to `{spacing.touch-field-height}` and every target to at least `{spacing.touch-target}` (WCAG 2.2, 2.5.8). A mouse keeps the density.
 

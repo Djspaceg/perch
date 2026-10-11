@@ -33,7 +33,8 @@ control is in the Settings window (Mod+Comma, or click the header's connection i
 
 The editor's settings live in one zustand store (`src/store.ts`), persisted to `localStorage` under
 `perch-editor`: the sensor host, which sidebar sections and Advanced folds are open, each token
-pane's tab and chip, and the layout last picked (`?layout=` still wins). The open draft and the
+pane's tab, the order the panels were dragged into, whether the Elements list shows thumbnails,
+and the layout last picked (`?layout=` still wins). The open draft and the
 selection are in the same store but never persisted, so a reload always opens the file on disk.
 With the Redux DevTools extension installed, every change shows on its timeline by name
 (`toggle/section`, `set/connectionHost`, `edit/draft`, ...).
@@ -68,8 +69,9 @@ text, theme tokens, media `src`/`fit`, widget/chart bindings and ranges), and
 and **adding and deleting** elements. "+ Add" in the Elements list's bar makes a
 live reading, a chart or a label, with a searchable sensor picker listing what
 the connected source has published (the same picker backs the topic field); the
-trash can beside it deletes the selection, asking once inline, and the Delete or
-Backspace key asks the same way when the canvas has focus. **Undo and redo** cover
+trash can at the end of the selected row, beside Duplicate, deletes that element,
+asking once inline, and the Delete or Backspace key asks the same way when the
+canvas has focus. **Undo and redo** cover
 every change to the layout (see [Undo](#undo)).
 **Cloud backgrounds** (docs/backgrounds.md): a media element's `background` row,
 and "+ Add" > Background (a full-canvas media element, first in paint order),
@@ -77,12 +79,18 @@ open a browser of Thermalright's catalogue in tabs, its cells shaped like the
 canvas; a pick downloads into the host's cache, then sets `src` to
 `thermalright:<id>` as one undoable edit. It needs a host with a cache: the
 desktop app, or `npm run dev`.
-The **Elements** list is a layers panel: the topmost element first. Drag a row
+The **Elements** list, after Photoshop's Layers palette, lists the topmost element
+first, each row with its eye, a kind glyph or thumbnail and its name; the Kind
+toggles above it list only some kinds, and the Opacity beside them is the
+selected element's. Its options menu (three lines) shows or hides thumbnails and
+resets the panel order. Drag a row
 to reorder it (a line marks where it lands, and the sidebar scrolls at its
 edges), or press Alt+Up / Alt+Down on a row; Cmd/Ctrl+] and [ move the selection
-a layer, with Shift to the front or back (KEYBINDINGS.md). Each move is one undo
+one place, with Shift to the front or back (KEYBINDINGS.md). Each move is one undo
 step and keeps the element selected. Every element has an **Opacity**, first in
 its Appearance.
+Every panel of Global and of Selected entity has a grip before its triangle:
+drag it, or press Alt+Up / Alt+Down on it, to reorder the panels of that group.
 Escape, or a click on empty canvas, deselects. The sidebar's sections, the
 selected entity's controls, the element rows and the delete confirm slide open
 and shut rather than jumping (instant under `prefers-reduced-motion`).

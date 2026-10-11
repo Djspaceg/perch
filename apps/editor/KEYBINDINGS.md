@@ -12,7 +12,7 @@ for a shortcut.
 
 A **local key** is part of how one control works and means nothing outside it: arrows, Home/End and
 PageUp/PageDown in a number field, tab strip, segmented control or placement grid; Alt+ArrowUp
-and Alt+ArrowDown on a row of the Elements list, which move that element a layer up or down the
+and Alt+ArrowDown on a row of the Elements list, which move that element one place up or down the
 list (forward or backward in paint order) and keep focus on it; Enter to commit
 a field or connect; Escape to clear a search box, close a popover or back out of a delete confirm.
 Local keys stay in the control's own `onKeyDown` (or, for a popover, its own listener), are not in
@@ -142,7 +142,7 @@ replaces that command's defaults on every platform. `[]` unbinds it; absence mea
 | `selection.bringToFront` | Bring to front          | canvas, sidebar | ⇧⌘]   | Ctrl+Shift+]         |
 | `selection.sendToBack`   | Send to back            | canvas, sidebar | ⇧⌘[   | Ctrl+Shift+[         |
 
-`selection.delete` asks first, through the confirm of the Elements list's trash can. `selection.clear` acts only
+`selection.delete` asks first, through the confirm of the selected row's trash can in the Elements list. `selection.clear` acts only
 while something is selected, and so do the four layer commands, which do nothing past the top or the
 bottom. Each move is one undo step, and the selection stays on the element that moved.
 `selection.duplicate` copies the selected layer directly above itself and selects the copy, as one
