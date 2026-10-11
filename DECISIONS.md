@@ -5210,3 +5210,40 @@ Push: none, local main only (human's standing rule). No CR and no AutoSDE: GitHu
 ## Residuals
 
 Local video was checked in jsdom and by unit tests of the protocol and CSP. Electron was not launched and the human's perch.app was not touched. Another worker's desktop icon edits were staged in the same checkout. They are not in these commits.
+
+# Sidebar: Elements list first, Add and Delete in it, stable sections - decisions
+
+## Outcome
+Elements list now sits above the selected entity, with + Add and Delete in its bar. Switching selection keeps shared sections mounted in place; the rest collapse away or grow in. Commit 866f79b, local main, not pushed.
+
+## Decisions to evaluate
+- D1 Global (target, theme) stays first. Elements is the first section of Selected entity, directly above the header. Why: the list is how you pick an entity; the theme is mostly folded. If overruled: move Elements above Global (one block in inspector.tsx).
+- D2 Add and Delete sit at the right of the Elements bar. Duplicate stays at the end of the selected row. Why: the bar fits both, even folded; Duplicate's row spot was built last round. If overruled: move Duplicate to the bar or Delete to the row.
+- D3 With nothing selected, Delete stays visible but dimmed and aria-disabled, with a tip. Why: the bar keeps its shape, and focus from the confirm has somewhere to land after a delete. If overruled: hide it.
+- D4 With the background selected, Delete removes its source after a "remove?" confirm, as the background header did before. The row never goes; the Delete key still ignores the background. Why: the rules as built.
+- D5 Content stays one section; it is not split into Sensor/Text/Source. Rows inside it are keyed by label, so a row two entities share stays mounted and the rest animate. Why: keeps the names authors know. If overruled: split it in entitySections().
+- D6 The background's "Source" section is renamed "Content" (entity/content), the same section a media element uses. Why: same rows, so it stays mounted between them. If overruled: rename back; that switch then animates a swap.
+- D7 The token search still clears when the selection changes. Tab and folds carry over. Why: this keeps what the old key={index} did. If overruled: drop the searchFor prop.
+- D8 Choosing from inside the group (a list row, Add) no longer scrolls the group into view. Canvas selections still do. Why: the list is at the top of the group, so scrolling would move the clicked row away from the pointer.
+- D9 Token sections and rows that a search filters out now collapse instead of vanishing. Why: one mechanism (CollapseEach). If overruled: filter without it.
+
+## Open questions
+- Multi-select: the editor has none (single, background or none). Default: none built; deselect collapses (tested).
+- Remembered Developer tab: media to styled element swaps the panel at once, as a tab change does. Default: left.
+
+## Gate facts
+- Publish: local commit on main only. No push and no CR; the repo is on GitHub, so cr does not apply.
+- packages/*: none touched. New editor-internal props: Section.actions, ResetButton.unavailable (one caller each, inspector.tsx). New CollapseEach/useKeyedPresence: inspector.tsx, token-pane.tsx.
+- build: exit 0 (build.log). typecheck: exit 0 (typecheck.log). test: exit 0, 2729 tests, editor 917 (test.log).
+- Lint: my files are clean. The one repo error is in apps/desktop/src/packaging.test.ts, another worker's file (lint.log).
+- Adversarial review rounds: 0. code-review.md was waived by the brief.
+
+## Evidence
+- red-tests.log: 13 new tests before the change, 10 failing, 3 guards; a 14th (token-row arrival) came later.
+- (evidence) test.log, build.log, typecheck.log, lint.log: root gates on the final tree.
+- live-drive.log: headless Chromium, port 5417: per switch, what animates, what stays mounted, scroll 0 to 0; reduced motion settles at once.
+- live-mid-switch.png, live-confirm-bar.png: a frame mid-switch, and the delete confirm in the bar.
+
+## Residuals
+- Remount: none needed. Fields render from the draft; the box diagram's typed text is tied to the value it was typed against.
+- The Developer tab content hides Content/Transform, as before.
