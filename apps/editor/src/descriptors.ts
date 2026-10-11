@@ -533,3 +533,42 @@ const FRAME_RATE: ScalarProperty<Target> = {
 export function targetProperties(): readonly Property<Target>[] {
   return [TARGET_SIZE, FRAME_RATE];
 }
+
+/**
+ * Set or, with an empty field, remove the layout's `locale` or `timeZone`. Here rather than in
+ * `layout-edits.ts` only because these two edits arrived with their rows; they are as pure.
+ */
+function setLayoutClockField(field: 'locale' | 'timeZone', text: string): LayoutUpdate {
+  return (layout) => {
+    const { [field]: _dropped, ...rest } = layout;
+    const value = text.trim();
+    return value === '' ? rest : { ...rest, [field]: value };
+  };
+}
+
+const LOCALE: ScalarProperty<Layout> = {
+  kind: 'scalar',
+  id: 'locale',
+  label: 'locale',
+  description:
+    "The language the clock is written in, like en-GB or de-DE. Empty is the panel's own.",
+  spec: { kind: 'text' },
+  get: (layout) => layout.locale ?? '',
+  write: (text) => setLayoutClockField('locale', text),
+};
+
+const TIME_ZONE: ScalarProperty<Layout> = {
+  kind: 'scalar',
+  id: 'timeZone',
+  label: 'timeZone',
+  description:
+    "The time zone the clock reads, like Europe/London or UTC. Empty is the panel's own.",
+  spec: { kind: 'text' },
+  get: (layout) => layout.timeZone ?? '',
+  write: (text) => setLayoutClockField('timeZone', text),
+};
+
+/** The layout's clock settings, for every `{time}`-style token in its text. */
+export function clockProperties(): readonly Property<Layout>[] {
+  return [LOCALE, TIME_ZONE];
+}

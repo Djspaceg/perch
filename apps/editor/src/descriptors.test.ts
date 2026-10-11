@@ -4,10 +4,16 @@
  * which section. The primitives' behaviour is tested once, in `controls/`; nothing here re-tests it.
  */
 
-import { CHART_MAX_WINDOW_MS, CHART_MIN_WINDOW_MS, type LayoutElement } from '@perch/layout-schema';
+import {
+  CHART_MAX_WINDOW_MS,
+  CHART_MIN_WINDOW_MS,
+  LAYOUT_SCHEMA_VERSION,
+  type Layout,
+  type LayoutElement,
+} from '@perch/layout-schema';
 import { PERCH_TOKEN_LABELS } from '@perch/ui-kit';
 import { describe, expect, it } from 'vitest';
-import { entitySections, targetProperties, tokenSpec } from './descriptors.js';
+import { clockProperties, entitySections, targetProperties, tokenSpec } from './descriptors.js';
 
 describe('tokenSpec', () => {
   it('makes a padding or radius a box field of CSS shorthand, bounded in layout px', () => {
@@ -187,5 +193,25 @@ describe('entitySections', () => {
 describe('targetProperties', () => {
   it('is the canvas size as one vector row, then the frame rate', () => {
     expect(targetProperties().map((p) => p.id)).toEqual(['canvas', 'frameRate']);
+  });
+});
+
+describe('clockProperties', () => {
+  const layout: Layout = {
+    schemaVersion: LAYOUT_SCHEMA_VERSION,
+    target: { width: 10, height: 10, frameRate: 30 },
+    theme: {},
+    elements: [],
+  };
+
+  it('reads and writes the layout locale and time zone, and empty removes each', () => {
+    const [locale, zone] = clockProperties();
+    if (locale?.kind !== 'scalar' || zone?.kind !== 'scalar') throw new Error('expected two rows');
+
+    const set = zone.write('UTC', -1)(locale.write(' de-DE ', -1)(layout));
+    expect(set).toMatchObject({ locale: 'de-DE', timeZone: 'UTC' });
+    expect(locale.get(set)).toBe('de-DE');
+    expect('locale' in locale.write('', -1)(set)).toBe(false);
+    expect(zone.get(layout)).toBe('');
   });
 });
