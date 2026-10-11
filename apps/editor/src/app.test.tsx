@@ -584,17 +584,11 @@ describe('the selection header and the sections', () => {
     selectElement(result, 1);
     const entity = result.getByRole('region', { name: 'Selected entity' });
 
-    for (const name of [
-      'Transform',
-      'Content',
-      'Appearance',
-      'Placement',
-      'Typography',
-      'Colour',
-    ]) {
+    for (const name of ['Transform', 'Content', 'Appearance', 'Typography', 'Colour']) {
       expect(within(entity).getByRole('button', { name })).toHaveAttribute('aria-expanded');
     }
-    // Content, Transform, Appearance and Placement start open; the long lists start closed.
+    // Content, Transform and Appearance start open; the long lists start closed. Placement is in
+    // Transform, as its content alignment grid.
     expect(within(entity).getByRole('button', { name: 'Transform' })).toHaveAttribute(
       'aria-expanded',
       'true',

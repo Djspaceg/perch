@@ -79,7 +79,7 @@
  */
 
 import type { LayoutBackground, LayoutElement } from '@perch/layout-schema';
-import { assertNever } from '@perch/ui-kit';
+import { assertNever, type TokenGroup } from '@perch/ui-kit';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   Collapse,
@@ -129,7 +129,8 @@ import { PropertyView } from './property-view.js';
 import { LAYER_INDEX_ATTRIBUTE, useRowDrag, type RowDrag } from './row-drag.js';
 import { AddMenu, SensorCatalogueProvider } from './sensor-picker.js';
 import { BACKGROUND_SELECTED, NOTHING_SELECTED } from './store.js';
-import { TokenPane } from './token-pane.js';
+import { TokenPane, contentPlacement } from './token-pane.js';
+import { TRANSFORM_STYLES, TransformBlock } from './transform-block.js';
 
 /** The selection when there is none, and when it is the background, kept in the editor store. */
 export { BACKGROUND_SELECTED, NOTHING_SELECTED };
@@ -637,10 +638,31 @@ function EntityPanes({
               title={section.title}
               summary={summarise(section, element)}
             >
-              {propertyRows(section.properties, element, index, onEdit)}
+              {section.id === 'transform' ? (
+                <TransformBlock
+                  element={element}
+                  index={index}
+                  properties={section.properties}
+                  inherited={theme}
+                  onEdit={onEdit}
+                  onSet={(name, value) => {
+                    onEdit(setElementStyleToken(index, name, value));
+                  }}
+                  onRemove={(name) => {
+                    onEdit(removeElementStyleToken(index, name));
+                  }}
+                />
+              ) : (
+                propertyRows(section.properties, element, index, onEdit)
+              )}
             </Section>
           ),
         }));
+  // The content placement grid is drawn in Transform, so its token section is left out; unless the
+  // grid cannot show the value held, when the section's own rows are where it can be read.
+  const placed =
+    element !== undefined &&
+    contentPlacement(element.kind, styled ? (element.style ?? {}) : NO_TOKENS, theme) !== undefined;
 
   const opacity = element?.opacity ?? background?.opacity;
   // The background's opacity is only there to set once it has a source.
@@ -681,6 +703,7 @@ function EntityPanes({
         tokens={styled ? (element.style ?? {}) : NO_TOKENS}
         inherited={theme}
         sectionsOpen={['appearance', 'placement']}
+        omitGroups={placed ? PLACED_GROUPS : NO_GROUPS}
         disclosureKey="style"
         panels="entity"
         leading={sections}
@@ -707,6 +730,10 @@ function EntityPanes({
     </>
   );
 }
+
+/** The token sections an element's Transform draws instead, and none. */
+const PLACED_GROUPS: readonly TokenGroup[] = Object.freeze(['placement']);
+const NO_GROUPS: readonly TokenGroup[] = Object.freeze([]);
 
 /** No kind filter: every element listed. */
 const NO_KINDS: ReadonlySet<FilterKind> = new Set();
@@ -1108,6 +1135,7 @@ export function describeElement(element: LayoutElement): string {
 }
 
 export const INSPECTOR_STYLES = `${ELEMENTS_PANEL_STYLES}
+${TRANSFORM_STYLES}
 .perch-editor-inspector {
   display: flex;
   flex-direction: column;

@@ -254,19 +254,21 @@ describe('sections across a change of selection', () => {
     expect(regionAround(result, 'Transform')).toHaveAttribute('data-perch-phase', 'open');
   });
 
-  it('grows in the token rows only the new kind reads, inside a section the two share', () => {
+  it('swaps the content alignment grid in place, inside the Transform the two share', () => {
     withDuration();
     const result = renderEditor();
     selectElement(result, 0);
     finish(result);
-    const placement = result.getByTestId('perch-editor-placement');
+    const transform = within(entity(result)).getByRole('region', { name: 'Transform' });
+    expect(within(transform).getAllByRole('radio')).toHaveLength(9);
     selectElement(result, 1);
 
-    // Placement is kept; the text's own placement grid arrives in it.
-    expect(result.getByTestId('perch-editor-placement')).toBe(placement);
-    const grid = result.getByTestId('perch-editor-placement-style-1---perch-text-justify');
-    expect(grid.closest('.perch-collapse')?.getAttribute('data-perch-phase')).toMatch(
-      /^(entering|opening)$/,
+    // Transform is kept; the text's own four-by-four grid is in it, the readout's three-by-three gone.
+    expect(within(entity(result)).getByRole('region', { name: 'Transform' })).toBe(transform);
+    expect(within(transform).getAllByRole('radio')).toHaveLength(16);
+    expect(transform.querySelector('.perch-transform__grid')).toHaveAttribute(
+      'data-perch-open',
+      'true',
     );
   });
 

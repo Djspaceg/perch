@@ -20,12 +20,15 @@ export interface AlignAxis {
 export function AlignGrid({
   label,
   labelledBy,
+  tip,
   across,
   down,
   onPick,
 }: {
   readonly label?: string | undefined;
   readonly labelledBy?: string | undefined;
+  /** The grid's own tooltip, for what the cells' positions mean together. */
+  readonly tip?: string | undefined;
   readonly across: AlignAxis;
   readonly down: AlignAxis;
   readonly onPick: (across: string, down: string) => void;
@@ -42,6 +45,7 @@ export function AlignGrid({
       role="radiogroup"
       style={{ gridTemplateColumns: `repeat(${columns}, var(--ed-control))` }}
       {...(labelledBy === undefined ? { 'aria-label': label } : { 'aria-labelledby': labelledBy })}
+      {...(tip === undefined ? {} : { 'data-perch-tip': tip })}
     >
       {down.options.map((row, rowIndex) =>
         across.options.map((column, columnIndex) => {

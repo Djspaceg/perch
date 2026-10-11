@@ -135,6 +135,11 @@ export interface TokenPaneProps {
    * into the next. The tab and the folds are remembered under `disclosureKey` and do carry over.
    */
   readonly searchFor?: string;
+  /**
+   * Token sections drawn somewhere else, left out here: an element's Placement, whose grid is in its
+   * Transform (`transform-block.tsx`). The Developer tab still lists their keys.
+   */
+  readonly omitGroups?: readonly TokenGroup[];
 }
 
 const TABS: readonly TabSpec<TokenTab>[] = Object.freeze([
@@ -169,7 +174,7 @@ function rowTestId(pane: string, name: string): string {
 }
 
 /** Everything a row needs to know about one token on one surface. */
-interface TokenState {
+export interface TokenState {
   readonly name: KnownToken;
   readonly entry: TokenLabel;
   readonly override: string | undefined;
@@ -232,6 +237,7 @@ export function TokenPane({
   disclosureKey,
   styled = true,
   searchFor,
+  omitGroups = NO_GROUPS,
 }: TokenPaneProps): ReactNode {
   const key = disclosureKey ?? id;
   const rememberedTab = useEditorStore((state) => state.settings.tabs[key]) ?? 'customize';
@@ -275,6 +281,7 @@ export function TokenPane({
               scope={scope}
               leading={leading}
               panels={panels ?? id}
+              omitGroups={omitGroups}
               known={known}
               lead={lead}
               tokens={tokens}
@@ -304,6 +311,43 @@ export function TokenPane({
   );
 }
 
+const NO_GROUPS: readonly TokenGroup[] = Object.freeze([]);
+
+/** Both halves of the content placement an element kind reads, as a Customize grid shows them. */
+export interface ContentPlacement {
+  readonly across: TokenState;
+  readonly down: TokenState;
+}
+
+/**
+ * The content placement pair `kind` reads — a text's or a readout's — with each half's value,
+ * source and reset; `undefined` for a kind with none (media, a chart).
+ */
+export function contentPlacement(
+  kind: ElementKind,
+  tokens: Readonly<Record<string, string>>,
+  inherited: Readonly<Record<string, string>> | undefined,
+): ContentPlacement | undefined {
+  const across = tokensFor('element', kind).find((name) => {
+    const entry = PERCH_TOKEN_LABELS[name];
+    return entry.group === 'placement' && entry.placement?.axis === 'across';
+  });
+  const pair = across === undefined ? undefined : PERCH_TOKEN_LABELS[across].placement?.pair;
+  if (across === undefined || pair === undefined) return undefined;
+  const acrossState = stateOf(across, 'element', tokens, inherited);
+  const downState = stateOf(pair, 'element', tokens, inherited);
+  // A value the grid cannot show (a hand-written flex-start on a readout) is left to the Developer
+  // tab and the token's own rows, as the Customize grid does.
+  if (
+    !(acrossState.entry.options ?? []).includes(acrossState.value) ||
+    !(downState.entry.options ?? []).includes(downState.value)
+  ) {
+    return undefined;
+  }
+
+  return { across: acrossState, down: downState };
+}
+
 /** Whether a token's section starts open. */
 function opensByDefault(group: TokenGroup, sectionsOpen: boolean | readonly TokenGroup[]): boolean {
   return typeof sectionsOpen === 'boolean' ? sectionsOpen : sectionsOpen.includes(group);
@@ -318,6 +362,7 @@ function CustomizeSections({
   scope,
   leading,
   panels,
+  omitGroups,
   known,
   lead,
   tokens,
@@ -334,6 +379,7 @@ function CustomizeSections({
   readonly scope: TokenScope;
   readonly leading: readonly CollapseEntry[];
   readonly panels: string;
+  readonly omitGroups: readonly TokenGroup[];
   readonly known: readonly KnownToken[];
   readonly styled: boolean;
   readonly lead: readonly LeadRow[];
@@ -348,6 +394,7 @@ function CustomizeSections({
 }): ReactNode {
   const searching = query.trim() !== '';
   const sections = TOKEN_GROUPS.flatMap(({ group, title }) => {
+    if (omitGroups.includes(group)) return [];
     const names = known.filter((name) => PERCH_TOKEN_LABELS[name].group === group);
     // Search by label, description and section title — never the raw name, which this tab never
     // shows. A placement pair is one grid, so one half matching keeps both.
