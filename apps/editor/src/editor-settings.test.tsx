@@ -101,13 +101,13 @@ describe('the editor over a remembered store', () => {
   it('reopens with the same folded sections, tab and chip', () => {
     const storage = memoryStorage();
     const first = renderEditor(storage);
-    fireEvent.click(toggle('Target'));
-    fireEvent.click(toggle('Typography'));
+    fireEvent.click(toggle('Global Target'));
+    fireEvent.click(toggle('Global Typography'));
     first.unmount();
 
     const second = renderEditor(storage);
-    expect(toggle('Target')).toHaveAttribute('aria-expanded', 'false');
-    expect(toggle('Typography')).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle('Global Target')).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle('Global Typography')).toHaveAttribute('aria-expanded', 'true');
     fireEvent.click(globalTab('Developer'));
     second.unmount();
 

@@ -104,6 +104,11 @@ export interface TokenPaneProps {
    * in its Appearance. Searched by label and description like a token row, and counted when `set`.
    */
   readonly lead?: readonly LeadRow[];
+  /**
+   * Put before each token section's title: the layout's are `Global Colour`, so a folded column of
+   * them says whose they are next to the selected entity's own `Colour`.
+   */
+  readonly titlePrefix?: string;
   /** Category chips under the tabs, one per `TOKEN_GROUPS` entry. */
   readonly chips?: boolean;
   /** Which token sections start open: all (`true`, the default), none, or the ones named. */
@@ -223,6 +228,7 @@ export function TokenPane({
   leading,
   lead = [],
   chips = false,
+  titlePrefix = '',
   sectionsOpen = true,
   disclosureKey,
   styled = true,
@@ -288,6 +294,7 @@ export function TokenPane({
               inherited={inherited}
               query={query}
               chip={chip}
+              titlePrefix={titlePrefix}
               sectionsOpen={sectionsOpen}
               disclosureKey={key}
               styled={styled}
@@ -326,6 +333,7 @@ function CustomizeSections({
   inherited,
   query,
   chip,
+  titlePrefix,
   sectionsOpen,
   disclosureKey,
   styled,
@@ -341,6 +349,7 @@ function CustomizeSections({
   readonly inherited: Readonly<Record<string, string>> | undefined;
   readonly query: string;
   readonly chip: string;
+  readonly titlePrefix: string;
   readonly sectionsOpen: boolean | readonly TokenGroup[];
   readonly disclosureKey: string;
   readonly onSet: (name: string, value: string) => void;
@@ -381,7 +390,7 @@ function CustomizeSections({
         node: (
           <Section
             id={`${disclosureKey}/${group}`}
-            title={title}
+            title={`${titlePrefix}${title}`}
             defaultOpen={opensByDefault(group, sectionsOpen)}
             forceOpen={searching || chip === group}
             summary={

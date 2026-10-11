@@ -57,7 +57,7 @@ describe('the layout clock rows', () => {
 
   it('shows the layout locale and time zone under Global', () => {
     renderEditor();
-    const global = within(screen.getByRole('region', { name: /^Global/ }));
+    const global = within(screen.getByRole('region', { name: 'Global' }));
 
     expect(global.getByTestId('perch-editor-prop-locale')).toBeInTheDocument();
     expect(field('locale').value).toBe('en-US');

@@ -200,6 +200,7 @@ export function Inspector({
             scope="layout"
             tokens={state.draft.theme}
             chips
+            titlePrefix="Global "
             sectionsOpen={false}
             disclosureKey="theme"
             onSet={(name, value) => {
@@ -212,7 +213,7 @@ export function Inspector({
               <>
                 <Section
                   id="global/target"
-                  title="Target"
+                  title="Global Target"
                   summary={`${target.width} × ${target.height} · ${target.frameRate} fps`}
                 >
                   {targetProperties().map((property) => (
@@ -228,7 +229,7 @@ export function Inspector({
                 {/* What every {time}-style token in the layout's text is written in. */}
                 <Section
                   id="global/clock"
-                  title="Clock"
+                  title="Global Clock"
                   summary={`${state.draft.locale ?? 'panel locale'} · ${state.draft.timeZone ?? 'panel zone'}`}
                 >
                   {clockProperties().map((property) => (
