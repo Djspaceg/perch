@@ -120,7 +120,7 @@ describe('the order of the sidebar', () => {
 describe('Add and Delete live in the Elements list', () => {
   it('has Add in the list, and not in the selected entity’s bar', () => {
     const result = renderEditor();
-    const bar = elementsPanel(result).querySelector('.perch-section__bar');
+    const bar = elementsPanel(result).querySelector('.perch-editor-group__bar');
     if (!(bar instanceof HTMLElement)) throw new Error('the Elements list has no bar');
 
     expect(within(bar).getByRole('button', { name: /^add an element/i })).toBeInTheDocument();

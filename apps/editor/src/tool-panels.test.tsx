@@ -116,3 +116,37 @@ describe('Global’s panels', () => {
     ).toHaveAttribute('aria-expanded', 'false');
   });
 });
+
+describe('the Elements group', () => {
+  it('sits between Global and Selected entity, outside both', () => {
+    const result = renderEditor();
+    const global = group(result, 'Global');
+    const elements = group(result, 'Elements');
+    const entity = group(result, 'Selected entity');
+
+    expect(elements).toHaveClass('perch-editor-group');
+    expect(precedes(global, elements)).toBe(true);
+    expect(precedes(elements, entity)).toBe(true);
+    expect(entity.contains(elements)).toBe(false);
+    expect(global.contains(elements)).toBe(false);
+    expect(within(elements).getByTestId('perch-editor-elements')).toBeInTheDocument();
+  });
+
+  it('carries Add in its own bar', () => {
+    const result = renderEditor();
+    const bar = group(result, 'Elements').querySelector('.perch-editor-group__bar');
+    if (!(bar instanceof HTMLElement)) throw new Error('no Elements bar');
+
+    expect(within(bar).getByRole('button', { name: /^add an element/i })).toBeInTheDocument();
+  });
+
+  it('leaves the selected entity with its header first', () => {
+    const result = renderEditor();
+    selectElement(result, 0);
+    const entity = group(result, 'Selected entity');
+    const header = within(entity).getByTestId('perch-editor-selection');
+
+    expect(panelTitles(entity)[0]).toBe('Content');
+    expect(precedes(header, within(entity).getByRole('region', { name: 'Content' }))).toBe(true);
+  });
+});

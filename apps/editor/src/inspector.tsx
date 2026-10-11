@@ -6,7 +6,7 @@
  *
  * The rect, the binding and the target are descriptors (`descriptors.ts`); the tokens are `ui-kit`'s
  * labels. Both are stamped through the primitives in `controls/` by `property-view.tsx` and
- * `token-pane.tsx`. What this file decides is the arrangement: two groups, the Elements list and its
+ * `token-pane.tsx`. What this file decides is the arrangement: three groups, the Elements list and its
  * bar, the selection header, and which sections start open.
  *
  * ## Controls write straight through `layout-edits.ts`
@@ -55,12 +55,13 @@
  * selections share stays mounted where it was, folded or open, with only its values changed, and only
  * what does not carry over collapses away or grows in.
  *
- * ## Two groups, stacked: the layout, and the one entity being pointed at
+ * ## Three groups, stacked: the layout, its layers, and the one entity being pointed at
  *
- * **Global** is everything layout-wide — the target and the theme. **Selected entity** opens with the
- * Elements list, which is how an entity is chosen, and then holds only what belongs to the one that
- * was. Both are always on screen, as labelled regions, rather than
- * two tabs of a rail: an entity's rows say which values it inherits from the theme, and an author
+ * **Global** is everything layout-wide — the target, the clock and the theme — each of its panels
+ * titled "Global ..." so it is never mistaken for the entity's own. **Elements** is the list of
+ * layers, which is how an entity is chosen, with Add in its bar. **Selected entity** then holds only
+ * what belongs to the one that was. All three are always on screen, as labelled regions, rather than
+ * tabs of a rail: an entity's rows say which values it inherits from the theme, and an author
  * moving between the two should not have to switch a mode to see the value being inherited. Folding
  * does the work a rail would: each group is a stack of sections, and a folded section is one bar.
  *
@@ -169,23 +170,24 @@ export function Inspector({
         ? { kind: 'background', background: state.draft.background }
         : null;
   const entityGroup = useRef<HTMLElement>(null);
+  const inspector = useRef<HTMLDivElement>(null);
   const { target } = state.draft;
 
   // A new selection brings its group into view. Only when something is selected: clearing the
   // selection must not yank the pane away from where the author is working. And not when it was made
-  // in the group itself — a row of the Elements list, at the group's top — where the author is
-  // already looking, and a scroll would move the row out from under the pointer. Feature-tested
-  // because jsdom does not implement it.
+  // in the sidebar itself — a row of the Elements list just above the group, or Add — where the
+  // author is already looking, and a scroll would move the row out from under the pointer.
+  // Feature-tested because jsdom does not implement it.
   useEffect(() => {
     const group = entityGroup.current;
     if (selected === NOTHING_SELECTED || group === null || !('scrollIntoView' in group)) return;
-    if (group.contains(document.activeElement)) return;
+    if (inspector.current?.contains(document.activeElement) === true) return;
     group.scrollIntoView({ block: 'start' });
   }, [selected]);
 
   return (
     <SensorCatalogueProvider declared={topics}>
-      <div className="perch-editor-inspector" data-testid="perch-editor-inspector">
+      <div className="perch-editor-inspector" data-testid="perch-editor-inspector" ref={inspector}>
         {/* One suggestion list serves every widget control on the page. */}
         <datalist id={WIDGET_LIST_ID}>
           {widgets.map((widget) => (
@@ -247,35 +249,36 @@ export function Inspector({
           />
         </Group>
 
+        <Group
+          id="elements"
+          title="Elements"
+          hint={`${state.draft.elements.length} · topmost first`}
+          action={
+            <div className="perch-editor-group__actions">
+              <AddMenu target={target} onAdd={onAdd} />
+              <DeleteLayer
+                subject={subject}
+                deleteAsked={deleteAsked}
+                onDeleteAsked={onDeleteAsked}
+                onDelete={onDelete}
+                onEdit={onEdit}
+              />
+            </div>
+          }
+        >
+          {/* A different layout is a different list: it arrives whole, not row by row. */}
+          <ElementList
+            key={state.name}
+            state={state}
+            selected={selected}
+            onSelect={onSelect}
+            onMove={onMove}
+            onEdit={onEdit}
+            onDuplicate={onDuplicate}
+          />
+        </Group>
+
         <Group id="entity" title="Selected entity" groupRef={entityGroup}>
-          <Section
-            id="entity/elements"
-            title="Elements"
-            summary={`${state.draft.elements.length} · topmost first`}
-            actions={
-              <>
-                <AddMenu target={target} onAdd={onAdd} />
-                <DeleteLayer
-                  subject={subject}
-                  deleteAsked={deleteAsked}
-                  onDeleteAsked={onDeleteAsked}
-                  onDelete={onDelete}
-                  onEdit={onEdit}
-                />
-              </>
-            }
-          >
-            {/* A different layout is a different list: it arrives whole, not row by row. */}
-            <ElementList
-              key={state.name}
-              state={state}
-              selected={selected}
-              onSelect={onSelect}
-              onMove={onMove}
-              onEdit={onEdit}
-              onDuplicate={onDuplicate}
-            />
-          </Section>
           {/*
            * One region for whatever is selected, element or background, so a change of selection
            * updates it in place rather than swapping one region for another.
@@ -1078,6 +1081,10 @@ export const INSPECTOR_STYLES = `
   color: var(--ed-text-2);
 }
 .perch-editor-group__hint { font-size: var(--ed-font-small); color: var(--ed-faint); }
+/* The Elements bar's Add, and the confirm a delete floats over the bar. */
+.perch-editor-group__bar:has(> .perch-editor-group__actions) { position: relative; align-items: center; padding-block: 2px; }
+.perch-editor-group__actions { display: flex; align-items: center; gap: 2px; margin-left: auto; margin-right: -4px; }
+.perch-editor-group__actions .perch-add { margin-left: 0; }
 .perch-selection {
   position: relative;
   display: flex;
