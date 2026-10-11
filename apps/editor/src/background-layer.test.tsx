@@ -184,7 +184,8 @@ describe('the background row', () => {
     const { result } = renderEditor({ ...LAYOUT, background: { src: WALL } });
     fireEvent.click(backgroundRow(result));
 
-    fireEvent.change(screen.getByLabelText('Opacity'), { target: { value: '40' } });
+    const entity = within(screen.getByRole('region', { name: 'Selected entity' }));
+    fireEvent.change(entity.getByLabelText('Opacity'), { target: { value: '40' } });
 
     expect(painted(result)?.style.opacity).toBe('0.4');
   });

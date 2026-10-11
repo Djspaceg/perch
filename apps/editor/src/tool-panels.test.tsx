@@ -54,8 +54,7 @@ function selectElement(result: Result, index: number): void {
   fireEvent.click(button);
 }
 
-const group = (result: Result, name: string): HTMLElement =>
-  result.getByRole('region', { name });
+const group = (result: Result, name: string): HTMLElement => result.getByRole('region', { name });
 
 /** The titles of a group's top-level panels, in the order they are drawn. */
 function panelTitles(region: HTMLElement): string[] {
@@ -168,7 +167,9 @@ describe('the category tabs', () => {
 
     expect(within(global).getByRole('tab', { name: 'Customize' })).toBeInTheDocument();
     expect(within(global).getByRole('tab', { name: 'Developer' })).toBeInTheDocument();
-    expect(within(global).getByRole('searchbox', { name: 'search theme tokens' })).toBeInTheDocument();
+    expect(
+      within(global).getByRole('searchbox', { name: 'search theme tokens' }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -230,7 +231,9 @@ describe('delete on the selected row', () => {
     const result = renderEditor();
     selectElement(result, 1);
     fireEvent.click(within(rowOf(result, 1)).getByRole('button', { name: 'Delete element' }));
-    fireEvent.click(within(list(result)).getByRole('button', { name: /^confirm: delete elements\[1\]/ }));
+    fireEvent.click(
+      within(list(result)).getByRole('button', { name: /^confirm: delete elements\[1\]/ }),
+    );
 
     expect(list(result).querySelectorAll('[data-perch-layer-index]')).toHaveLength(1);
   });
@@ -257,7 +260,9 @@ describe('delete on the selected row', () => {
   it('is not offered on the background row', () => {
     const result = renderEditor();
     fireEvent.click(result.getByTestId('perch-editor-background-row'));
-    const background = result.getByTestId('perch-editor-background-row').closest('.perch-editor-layer');
+    const background = result
+      .getByTestId('perch-editor-background-row')
+      .closest('.perch-editor-layer');
     if (!(background instanceof HTMLElement)) throw new Error('no background row');
 
     expect(within(background).queryByRole('button', { name: /delete/i })).toBeNull();
@@ -289,7 +294,17 @@ describe('dragging panels', () => {
       const at = section === null ? -1 : panels.indexOf(section);
       const top = at === -1 ? 0 : 100 + at * PANEL_HEIGHT;
       const height = at === -1 ? 0 : this === section ? PANEL_HEIGHT : 22;
-      return { top, bottom: top + height, left: 0, right: 300, width: 300, height, x: 0, y: top, toJSON: () => ({}) };
+      return {
+        top,
+        bottom: top + height,
+        left: 0,
+        right: 300,
+        width: 300,
+        height,
+        x: 0,
+        y: top,
+        toJSON: () => ({}),
+      };
     });
   }
 
@@ -327,7 +342,13 @@ describe('dragging panels', () => {
     layOut(global);
     const target = grip(global, 'Global Target');
 
-    fireEvent.pointerDown(target, { button: 0, buttons: 1, pointerId: 1, clientX: 10, clientY: 110 });
+    fireEvent.pointerDown(target, {
+      button: 0,
+      buttons: 1,
+      pointerId: 1,
+      clientX: 10,
+      clientY: 110,
+    });
     // Below the middle of the third panel (Global Appearance, 180 to 220): gap 3.
     fireEvent.pointerMove(window, { buttons: 1, pointerId: 1, clientX: 30, clientY: 205 });
 
@@ -360,7 +381,13 @@ describe('dragging panels', () => {
     const global = group(result, 'Global');
     layOut(global);
 
-    fireEvent.pointerDown(grip(global, 'Global Target'), { button: 0, buttons: 1, pointerId: 1, clientX: 10, clientY: 110 });
+    fireEvent.pointerDown(grip(global, 'Global Target'), {
+      button: 0,
+      buttons: 1,
+      pointerId: 1,
+      clientX: 10,
+      clientY: 110,
+    });
     fireEvent.pointerMove(window, { buttons: 1, pointerId: 1, clientX: 10, clientY: 205 });
     fireEvent.keyDown(window, { key: 'Escape' });
 
@@ -371,15 +398,24 @@ describe('dragging panels', () => {
   it('remembers the order across a reload, in the editor settings', () => {
     const storage = memoryStorage();
     const first = renderEditor(LAYOUT, storage);
-    fireEvent.keyDown(grip(group(first, 'Global'), 'Global Clock'), { key: 'ArrowUp', altKey: true });
+    fireEvent.keyDown(grip(group(first, 'Global'), 'Global Clock'), {
+      key: 'ArrowUp',
+      altKey: true,
+    });
     first.unmount();
 
     const stored = JSON.parse(storage.getItem('perch-editor') ?? '{}') as {
       state?: { settings?: { panels?: { order?: Record<string, string[]> } } };
     };
-    expect(stored.state?.settings?.panels?.order?.['global']?.slice(0, 2)).toEqual(['clock', 'target']);
+    expect(stored.state?.settings?.panels?.order?.['global']?.slice(0, 2)).toEqual([
+      'clock',
+      'target',
+    ]);
     const again = renderEditor(LAYOUT, storage);
-    expect(panelTitles(group(again, 'Global')).slice(0, 2)).toEqual(['Global Clock', 'Global Target']);
+    expect(panelTitles(group(again, 'Global')).slice(0, 2)).toEqual([
+      'Global Clock',
+      'Global Target',
+    ]);
   });
 
   it('keeps entity panels among entity panels, in one order for every element', () => {
@@ -394,19 +430,20 @@ describe('dragging panels', () => {
     expect(panelTitles(entity).slice(0, 2)).toEqual(['Transform', 'Content']);
   });
 
-  it('puts the default order back from "Reset panel order"', () => {
+  it('puts the default order back from "Reset panel order" in the Elements options', () => {
     const result = renderEditor();
     const global = group(result, 'Global');
-    expect(within(global).queryByRole('button', { name: /reset panel order/i })).toBeNull();
     fireEvent.keyDown(grip(global, 'Global Clock'), { key: 'ArrowUp', altKey: true });
-
-    const reset = within(global).getByRole('button', { name: 'Reset Global panel order' });
-    expect(reset).toHaveTextContent('Reset panel order');
+    fireEvent.click(
+      within(group(result, 'Elements')).getByRole('button', { name: 'Elements panel options' }),
+    );
     act(() => {
-      fireEvent.click(reset);
+      fireEvent.click(
+        within(result.getByRole('menu')).getByRole('menuitem', { name: 'Reset panel order' }),
+      );
     });
 
     expect(panelTitles(global).slice(0, 2)).toEqual(['Global Target', 'Global Clock']);
-    expect(within(global).queryByRole('button', { name: /reset panel order/i })).toBeNull();
   });
+
 });

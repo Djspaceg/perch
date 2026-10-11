@@ -37,7 +37,7 @@ export {
   type NumberFieldProps,
   type ScrubTarget,
 } from './number-field.js';
-export { PanelStack, ResetPanelOrder } from './panel-stack.js';
+export { PanelStack } from './panel-stack.js';
 export { PropertyRow, type RowIds, type ValueSource } from './property-row.js';
 export { ResetButton, type ResetButtonProps, type ReturnsTo } from './reset-button.js';
 export { AdvancedSection, Section } from './section.js';

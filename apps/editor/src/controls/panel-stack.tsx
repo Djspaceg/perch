@@ -11,8 +11,8 @@
  * entity's. The order is remembered per group in the editor settings (`settings.panels.order`, beside
  * the sidebar's width), so it survives a relaunch, and the entity's is one order for every element:
  * a panel one element lacks keeps its place for the next that has it (`panel-order.ts`). "Reset
- * panel order" in the group's bar puts the default back; it is there only while there is an order
- * to reset.
+ * panel order", in the Elements panel's options menu (`elements-panel.tsx`), puts both groups'
+ * default orders back.
  *
  * Nothing animates: a drop moves the panel at once, so there is nothing for reduced motion to turn
  * off, and the line and the ghost are drawn in chrome tokens, in either scheme.
@@ -204,34 +204,6 @@ export function PanelGrip({
   );
 }
 
-/** "Reset panel order", for a group's bar: only while the group has an order to reset. */
-export function ResetPanelOrder({
-  group,
-  title,
-}: {
-  readonly group: string;
-  /** The group's name, for the accessible name: `Reset Global panel order`. */
-  readonly title: string;
-}): ReactNode {
-  const customised = useEditorStore((state) => state.settings.panels.order[group] !== undefined);
-  const setPanelOrder = useEditorStore((state) => state.setPanelOrder);
-  if (!customised) return null;
-
-  return (
-    <button
-      type="button"
-      className="perch-panel-reset"
-      aria-label={`Reset ${title} panel order`}
-      data-perch-tip={`put the ${title} panels back in their default order`}
-      onClick={() => {
-        setPanelOrder(group, undefined);
-      }}
-    >
-      Reset panel order
-    </button>
-  );
-}
-
 export const PANEL_STACK_STYLES = `
 .perch-panels { display: flex; flex-direction: column; min-width: 0; }
 .perch-section[${PANEL_ATTRIBUTE}] { position: relative; }
@@ -278,16 +250,4 @@ export const PANEL_STACK_STYLES = `
   font-size: var(--ed-font);
   color: var(--ed-text);
 }
-.perch-panel-reset {
-  margin-left: auto;
-  border: 0;
-  background: none;
-  color: var(--ed-quiet);
-  font: inherit;
-  font-size: var(--ed-font-small);
-  padding: 0 2px;
-  cursor: pointer;
-}
-.perch-panel-reset:hover { color: var(--ed-text); }
-.perch-panel-reset:focus-visible { outline: 2px solid var(--ed-accent); outline-offset: 0; }
 `;

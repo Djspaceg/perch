@@ -1137,6 +1137,7 @@ function EditorShell({
                 onDeleteAsked={setDeleteAsked}
                 topics={topics}
                 widgets={WIDGET_NAMES}
+                resolveAsset={resolveAsset}
               />
             </BackgroundContext.Provider>
           ) : null}

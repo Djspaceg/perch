@@ -113,6 +113,8 @@ export interface PanelSettings {
    * (`target`, `colour`). A group with none is in the order the code lists.
    */
   readonly order: Readonly<Record<string, readonly string[]>>;
+  /** Whether the Elements list shows an image element's picture as its thumbnail, or only glyphs. */
+  readonly thumbnails: boolean;
 }
 
 /** Everything persisted. */
@@ -168,6 +170,7 @@ export interface EditorActions {
   readonly setSidebarCollapsed: (collapsed: boolean) => void;
   /** Remember `group`'s panels in `order`, or with `undefined` go back to the default order. */
   readonly setPanelOrder: (group: string, order: readonly string[] | undefined) => void;
+  readonly setThumbnails: (thumbnails: boolean) => void;
   /** Open the first layout — `?layout=`, else the one last picked, else the library's first — once. */
   readonly openFirst: (library: LayoutLibrary, initialLayout: string | undefined) => void;
   /** Open a layout, dropping the selection. `remember` records it as the layout last picked. */
@@ -213,7 +216,7 @@ const DEFAULT_SETTINGS: EditorSettings = Object.freeze({
   layout: null,
   keybindings: Object.freeze({}),
   scheme: 'system',
-  panels: Object.freeze({ sidebar: DEFAULT_SIDEBAR, order: Object.freeze({}) }),
+  panels: Object.freeze({ sidebar: DEFAULT_SIDEBAR, order: Object.freeze({}), thumbnails: true }),
 });
 
 /**
@@ -362,6 +365,12 @@ export function createEditorStore(
                   },
                 },
                 { type: 'set/panelOrder', group, order },
+              );
+            },
+            setThumbnails: (thumbnails) => {
+              settle(
+                { panels: { ...get().settings.panels, thumbnails } },
+                { type: 'set/thumbnails', thumbnails },
               );
             },
             setKeybinding: (id, bindings) => {
@@ -578,6 +587,7 @@ function readPanels(raw: unknown): PanelSettings {
       collapsed: typeof collapsed === 'boolean' ? collapsed : DEFAULT_SIDEBAR.collapsed,
     },
     order: readRecord(isRecord(raw) ? raw['order'] : undefined, isStringList),
+    thumbnails: !(isRecord(raw) && raw['thumbnails'] === false),
   };
 }
 

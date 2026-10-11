@@ -80,14 +80,13 @@
 
 import type { LayoutBackground, LayoutElement } from '@perch/layout-schema';
 import { assertNever } from '@perch/ui-kit';
-import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   Collapse,
   CollapseEach,
   NumberField,
   PropertyRow,
   ResetButton,
-  ResetPanelOrder,
   Section,
   usePresence,
 } from './controls/index.js';
@@ -113,7 +112,18 @@ import {
   setThemeToken,
   type LayoutUpdate,
 } from './layout-edits.js';
-import { dropTarget, layerTarget, listRow } from './layers.js';
+import { allRows, dropTarget, layerTarget } from './layers.js';
+import {
+  ELEMENTS_PANEL_STYLES,
+  ElementsOpacity,
+  ElementsOptions,
+  KindFilter,
+  RowThumb,
+  filterKind,
+  opacityPercent,
+  passesFilter,
+  type FilterKind,
+} from './elements-panel.js';
 import { PropertyView } from './property-view.js';
 import { LAYER_INDEX_ATTRIBUTE, useRowDrag, type RowDrag } from './row-drag.js';
 import { AddMenu, SensorCatalogueProvider } from './sensor-picker.js';
@@ -145,6 +155,8 @@ export interface InspectorProps {
   readonly topics: readonly string[];
   /** Registered widget names, for suggestions. `WIDGET_NAMES` from `ui-kit`. */
   readonly widgets: readonly string[];
+  /** A media `src` as the URL the canvas paints it from, for the Elements list's thumbnails. */
+  readonly resolveAsset?: ((src: string) => string | undefined) | undefined;
 }
 
 /** The whole inspector. */
@@ -161,6 +173,7 @@ export function Inspector({
   onDeleteAsked,
   topics,
   widgets,
+  resolveAsset,
 }: InspectorProps): ReactNode {
   const element = state.draft.elements[selected];
   const subject: Subject | null =
@@ -173,6 +186,19 @@ export function Inspector({
   const elementsGroup = useRef<HTMLElement>(null);
   const inspector = useRef<HTMLDivElement>(null);
   const { target } = state.draft;
+  // The Elements list's kind filter: this sitting's view of the list, never the document's.
+  const [kinds, setKinds] = useState<ReadonlySet<FilterKind>>(NO_KINDS);
+  const filtered = kinds.size > 0;
+  const listedCount = state.draft.elements.filter((item) => passesFilter(item, kinds)).length;
+  const subjectOpacity =
+    subject?.kind === 'element'
+      ? subject.element.opacity
+      : subject?.kind === 'background'
+        ? subject.background?.opacity
+        : undefined;
+  const opacityTarget =
+    subject?.kind === 'element' ||
+    (subject?.kind === 'background' && subject.background !== undefined);
 
   // A new selection brings its group into view. Only when something is selected: clearing the
   // selection must not yank the pane away from where the author is working. And not when it was made
@@ -196,12 +222,7 @@ export function Inspector({
           ))}
         </datalist>
 
-        <Group
-          id="global"
-          title="Global"
-          hint="the whole layout"
-          action={<ResetPanelOrder group="global" title="Global" />}
-        >
+        <Group id="global" title="Global" hint="the whole layout">
           <TokenPane
             id="theme"
             title="theme"
@@ -267,15 +288,41 @@ export function Inspector({
 
         <Group
           id="elements"
-          title="Elements"
+          title={filtered ? 'Elements (filtered)' : 'Elements'}
           groupRef={elementsGroup}
-          hint={`${state.draft.elements.length} · topmost first`}
+          hint={
+            filtered
+              ? `${listedCount} of ${state.draft.elements.length} · topmost first`
+              : `${state.draft.elements.length} · topmost first`
+          }
           action={
             <div className="perch-editor-group__actions">
               <AddMenu target={target} onAdd={onAdd} />
+              <ElementsOptions
+                filtered={filtered}
+                onClearFilter={() => {
+                  setKinds(NO_KINDS);
+                }}
+              />
             </div>
           }
         >
+          <div className="perch-elements-top">
+            <KindFilter kinds={kinds} onKinds={setKinds} />
+            <ElementsOpacity
+              opacity={subjectOpacity}
+              selected={opacityTarget}
+              onText={(text) => {
+                // The same edit as the Appearance row's: 100% removes the field.
+                const opacity = numberFromInput(text) / 100;
+                onEdit(
+                  subject?.kind === 'element'
+                    ? setElementOpacity(subject.index, opacity)
+                    : setBackgroundOpacity(opacity),
+                );
+              }}
+            />
+          </div>
           {/* A different layout is a different list: it arrives whole, not row by row. */}
           <ElementList
             key={state.name}
@@ -289,15 +336,12 @@ export function Inspector({
             deleteAsked={deleteAsked}
             onDeleteAsked={onDeleteAsked}
             focusOnClose={elementsGroup}
+            kinds={kinds}
+            resolveAsset={resolveAsset}
           />
         </Group>
 
-        <Group
-          id="entity"
-          title="Selected entity"
-          groupRef={entityGroup}
-          action={<ResetPanelOrder group="entity" title="Selected entity" />}
-        >
+        <Group id="entity" title="Selected entity" groupRef={entityGroup}>
           {/*
            * One region for whatever is selected, element or background, so a change of selection
            * updates it in place rather than swapping one region for another.
@@ -475,13 +519,6 @@ function propertyRows<Subject>(
 /** What the opacity row says it does. */
 const OPACITY_DESCRIPTION =
   'How strongly this entity paints, everything in it together: 0% is invisible, 100% solid.';
-
-/** An opacity as the percentage the row shows: `0.55` is `55`. */
-function opacityPercent(opacity: number | undefined): string {
-  if (opacity === undefined) return '100';
-
-  return Number.isNaN(opacity) ? '' : String(Math.round(opacity * 10_000) / 100);
-}
 
 /**
  * The element's own opacity, in percent, first in its Appearance.
@@ -674,6 +711,9 @@ function EntityPanes({
   );
 }
 
+/** No kind filter: every element listed. */
+const NO_KINDS: ReadonlySet<FilterKind> = new Set();
+
 /** The token map of a surface that has none. */
 const NO_TOKENS: Readonly<Record<string, string>> = Object.freeze({});
 
@@ -794,12 +834,21 @@ function DuplicateButton({
   );
 }
 
-/** Where a row of the list shows the drop line of a drag, if the drag would land beside it. */
-function dropMark(drag: RowDrag | null, row: number, count: number): 'above' | 'below' | undefined {
-  if (drag === null || dropTarget(drag.from, drag.gap, count) === null) return undefined;
+/**
+ * Where a row of the list shows the drop line of a drag, if the drag would land beside it. `row` is
+ * the row's place among the rows `shown`.
+ */
+function dropMark(
+  drag: RowDrag | null,
+  row: number,
+  shown: readonly number[],
+): 'above' | 'below' | undefined {
+  if (drag === null || row === -1 || dropTarget(drag.from, drag.gap, shown) === null) {
+    return undefined;
+  }
   if (drag.gap === row) return 'above';
 
-  return drag.gap === count && row === count - 1 ? 'below' : undefined;
+  return drag.gap === shown.length && row === shown.length - 1 ? 'below' : undefined;
 }
 
 /**
@@ -831,9 +880,14 @@ function ElementList({
   deleteAsked,
   onDeleteAsked,
   focusOnClose,
+  kinds,
+  resolveAsset,
 }: {
   /** Where focus goes from a row that is leaving: a deleted element's, its confirm focused. */
   readonly focusOnClose: RefObject<HTMLElement | null>;
+  /** The kind filter: the kinds shown, or every kind when empty. */
+  readonly kinds: ReadonlySet<FilterKind>;
+  readonly resolveAsset: ((src: string) => string | undefined) | undefined;
 } & Pick<
   InspectorProps,
   | 'state'
@@ -850,7 +904,17 @@ function ElementList({
   const { rows, exited } = usePresence(state.draft.elements);
   const count = state.draft.elements.length;
   const list = useRef<HTMLUListElement>(null);
-  const { drag, begin, swallowClick, cancel } = useRowDrag(list, count, onMove);
+  // The elements the filter leaves, top of the list first: what a drag measures and drops among.
+  const visible = allRows(count).filter((index) => {
+    const element = state.draft.elements[index];
+    return element !== undefined && passesFilter(element, kinds);
+  });
+  const visibleText = visible.join(',');
+  const shownRows = useMemo(
+    () => (visibleText === '' ? [] : visibleText.split(',').map(Number)),
+    [visibleText],
+  );
+  const { drag, begin, swallowClick, cancel } = useRowDrag(list, shownRows, onMove);
   // The element whose row has focus. A reorder keeps each row where it is and changes what it shows,
   // so after one — a drop, Alt+Up, a layer command — focus is moved to where that element went.
   const focused = useRef<LayoutElement | null>(null);
@@ -866,105 +930,116 @@ function ElementList({
     if (index === -1) return;
     const row = rows.querySelector<HTMLElement>(`[${LAYER_INDEX_ATTRIBUTE}="${index}"]`);
     if (row !== null && row !== active) row.focus();
-  }, [state.draft.elements, cancel]);
+  }, [state.draft.elements, visibleText, cancel]);
 
   // Top of the list first: the reverse of paint order.
   const shown = [...rows].reverse();
 
   return (
     <ul className="perch-editor-elements" data-testid="perch-editor-elements" ref={list}>
-      {shown.map(({ key, item: element, index, present, arrived }) => (
-        <Collapse
-          key={key}
-          as="li"
-          open={present}
-          appear={arrived}
-          focusOnClose={focusOnClose}
-          onExited={() => {
-            exited(key);
-          }}
-        >
-          <div
-            className="perch-editor-layer"
-            data-perch-hidden={element.hidden === true ? 'true' : 'false'}
+      {shown.map(({ key, item: element, index, present, arrived }) => {
+        const listed = present && passesFilter(element, kinds);
+        return (
+          <Collapse
+            key={key}
+            as="li"
+            open={listed}
+            appear={arrived}
+            focusOnClose={focusOnClose}
+            onExited={() => {
+              exited(key);
+            }}
           >
-            <LayerEye
-              hidden={element.hidden === true}
-              what={`elements[${index}]`}
-              onToggle={() => {
-                if (present) onEdit(setElementHidden(index, element.hidden !== true));
-              }}
-            />
-            <button
-              type="button"
-              className="perch-editor-element"
-              aria-current={index === selected ? 'true' : undefined}
-              aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-              data-perch-selected={index === selected ? 'true' : 'false'}
-              {...(present ? { [LAYER_INDEX_ATTRIBUTE]: String(index) } : {})}
-              {...(drag?.from === index && present ? { 'data-perch-dragging': 'true' } : {})}
-              {...(present ? markOf(dropMark(drag, listRow(index, count), count)) : {})}
-              onPointerDown={(event) => {
-                if (present) begin(event, index);
-              }}
-              onFocus={() => {
-                focused.current = element;
-              }}
-              onBlur={() => {
-                focused.current = null;
-              }}
-              onClick={() => {
-                if (swallowClick()) return;
-                onSelect(index);
-              }}
-              onKeyDown={(event) => {
-                if (!present || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
-                  return;
-                }
-                const move =
-                  event.key === 'ArrowUp'
-                    ? 'bringForward'
-                    : event.key === 'ArrowDown'
-                      ? 'sendBackward'
-                      : null;
-                if (move === null) return;
-                event.preventDefault();
-                const to = layerTarget(move, index, count);
-                if (to !== null) onMove(index, to);
-              }}
+            <div
+              className="perch-editor-layer"
+              data-perch-hidden={element.hidden === true ? 'true' : 'false'}
             >
-              <span className="perch-editor-element__index">{index}</span>
-              <span className="perch-editor-element__glyph" aria-hidden="true">
-                {KIND_GLYPH[element.kind]}
-              </span>
-              <span className="perch-editor-element__kind">{element.kind}</span>
-              <span
-                className="perch-editor-element__summary"
-                data-perch-tip={describeElement(element)}
+              <LayerEye
+                hidden={element.hidden === true}
+                what={`elements[${index}]`}
+                onToggle={() => {
+                  if (present) onEdit(setElementHidden(index, element.hidden !== true));
+                }}
+              />
+              <button
+                type="button"
+                className="perch-editor-element"
+                aria-current={index === selected ? 'true' : undefined}
+                aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                data-perch-selected={index === selected ? 'true' : 'false'}
+                {...(listed ? { [LAYER_INDEX_ATTRIBUTE]: String(index) } : {})}
+                {...(drag?.from === index && listed ? { 'data-perch-dragging': 'true' } : {})}
+                {...(listed ? markOf(dropMark(drag, shownRows.indexOf(index), shownRows)) : {})}
+                onPointerDown={(event) => {
+                  if (listed) begin(event, index);
+                }}
+                onFocus={() => {
+                  focused.current = element;
+                }}
+                onBlur={() => {
+                  focused.current = null;
+                }}
+                onClick={() => {
+                  if (swallowClick()) return;
+                  onSelect(index);
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    !present ||
+                    !event.altKey ||
+                    event.ctrlKey ||
+                    event.metaKey ||
+                    event.shiftKey
+                  ) {
+                    return;
+                  }
+                  const move =
+                    event.key === 'ArrowUp'
+                      ? 'bringForward'
+                      : event.key === 'ArrowDown'
+                        ? 'sendBackward'
+                        : null;
+                  if (move === null) return;
+                  event.preventDefault();
+                  const to = layerTarget(move, index, count);
+                  if (to !== null) onMove(index, to);
+                }}
               >
-                {describeElement(element)}
-              </span>
-            </button>
-            {index === selected && present ? (
-              <>
-                <DuplicateButton onDuplicate={onDuplicate} />
-                <ResetButton
-                  action="delete"
-                  label="Delete element"
-                  subject={`elements[${index}]`}
-                  consequence={`the ${element.kind} and everything set on it go. undo brings them back.`}
-                  ask="delete?"
-                  confirming={deleteAsked}
-                  onConfirming={onDeleteAsked}
-                  onReset={() => {
-                    onDelete(index);
-                  }}
+                <RowThumb
+                  kind={filterKind(element)}
+                  src={element.kind === 'media' ? element.src : undefined}
+                  resolveAsset={resolveAsset}
                 />
-              </>
-            ) : null}
-          </div>
-        </Collapse>
-      ))}
+                <span className="perch-sr-only">{element.kind}</span>
+                <span
+                  className="perch-editor-element__summary"
+                  data-perch-tip={describeElement(element)}
+                >
+                  {describeElement(element)}
+                </span>
+                <span className="perch-editor-element__index">{index}</span>
+              </button>
+              {index === selected && present ? (
+                <>
+                  <DuplicateButton onDuplicate={onDuplicate} />
+                  <ResetButton
+                    action="delete"
+                    label="Delete element"
+                    subject={`elements[${index}]`}
+                    consequence={`the ${element.kind} and everything set on it go. undo brings them back.`}
+                    ask="delete?"
+                    confirming={deleteAsked}
+                    onConfirming={onDeleteAsked}
+                    onReset={() => {
+                      onDelete(index);
+                    }}
+                  />
+                </>
+              ) : null}
+            </div>
+          </Collapse>
+        );
+      })}
       {/*
        * The background, always last: below every element in paint order, so at the bottom of the
        * layers. Outside the drag's rows (it carries no layer index), so it is never dragged and never
@@ -994,15 +1069,15 @@ function ElementList({
               onSelect(BACKGROUND_SELECTED);
             }}
           >
-            <span className="perch-editor-element__index" aria-label="locked">
-              <LockGlyph />
+            <RowThumb kind="media" src={background?.src} resolveAsset={resolveAsset} />
+            <span className="perch-editor-element__name perch-editor-element__name--locked">
+              Background
             </span>
-            <span className="perch-editor-element__glyph" aria-hidden="true">
-              {KIND_GLYPH.media}
-            </span>
-            <span className="perch-editor-element__kind">background</span>
-            <span className="perch-editor-element__summary">
+            <span className="perch-editor-element__summary perch-editor-element__summary--quiet">
               {background?.src ?? NO_BACKGROUND}
+            </span>
+            <span className="perch-editor-element__lock" aria-label="locked">
+              <LockGlyph />
             </span>
           </button>
           {selected === BACKGROUND_SELECTED && background !== undefined ? (
@@ -1035,7 +1110,7 @@ export function describeElement(element: LayoutElement): string {
   }
 }
 
-export const INSPECTOR_STYLES = `
+export const INSPECTOR_STYLES = `${ELEMENTS_PANEL_STYLES}
 .perch-editor-inspector {
   display: flex;
   flex-direction: column;
@@ -1156,15 +1231,18 @@ export const INSPECTOR_STYLES = `
 .perch-editor-element[data-perch-drop='above']::after { top: -1px; }
 .perch-editor-element[data-perch-drop='below']::after { bottom: -1px; }
 body.perch-dragging, body.perch-dragging * { cursor: grabbing !important; user-select: none; }
-.perch-editor-element__index { flex: 0 0 1.4em; text-align: right; font-variant-numeric: tabular-nums; color: var(--ed-faint); }
-.perch-editor-element__glyph { flex: 0 0 1em; color: var(--ed-quiet); text-align: center; }
-.perch-editor-element__kind { flex: 0 0 3.6em; color: var(--ed-quiet); }
-.perch-editor-element__summary { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* A row: thumbnail, name, and the element's index in elements, faint, at the right edge. */
+.perch-editor-element__summary { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.perch-editor-element__index { flex: none; min-width: 1.4em; text-align: right; font-variant-numeric: tabular-nums; color: var(--ed-faint); }
+/* The background: its name in italics, as a locked base is, its source quiet, its lock at the right. */
+.perch-editor-element__name { flex: none; color: var(--ed-text-2); }
+.perch-editor-element__name--locked { font-style: italic; }
+.perch-editor-element__summary--quiet { color: var(--ed-quiet); }
+.perch-editor-element__lock { flex: none; display: inline-flex; align-items: center; color: var(--ed-faint); }
 /* Positioned: a row's delete confirm floats over the row, right-aligned, as it does over any row. */
 .perch-editor-layer { position: relative; display: flex; align-items: center; min-width: 0; }
 .perch-editor-layer > .perch-editor-element { flex: 1 1 auto; min-width: 0; }
 .perch-editor-layer[data-perch-hidden='true'] > .perch-editor-element { color: var(--ed-faint); }
-.perch-editor-layer--background .perch-editor-element__kind { flex-basis: 5.6em; }
 .perch-editor-eye {
   flex: 0 0 var(--ed-list-row-h);
   display: flex;
