@@ -118,6 +118,7 @@ import {
   ElementsOpacity,
   ElementsOptions,
   KindFilter,
+  KindGlyph,
   RowThumb,
   filterKind,
   opacityPercent,
@@ -405,14 +406,6 @@ function Group({
   );
 }
 
-/** A glyph per kind, for the selection header and the element list. Decoration: the kind is text too. */
-const KIND_GLYPH: Readonly<Record<LayoutElement['kind'], string>> = Object.freeze({
-  widget: '◧',
-  chart: '∿',
-  text: 'T',
-  media: '▣',
-});
-
 /** What the entity half of the sidebar is showing: an element, or the layout's background. */
 type Subject =
   | { readonly kind: 'element'; readonly element: LayoutElement; readonly index: number }
@@ -438,7 +431,11 @@ function EntityHeader({ subject }: { readonly subject: Subject }): ReactNode {
       data-perch-kind={subject.kind === 'element' ? subject.element.kind : 'background'}
     >
       <span className="perch-selection__icon" aria-hidden="true">
-        {subject.kind === 'element' ? KIND_GLYPH[subject.element.kind] : <LockGlyph />}
+        {subject.kind === 'element' ? (
+          <KindGlyph kind={filterKind(subject.element)} />
+        ) : (
+          <LockGlyph />
+        )}
       </span>
       <span className="perch-selection__text">
         <span className="perch-selection__name" data-perch-tip={name}>
