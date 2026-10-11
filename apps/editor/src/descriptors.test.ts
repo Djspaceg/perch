@@ -115,10 +115,10 @@ function shape(element: LayoutElement): readonly [string, readonly string[]][] {
 }
 
 describe('entitySections', () => {
-  it('gives every kind a Transform of two vector rows: position, then size', () => {
+  it('gives every kind a Placement of two vector rows: position, then size', () => {
     const transform = entitySections(READOUT).find((section) => section.id === 'transform');
 
-    expect(transform?.title).toBe('Transform');
+    expect(transform?.title).toBe('Placement');
     expect(
       transform?.properties.map((p) => [
         p.id,

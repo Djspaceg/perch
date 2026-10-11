@@ -178,7 +178,11 @@ describe('where one step ends', () => {
 
     typeInto(field, ['150'], false);
     // Focus stays in the field, as it does where a button does not take it on click.
-    fireEvent.click(result.getByRole('radio', { name: 'middle centre' }));
+    fireEvent.click(
+      within(result.getByRole('radiogroup', { name: /^Content alignment/ })).getByRole('radio', {
+        name: 'middle centre',
+      }),
+    );
     expect(document.activeElement).toBe(field);
 
     fireEvent.click(undoButton(result));
@@ -234,8 +238,16 @@ describe('where one step ends', () => {
     const result = renderEditor();
     selectElement(result, 1);
 
-    fireEvent.click(result.getByRole('radio', { name: 'middle centre' }));
-    fireEvent.click(result.getByRole('radio', { name: 'bottom right' }));
+    fireEvent.click(
+      within(result.getByRole('radiogroup', { name: /^Content alignment/ })).getByRole('radio', {
+        name: 'middle centre',
+      }),
+    );
+    fireEvent.click(
+      within(result.getByRole('radiogroup', { name: /^Content alignment/ })).getByRole('radio', {
+        name: 'bottom right',
+      }),
+    );
 
     expect(stepsBack(result)).toBe(2);
   });

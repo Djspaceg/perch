@@ -1,40 +1,67 @@
 /**
- * Transform as one block, the way Affinity lays its Transform panel out: the content alignment grid
- * at the left, and x/y and w/h beside it as two rows of fields with no label column, so the panel is
- * about the grid's height.
+ * The entity's Placement panel, laid out as Affinity's Transform panel is: where the box is and how
+ * big, about a resize anchor, and under that, where the content sits inside the box.
  *
- * The grid is where the element's CONTENT sits inside its box — a text's lines, a readout's number,
- * unit and caption — and not where the box sits: it is the text or readout placement token pair,
- * which the Placement panel used to hold. It is not a transform anchor, and its name and tooltip say
- * so ("Content alignment: left, top. Where the text sits inside its box, ..."). Under the fields, a
- * caption line says the same in words, tinted and marked like a row's source, with one reset for
- * whatever half is set here.
+ * ## The resize band: an anchor, and x/y and w/h about it
  *
- * A kind with no placement (media, a chart) shows only the fields, which then take the full width.
- * Transform is one section for every element, kept mounted across a change of selection, so the grid
- * folds out sideways and back in (`grid-template-columns` between `0fr` and `1fr`, as `Collapse` does
- * with rows) rather than the block being swapped; instant under reduced motion. The leaving grid is
- * inert and hidden while it folds.
+ * A three-by-three anchor grid at the left, and x/y and w/h beside it as two rows of fields with no
+ * label column. The anchor chosen is the reference point (`anchor.ts`): x and y show where that
+ * point of the box is, typing them moves the box so the point lands there, and w and h resize about
+ * it, so it stays put. The layout still stores every rect as its top-left x/y and its w/h, so the
+ * anchor is an editor setting (`settings.anchor`), one for every element, top-left by default, which
+ * shows exactly the numbers the file holds. The canvas's own resize handles are unaffected: each
+ * handle drags its own edge or corner and holds the opposite one, as before.
  *
- * Measured at 300, 420 and 540px sidebars, mouse and coarse pointer (see DECISIONS.md): the grid and
- * both fields fit on one band at every width without truncating a number, so nothing is shrunk. A
- * block narrower than any sidebar allows (a container under `TRANSFORM_STACK_BELOW_PX`) stacks the grid
- * above the fields, as a guard rather than a layout anyone sees at the supported widths.
+ * ## The content band: content alignment
+ *
+ * On a band of its own under the fields, labelled "Content alignment": the text or readout placement
+ * pair as its four-by-four (or three-by-three) grid, where the element's CONTENT sits inside its box
+ * — a text's lines, a readout's number, unit and caption — never where the box sits. Beside the grid,
+ * its value in words, tinted and marked like a row's source, with one reset for whatever half is
+ * set here. A kind with no placement (media, a chart) has no such band; Placement is one section for
+ * every element, kept mounted across a change of selection, and the band grows in or collapses away
+ * (`Collapse`) as the selection changes kind, in height and opacity only.
+ *
+ * Below `TRANSFORM_STACK_BELOW_PX` of block width (narrower than any sidebar allows) the anchor grid
+ * stacks above its fields, as a guard.
  */
 
 import type { LayoutElement } from '@perch/layout-schema';
-import { useState, type ReactNode } from 'react';
-import { AlignGrid, ResetButton, VectorField } from './controls/index.js';
+import type { ReactNode } from 'react';
+import {
+  ACROSS_WORDS,
+  ANCHOR_EDGES,
+  DOWN_WORDS,
+  anchoredPosition,
+  anchorWords,
+  placeAt,
+  resizeAbout,
+  type AnchorEdge,
+} from './anchor.js';
+import { AlignGrid, Collapse, ResetButton, VectorField } from './controls/index.js';
 import { optionLabel, type Property } from './descriptors.js';
-import type { LayoutUpdate } from './layout-edits.js';
+import {
+  numberFromInput,
+  numberToInput,
+  setElementRect,
+  type LayoutUpdate,
+} from './layout-edits.js';
+import { useEditorStore } from './store.js';
 import { contentPlacement, type ContentPlacement } from './token-pane.js';
 
-/** Below this width the block stacks the grid above its fields. */
+/** Below this width the block stacks the anchor grid above its fields. */
 export const TRANSFORM_STACK_BELOW_PX = 200;
 
-/** What the content is, in the grid's tooltip. */
+/** What the content is, in the content grid's tooltip. */
 function contentOf(kind: LayoutElement['kind']): string {
   return kind === 'widget' ? 'the number, unit and caption sit' : 'the text sits';
+}
+
+const ANCHOR_ACROSS = ANCHOR_EDGES.map((edge) => ({ value: edge, label: ACROSS_WORDS[edge] }));
+const ANCHOR_DOWN = ANCHOR_EDGES.map((edge) => ({ value: edge, label: DOWN_WORDS[edge] }));
+
+function isEdge(value: string): value is AnchorEdge {
+  return ANCHOR_EDGES.some((edge) => edge === value);
 }
 
 export function TransformBlock({
@@ -48,7 +75,7 @@ export function TransformBlock({
 }: {
   readonly element: LayoutElement;
   readonly index: number;
-  /** The rect's two rows: position (x, y) and size (w, h). */
+  /** The rect's two rows: position (x, y) and size (w, h), for their labels, axes and bounds. */
   readonly properties: readonly Property<LayoutElement>[];
   /** The layout theme, which a placement half not set here is inherited from. */
   readonly inherited: Readonly<Record<string, string>> | undefined;
@@ -56,35 +83,54 @@ export function TransformBlock({
   readonly onSet: (name: string, value: string) => void;
   readonly onRemove: (name: string) => void;
 }): ReactNode {
+  const anchor = useEditorStore((state) => state.settings.anchor);
+  const setAnchor = useEditorStore((state) => state.setAnchor);
   const tokens = element.kind === 'media' ? {} : (element.style ?? {});
   const placement = contentPlacement(element.kind, tokens, inherited);
-  // The kind whose grid was last shown: a grid on its way out is still drawn, inert, as it folds.
-  const [kept, setKept] = useState<LayoutElement['kind'] | null>(
-    placement === undefined ? null : element.kind,
-  );
-  if (placement !== undefined && kept !== element.kind) setKept(element.kind);
-  const leaving =
-    placement === undefined && kept !== null ? contentPlacement(kept, {}, inherited) : undefined;
-  const shown = placement ?? leaving;
-  const open = placement !== undefined;
+  const { rect } = element;
+  const point = anchoredPosition(rect, anchor);
+  const where = anchorWords(anchor);
+
+  /** A field's value and write, about the anchor: x/y are the anchor point, w/h resize about it. */
+  const about = (key: string): { value: string; onChange: (text: string) => void } => {
+    const write = (next: typeof rect): void => {
+      onEdit(setElementRect(index, next));
+    };
+    switch (key) {
+      case 'x':
+      case 'y':
+        return {
+          value: numberToInput(point[key]),
+          onChange: (text) => {
+            write(placeAt(rect, anchor, key, numberFromInput(text)));
+          },
+        };
+      case 'w':
+      case 'h':
+        return {
+          value: numberToInput(rect[key]),
+          onChange: (text) => {
+            write(resizeAbout(rect, anchor, key, numberFromInput(text)));
+          },
+        };
+      default:
+        return { value: '', onChange: () => undefined };
+    }
+  };
 
   return (
-    <div className="perch-transform" data-perch-grid={open ? 'true' : 'false'}>
+    <div className="perch-transform">
       <div className="perch-transform__inner">
-        <div
-          className="perch-transform__grid"
-          data-perch-open={open ? 'true' : 'false'}
-          {...(open ? {} : { inert: true, 'aria-hidden': 'true' as const })}
-        >
-          <div className="perch-transform__clip">
-            {shown === undefined ? null : (
-              <ContentGrid
-                placement={shown}
-                content={contentOf(open ? element.kind : (kept ?? element.kind))}
-                onSet={onSet}
-              />
-            )}
-          </div>
+        <div className="perch-transform__anchor">
+          <AlignGrid
+            label={`Resize anchor: ${where}`}
+            tip={`Resize anchor: ${where}. x and y are this point's position, and w and h resize about it.`}
+            across={{ options: ANCHOR_ACROSS, value: anchor.across }}
+            down={{ options: ANCHOR_DOWN, value: anchor.down }}
+            onPick={(across, down) => {
+              if (isEdge(across) && isEdge(down)) setAnchor({ across, down });
+            }}
+          />
         </div>
         <div className="perch-transform__fields">
           {properties.map((property) =>
@@ -105,18 +151,25 @@ export function TransformBlock({
                     ariaLabel: field.ariaLabel,
                     axis: field.axis,
                     min: field.min,
-                    value: field.get(element),
-                    onChange: (text) => {
-                      onEdit(field.write(text, index));
-                    },
+                    ...about(field.key),
                   }))}
                 />
               </div>
             ) : null,
           )}
-          {placement === undefined ? null : <Caption placement={placement} onRemove={onRemove} />}
         </div>
       </div>
+      <Collapse open={placement !== undefined}>
+        {placement === undefined ? null : (
+          <div className="perch-transform__content">
+            <ContentGrid placement={placement} content={contentOf(element.kind)} onSet={onSet} />
+            <div className="perch-transform__content-text">
+              <span className="perch-transform__content-label">Content alignment</span>
+              <Caption placement={placement} onRemove={onRemove} />
+            </div>
+          </div>
+        )}
+      </Collapse>
     </div>
   );
 }
@@ -163,7 +216,7 @@ function ContentGrid({
   );
 }
 
-/** The grid's value in words under the fields, with its source mark and one reset. */
+/** The content grid's value in words, with its source mark and one reset. */
 function Caption({
   placement,
   onRemove,
@@ -210,25 +263,22 @@ function Caption({
 
 export const TRANSFORM_STYLES = `
 .perch-transform { container-type: inline-size; min-width: 0; padding: 2px 4px 3px var(--ed-pad-x); }
-.perch-transform__inner { display: flex; align-items: flex-start; min-width: 0; }
-/* The grid folds sideways, by its column, as Collapse folds a region by its row. */
-.perch-transform__grid {
-  flex: none;
-  display: grid;
-  grid-template-columns: 1fr;
-  transition: grid-template-columns var(--ed-motion-duration) var(--ed-motion-ease);
-}
-.perch-transform__grid[data-perch-open='false'] { grid-template-columns: 0fr; }
-.perch-transform__clip {
-  min-width: 0;
-  overflow: hidden;
-  transition: opacity var(--ed-motion-duration) var(--ed-motion-ease);
-}
-.perch-transform__grid[data-perch-open='false'] > .perch-transform__clip { opacity: 0; }
-/* The gap to the fields is inside the clip, so it folds away with the grid. */
-.perch-transform__clip > .perch-align { margin-right: 8px; }
+.perch-transform__inner { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.perch-transform__anchor { flex: none; display: flex; }
 .perch-transform__fields { flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .perch-transform__row { display: flex; align-items: center; min-width: 0; min-height: var(--ed-row-h); }
+/* Content alignment: a band of its own under the resize fields, its grid and its value in words. */
+.perch-transform__content {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  margin-top: var(--ed-space-sm);
+  padding-top: var(--ed-space-sm);
+  border-top: 1px solid var(--ed-bar-edge);
+}
+.perch-transform__content-text { flex: 1 1 auto; display: flex; flex-direction: column; gap: var(--ed-space-xs); min-width: 0; }
+.perch-transform__content-label { font-size: var(--ed-font); color: var(--ed-label); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .perch-transform__caption {
   position: relative;
   display: flex;
@@ -256,9 +306,9 @@ export const TRANSFORM_STYLES = `
 }
 .perch-transform__caption[data-perch-source='own'] .perch-row__mark { background: var(--ed-own); }
 .perch-transform__caption[data-perch-source='inherited'] .perch-row__mark { border: 1.5px solid var(--ed-inherited); }
-/* Too narrow for the grid beside the fields: it goes on its own row above them. */
+/* Too narrow for the anchor grid beside the fields: it goes on its own row above them. */
 @container (max-width: ${TRANSFORM_STACK_BELOW_PX}px) {
-  .perch-transform__inner { flex-direction: column; gap: 4px; }
+  .perch-transform__inner { flex-direction: column; align-items: flex-start; gap: 4px; }
   .perch-transform__fields { width: 100%; }
 }
 `;

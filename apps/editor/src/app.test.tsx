@@ -433,7 +433,7 @@ describe('the Global and Selected-entity groups', () => {
     expect(result.queryByLabelText('w')).toBeNull();
 
     selectElement(result, 1);
-    fireEvent.keyDown(result.getByRole('button', { name: 'Transform' }), { key: 'Escape' });
+    fireEvent.keyDown(result.getByRole('button', { name: 'Placement' }), { key: 'Escape' });
     expect(result.queryByLabelText('w')).toBeNull();
   });
 
@@ -549,11 +549,15 @@ describe('the three common edits', () => {
     expect(within(bg).getByLabelText(labelFor('--perch-box-bg'))).toHaveValue('#00000080');
   });
 
-  it('centres a readout both ways with one click on the placement grid', () => {
+  it('centres a readout both ways with one click on the content alignment grid', () => {
     const { result } = renderEditor();
     selectElement(result, 1);
 
-    fireEvent.click(result.getByRole('radio', { name: 'middle centre' }));
+    fireEvent.click(
+      within(result.getByRole('radiogroup', { name: /^Content alignment/ })).getByRole('radio', {
+        name: 'middle centre',
+      }),
+    );
 
     const box = canvasOf(result).querySelector('[data-perch-element-index="1"]');
     expect(box?.getAttribute('style')).toContain('--perch-readout-justify: center');
@@ -584,12 +588,12 @@ describe('the selection header and the sections', () => {
     selectElement(result, 1);
     const entity = result.getByRole('region', { name: 'Selected entity' });
 
-    for (const name of ['Transform', 'Content', 'Appearance', 'Typography', 'Colour']) {
+    for (const name of ['Placement', 'Content', 'Appearance', 'Typography', 'Colour']) {
       expect(within(entity).getByRole('button', { name })).toHaveAttribute('aria-expanded');
     }
     // Content, Transform and Appearance start open; the long lists start closed. Placement is in
     // Transform, as its content alignment grid.
-    expect(within(entity).getByRole('button', { name: 'Transform' })).toHaveAttribute(
+    expect(within(entity).getByRole('button', { name: 'Placement' })).toHaveAttribute(
       'aria-expanded',
       'true',
     );
@@ -608,7 +612,7 @@ describe('the selection header and the sections', () => {
     selectElement(result, 1);
     const entity = result.getByRole('region', { name: 'Selected entity' });
     const content = within(entity).getByRole('button', { name: 'Content' });
-    const transform = within(entity).getByRole('button', { name: 'Transform' });
+    const transform = within(entity).getByRole('button', { name: 'Placement' });
 
     expect(content.compareDocumentPosition(transform) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
@@ -621,10 +625,10 @@ describe('the selection header and the sections', () => {
   it('remembers a closed section across a change of selection', () => {
     const { result } = renderEditor();
     selectElement(result, 1);
-    fireEvent.click(result.getByRole('button', { name: 'Transform' }));
+    fireEvent.click(result.getByRole('button', { name: 'Placement' }));
 
     selectElement(result, 0);
-    expect(result.getByRole('button', { name: 'Transform' })).toHaveAttribute(
+    expect(result.getByRole('button', { name: 'Placement' })).toHaveAttribute(
       'aria-expanded',
       'false',
     );

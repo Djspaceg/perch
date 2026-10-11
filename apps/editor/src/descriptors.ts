@@ -402,7 +402,9 @@ const RANGE: VectorProperty<LayoutElement> = {
 };
 
 /**
- * An element's own sections: the Content its kind carries, then Transform for every kind.
+ * An element's own sections: the Content its kind carries, then Placement (its box: where it is, how
+ * big, and where its content sits inside it) for every kind. Placement keeps the `transform` id it
+ * had as Transform, so a fold and a dragged panel order saved under it still apply.
  *
  * Content leads because it holds what the element *is* — for a reading or a chart, the sensor it
  * reads — and choosing that is the first thing an author does with a new element.
@@ -410,7 +412,7 @@ const RANGE: VectorProperty<LayoutElement> = {
 export function entitySections(element: LayoutElement): readonly PropertySection<LayoutElement>[] {
   const transform: PropertySection<LayoutElement> = {
     id: 'transform',
-    title: 'Transform',
+    title: 'Placement',
     properties: [POSITION, SIZE],
   };
   const withRange = (

@@ -109,7 +109,7 @@ describe('the order of the sidebar', () => {
     const global = result.getByRole('region', { name: 'Global' });
     const list = elementsPanel(result);
     const header = result.getByTestId('perch-editor-selection');
-    const transform = within(entity(result)).getByRole('region', { name: 'Transform' });
+    const transform = within(entity(result)).getByRole('region', { name: 'Placement' });
 
     expect(precedes(global, list)).toBe(true);
     expect(precedes(list, header)).toBe(true);
@@ -179,14 +179,14 @@ describe('sections across a change of selection', () => {
   it('keeps the sections two elements share mounted, as the same nodes', () => {
     const result = renderEditor();
     selectElement(result, 0);
-    const transform = within(entity(result)).getByRole('region', { name: 'Transform' });
+    const transform = within(entity(result)).getByRole('region', { name: 'Placement' });
     const appearance = result.getByTestId('perch-editor-appearance');
     const header = result.getByTestId('perch-editor-selection');
     const x = within(transform).getByRole('spinbutton', { name: 'x' });
 
     selectElement(result, 1);
 
-    expect(within(entity(result)).getByRole('region', { name: 'Transform' })).toBe(transform);
+    expect(within(entity(result)).getByRole('region', { name: 'Placement' })).toBe(transform);
     expect(result.getByTestId('perch-editor-appearance')).toBe(appearance);
     expect(result.getByTestId('perch-editor-selection')).toBe(header);
     // Only the value changed.
@@ -208,10 +208,10 @@ describe('sections across a change of selection', () => {
   it('keeps a shared section folded the way the author left it', () => {
     const result = renderEditor();
     selectElement(result, 0);
-    fireEvent.click(within(entity(result)).getByRole('button', { name: 'Transform' }));
+    fireEvent.click(within(entity(result)).getByRole('button', { name: 'Placement' }));
     selectElement(result, 1);
 
-    expect(within(entity(result)).getByRole('button', { name: 'Transform' })).toHaveAttribute(
+    expect(within(entity(result)).getByRole('button', { name: 'Placement' })).toHaveAttribute(
       'aria-expanded',
       'false',
     );
@@ -224,7 +224,7 @@ describe('sections across a change of selection', () => {
     selectBackground(result);
 
     // The background has no rect: Transform is on its way out, not gone.
-    const leaving = regionAround(result, 'Transform');
+    const leaving = regionAround(result, 'Placement');
     expect(leaving).toHaveAttribute('data-perch-phase', 'closing');
     expect(leaving).toHaveAttribute('inert');
     // Only Transform: the header and the sections the two share stay where they are, live.
@@ -232,7 +232,7 @@ describe('sections across a change of selection', () => {
     expect(result.getByTestId('perch-editor-appearance').closest('[inert]')).toBeNull();
 
     finish(result);
-    expect(within(entity(result)).queryByRole('region', { name: 'Transform' })).toBeNull();
+    expect(within(entity(result)).queryByRole('region', { name: 'Placement' })).toBeNull();
   });
 
   it('grows in a section that newly applies', () => {
@@ -242,7 +242,7 @@ describe('sections across a change of selection', () => {
     finish(result);
     selectElement(result, 1);
 
-    expect(regionAround(result, 'Transform').getAttribute('data-perch-phase')).toMatch(
+    expect(regionAround(result, 'Placement').getAttribute('data-perch-phase')).toMatch(
       /^(entering|opening)$/,
     );
     // Only Transform grows: the header around it was already open, and stays so.
@@ -251,25 +251,24 @@ describe('sections across a change of selection', () => {
       'open',
     );
     finish(result);
-    expect(regionAround(result, 'Transform')).toHaveAttribute('data-perch-phase', 'open');
+    expect(regionAround(result, 'Placement')).toHaveAttribute('data-perch-phase', 'open');
   });
 
-  it('swaps the content alignment grid in place, inside the Transform the two share', () => {
+  it('swaps the content alignment grid in place, inside the Placement the two share', () => {
     withDuration();
     const result = renderEditor();
     selectElement(result, 0);
     finish(result);
-    const transform = within(entity(result)).getByRole('region', { name: 'Transform' });
-    expect(within(transform).getAllByRole('radio')).toHaveLength(9);
+    const transform = within(entity(result)).getByRole('region', { name: 'Placement' });
+    const grid = (): HTMLElement =>
+      within(transform).getByRole('radiogroup', { name: /^Content alignment/ });
+    expect(within(grid()).getAllByRole('radio')).toHaveLength(9);
     selectElement(result, 1);
 
-    // Transform is kept; the text's own four-by-four grid is in it, the readout's three-by-three gone.
-    expect(within(entity(result)).getByRole('region', { name: 'Transform' })).toBe(transform);
-    expect(within(transform).getAllByRole('radio')).toHaveLength(16);
-    expect(transform.querySelector('.perch-transform__grid')).toHaveAttribute(
-      'data-perch-open',
-      'true',
-    );
+    // Placement is kept; the text's own four-by-four grid is in it, the readout's three-by-three gone.
+    expect(within(entity(result)).getByRole('region', { name: 'Placement' })).toBe(transform);
+    expect(within(grid()).getAllByRole('radio')).toHaveLength(16);
+    expect(transform.querySelector('.perch-transform__content')).not.toBeNull();
   });
 
   it('changes at once under reduced motion', () => {
@@ -284,7 +283,7 @@ describe('sections across a change of selection', () => {
     selectElement(result, 1);
     selectBackground(result);
 
-    expect(within(entity(result)).queryByRole('region', { name: 'Transform' })).toBeNull();
+    expect(within(entity(result)).queryByRole('region', { name: 'Placement' })).toBeNull();
   });
 
   it('collapses the selected entity away when the selection clears, rather than snapping', () => {

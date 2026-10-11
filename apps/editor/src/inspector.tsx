@@ -128,7 +128,8 @@ import {
 import { PropertyView } from './property-view.js';
 import { LAYER_INDEX_ATTRIBUTE, useRowDrag, type RowDrag } from './row-drag.js';
 import { AddMenu, SensorCatalogueProvider } from './sensor-picker.js';
-import { BACKGROUND_SELECTED, NOTHING_SELECTED } from './store.js';
+import { BACKGROUND_SELECTED, NOTHING_SELECTED, useEditorStore } from './store.js';
+import { anchoredPosition, type Anchor } from './anchor.js';
 import { TokenPane, contentPlacement } from './token-pane.js';
 import { TRANSFORM_STYLES, TransformBlock } from './transform-block.js';
 
@@ -481,10 +482,18 @@ function identify(element: LayoutElement): { readonly name: string; readonly det
   }
 }
 
-/** A section's one-line summary, for when it is folded. */
-function summarise(section: PropertySection<LayoutElement>, element: LayoutElement): string {
+/**
+ * A section's one-line summary, for when it is folded. Placement's names the anchor point, as its
+ * x and y fields do.
+ */
+function summarise(
+  section: PropertySection<LayoutElement>,
+  element: LayoutElement,
+  anchor: Anchor,
+): string {
   if (section.id === 'transform') {
-    const { x, y, w, h } = element.rect;
+    const { x, y } = anchoredPosition(element.rect, anchor);
+    const { w, h } = element.rect;
     return `${x}, ${y} · ${w} × ${h}`;
   }
   const { name, detail } = identify(element);
@@ -612,6 +621,7 @@ function EntityPanes({
   const index = subject.kind === 'element' ? subject.index : NOTHING_SELECTED;
   const styled = element !== undefined && element.kind !== 'media';
 
+  const anchor = useEditorStore((state) => state.settings.anchor);
   const sections =
     element === undefined
       ? [
@@ -636,7 +646,7 @@ function EntityPanes({
               id={`entity/${section.id}`}
               panel={section.id}
               title={section.title}
-              summary={summarise(section, element)}
+              summary={summarise(section, element, anchor)}
             >
               {section.id === 'transform' ? (
                 <TransformBlock
@@ -704,6 +714,7 @@ function EntityPanes({
         inherited={theme}
         sectionsOpen={['appearance', 'placement']}
         omitGroups={placed ? PLACED_GROUPS : NO_GROUPS}
+        groupTitles={ELEMENT_GROUP_TITLES}
         disclosureKey="style"
         panels="entity"
         leading={sections}
@@ -734,6 +745,13 @@ function EntityPanes({
 /** The token sections an element's Transform draws instead, and none. */
 const PLACED_GROUPS: readonly TokenGroup[] = Object.freeze(['placement']);
 const NO_GROUPS: readonly TokenGroup[] = Object.freeze([]);
+/**
+ * The entity's own Placement is its box (`transform-block.tsx`), so the placement token section,
+ * shown only for a value its content grid cannot show, is called what that grid is.
+ */
+const ELEMENT_GROUP_TITLES: Readonly<Partial<Record<TokenGroup, string>>> = Object.freeze({
+  placement: 'Content alignment',
+});
 
 /** No kind filter: every element listed. */
 const NO_KINDS: ReadonlySet<FilterKind> = new Set();

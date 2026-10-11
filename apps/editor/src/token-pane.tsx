@@ -140,6 +140,8 @@ export interface TokenPaneProps {
    * Transform (`transform-block.tsx`). The Developer tab still lists their keys.
    */
   readonly omitGroups?: readonly TokenGroup[];
+  /** A token section's title where this surface calls it something else than `ui-kit` does. */
+  readonly groupTitles?: Readonly<Partial<Record<TokenGroup, string>>>;
 }
 
 const TABS: readonly TabSpec<TokenTab>[] = Object.freeze([
@@ -238,6 +240,7 @@ export function TokenPane({
   styled = true,
   searchFor,
   omitGroups = NO_GROUPS,
+  groupTitles = NO_TITLES,
 }: TokenPaneProps): ReactNode {
   const key = disclosureKey ?? id;
   const rememberedTab = useEditorStore((state) => state.settings.tabs[key]) ?? 'customize';
@@ -282,6 +285,7 @@ export function TokenPane({
               leading={leading}
               panels={panels ?? id}
               omitGroups={omitGroups}
+              groupTitles={groupTitles}
               known={known}
               lead={lead}
               tokens={tokens}
@@ -312,6 +316,7 @@ export function TokenPane({
 }
 
 const NO_GROUPS: readonly TokenGroup[] = Object.freeze([]);
+const NO_TITLES: Readonly<Partial<Record<TokenGroup, string>>> = Object.freeze({});
 
 /** Both halves of the content placement an element kind reads, as a Customize grid shows them. */
 export interface ContentPlacement {
@@ -363,6 +368,7 @@ function CustomizeSections({
   leading,
   panels,
   omitGroups,
+  groupTitles,
   known,
   lead,
   tokens,
@@ -380,6 +386,7 @@ function CustomizeSections({
   readonly leading: readonly CollapseEntry[];
   readonly panels: string;
   readonly omitGroups: readonly TokenGroup[];
+  readonly groupTitles: Readonly<Partial<Record<TokenGroup, string>>>;
   readonly known: readonly KnownToken[];
   readonly styled: boolean;
   readonly lead: readonly LeadRow[];
@@ -393,8 +400,9 @@ function CustomizeSections({
   readonly onRemove: (name: string) => void;
 }): ReactNode {
   const searching = query.trim() !== '';
-  const sections = TOKEN_GROUPS.flatMap(({ group, title }) => {
+  const sections = TOKEN_GROUPS.flatMap(({ group, title: groupTitle }) => {
     if (omitGroups.includes(group)) return [];
+    const title = groupTitles[group] ?? groupTitle;
     const names = known.filter((name) => PERCH_TOKEN_LABELS[name].group === group);
     // Search by label, description and section title — never the raw name, which this tab never
     // shows. A placement pair is one grid, so one half matching keeps both.

@@ -506,12 +506,12 @@ describe('dragging panels', () => {
     const result = renderEditor();
     selectElement(result, 0);
     const entity = group(result, 'Selected entity');
-    fireEvent.keyDown(grip(entity, 'Transform'), { key: 'ArrowUp', altKey: true });
-    expect(panelTitles(entity).slice(0, 2)).toEqual(['Transform', 'Content']);
+    fireEvent.keyDown(grip(entity, 'Placement'), { key: 'ArrowUp', altKey: true });
+    expect(panelTitles(entity).slice(0, 2)).toEqual(['Placement', 'Content']);
     expect(panelTitles(group(result, 'Global'))[0]).toBe('Global Target');
 
     selectElement(result, 1);
-    expect(panelTitles(entity).slice(0, 2)).toEqual(['Transform', 'Content']);
+    expect(panelTitles(entity).slice(0, 2)).toEqual(['Placement', 'Content']);
   });
 
   it('puts the default order back from "Reset panel order" in the Elements options', () => {
