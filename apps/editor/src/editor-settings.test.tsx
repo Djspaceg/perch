@@ -92,13 +92,7 @@ describe('the editor over a remembered store', () => {
     return within(screen.getByTestId('perch-editor-group-global')).getByRole('tab', { name });
   }
 
-  function chip(name: string): HTMLElement {
-    const chips = within(screen.getByRole('group', { name: 'filter by sections' }));
-
-    return chips.getByRole('button', { name });
-  }
-
-  it('reopens with the same folded sections, tab and chip', () => {
+  it('reopens with the same folded sections and tab', () => {
     const storage = memoryStorage();
     const first = renderEditor(storage);
     fireEvent.click(toggle('Global Target'));
@@ -114,12 +108,10 @@ describe('the editor over a remembered store', () => {
     const third = renderEditor(storage);
     expect(globalTab('Developer')).toHaveAttribute('aria-selected', 'true');
     fireEvent.click(globalTab('Customize'));
-    fireEvent.click(chip('Colour'));
     third.unmount();
 
     renderEditor(storage);
     expect(globalTab('Customize')).toHaveAttribute('aria-selected', 'true');
-    expect(chip('Colour')).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('puts the remembered scheme on the page, and takes it off again when it goes', () => {

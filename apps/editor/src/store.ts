@@ -116,8 +116,6 @@ export interface EditorSettings {
   readonly sections: Readonly<Record<string, boolean>>;
   /** The tab each token pane shows, by the pane's disclosure key (`theme`, `style`). */
   readonly tabs: Readonly<Record<string, TokenTab>>;
-  /** The category chip each token pane has pressed, by the same key. */
-  readonly chips: Readonly<Record<string, string>>;
   /** The layout last picked in the header, or `null` before one has been. `?layout=` beats it. */
   readonly layout: string | null;
   /**
@@ -156,7 +154,6 @@ export interface EditorActions {
   readonly adoptConnection: (choice: ConnectionChoice) => void;
   readonly setSectionOpen: (id: string, open: boolean) => void;
   readonly setTab: (pane: string, tab: TokenTab) => void;
-  readonly setChip: (pane: string, chip: string) => void;
   /** Replace command `id`'s keys with `bindings` (`[]` unbinds it), or with `undefined` restore them. */
   readonly setKeybinding: (id: CommandId, bindings: readonly string[] | undefined) => void;
   readonly setScheme: (scheme: ChromeScheme) => void;
@@ -205,7 +202,6 @@ const DEFAULT_SETTINGS: EditorSettings = Object.freeze({
   }),
   sections: Object.freeze({}),
   tabs: Object.freeze({}),
-  chips: Object.freeze({}),
   layout: null,
   keybindings: Object.freeze({}),
   scheme: 'system',
@@ -323,12 +319,6 @@ export function createEditorStore(
               settle(
                 { tabs: { ...get().settings.tabs, [pane]: tab } },
                 { type: 'set/tab', pane, tab },
-              );
-            },
-            setChip: (pane, chip) => {
-              settle(
-                { chips: { ...get().settings.chips, [pane]: chip } },
-                { type: 'set/chip', pane, chip },
               );
             },
             setScheme: (scheme) => {
@@ -547,7 +537,6 @@ function readSettings(raw: unknown): EditorSettings {
     connection: readConnection(body['connection']) ?? DEFAULT_SETTINGS.connection,
     sections: readRecord(body['sections'], (value) => typeof value === 'boolean'),
     tabs: readRecord(body['tabs'], isTokenTab),
-    chips: readRecord(body['chips'], (value) => typeof value === 'string'),
     layout: typeof body['layout'] === 'string' ? body['layout'] : null,
     keybindings: readRecord(body['keybindings'], isStringList),
     scheme: isScheme(body['scheme']) ? body['scheme'] : DEFAULT_SETTINGS.scheme,

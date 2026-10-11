@@ -78,7 +78,6 @@ describe('persisted settings', () => {
     first.setSectionOpen('entity/transform', false);
     first.setSectionOpen('theme/typography/advanced', true);
     first.setTab('theme', 'developer');
-    first.setChip('theme', 'typography');
     first.openLayout(openLayoutByName(testLibrary(), 'tower-test'), { remember: true });
 
     const second = createEditorStore({ storage }).getState();
@@ -92,7 +91,6 @@ describe('persisted settings', () => {
       },
       sections: { 'entity/transform': false, 'theme/typography/advanced': true },
       tabs: { theme: 'developer' },
-      chips: { theme: 'typography' },
       layout: 'tower-test',
     });
     expect(stored(storage).version).toBe(EDITOR_STORE_VERSION);

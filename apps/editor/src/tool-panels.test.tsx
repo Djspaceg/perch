@@ -150,3 +150,23 @@ describe('the Elements group', () => {
     expect(precedes(header, within(entity).getByRole('region', { name: 'Content' }))).toBe(true);
   });
 });
+
+describe('the category tabs', () => {
+  it('are gone: Global lists every panel, and folds do the hiding', () => {
+    const result = renderEditor();
+    const global = group(result, 'Global');
+
+    expect(within(global).queryByRole('group', { name: 'filter by sections' })).toBeNull();
+    expect(within(global).queryByRole('button', { name: 'All' })).toBeNull();
+    expect(panelTitles(global)).toHaveLength(6);
+  });
+
+  it('leave the Customize and Developer tabs and the search', () => {
+    const result = renderEditor();
+    const global = group(result, 'Global');
+
+    expect(within(global).getByRole('tab', { name: 'Customize' })).toBeInTheDocument();
+    expect(within(global).getByRole('tab', { name: 'Developer' })).toBeInTheDocument();
+    expect(within(global).getByRole('searchbox', { name: 'search theme tokens' })).toBeInTheDocument();
+  });
+});

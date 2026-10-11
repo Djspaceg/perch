@@ -936,7 +936,7 @@ describe('state at a glance', () => {
   });
 });
 
-describe('the search and the chips', () => {
+describe('the search', () => {
   it('narrow the rows to every word of the query, by label and description', () => {
     renderChrome();
     fireEvent.change(screen.getByRole('searchbox', { name: /search theme tokens/i }), {
@@ -970,27 +970,5 @@ describe('the search and the chips', () => {
 
     expect(screen.getByLabelText('--brand-hue')).toBeInTheDocument();
     expect(screen.queryByLabelText('--perch-fg')).toBeNull();
-  });
-
-  it('filter by section with a chip, within the same grouping the sections use', () => {
-    renderChrome({ chips: true });
-    const chips = screen.getByRole('group', { name: /sections/i });
-
-    expect(
-      within(chips)
-        .getAllByRole('button')
-        .map((chip) => chip.textContent),
-    ).toEqual(['All', 'Appearance', 'Placement', 'Typography', 'Colour']);
-    fireEvent.click(within(chips).getByRole('button', { name: 'Colour' }));
-
-    expect(within(chips).getByRole('button', { name: 'Colour' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    expect(screen.getByLabelText(FG)).toBeVisible();
-    expect(screen.queryByRole('region', { name: 'Typography' })).toBeNull();
-
-    fireEvent.click(within(chips).getByRole('button', { name: 'All' }));
-    expect(screen.getByRole('region', { name: 'Typography' })).toBeInTheDocument();
   });
 });

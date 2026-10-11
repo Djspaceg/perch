@@ -201,7 +201,6 @@ export function Inspector({
             title="theme"
             scope="layout"
             tokens={state.draft.theme}
-            chips
             titlePrefix="Global "
             sectionsOpen={false}
             disclosureKey="theme"

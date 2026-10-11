@@ -109,12 +109,10 @@ export interface TokenPaneProps {
    * them says whose they are next to the selected entity's own `Colour`.
    */
   readonly titlePrefix?: string;
-  /** Category chips under the tabs, one per `TOKEN_GROUPS` entry. */
-  readonly chips?: boolean;
   /** Which token sections start open: all (`true`, the default), none, or the ones named. */
   readonly sectionsOpen?: boolean | readonly TokenGroup[];
   /**
-   * What the sections' open state, the tab and the chip are remembered under in the editor store.
+   * What the sections' open state and the tab are remembered under in the editor store.
    * Defaults to `id`. Every element's `style` pane shares `style`, so the tab picked on one readout is
    * the tab the next one opens on, as a fold is.
    */
@@ -139,12 +137,6 @@ const TABS: readonly TabSpec<TokenTab>[] = Object.freeze([
     title: 'Every token this surface can set, by name and type',
   },
   { id: 'developer', label: 'Developer', title: 'What this document holds, by raw token name' },
-]);
-
-/** The chips: All, then one per section, in the sections' order. */
-const CHIPS = Object.freeze([
-  { id: 'all', label: 'All' },
-  ...TOKEN_GROUPS.map((entry) => ({ id: entry.group, label: entry.title })),
 ]);
 
 /**
@@ -227,7 +219,6 @@ export function TokenPane({
   onRemove,
   leading,
   lead = [],
-  chips = false,
   titlePrefix = '',
   sectionsOpen = true,
   disclosureKey,
@@ -238,9 +229,7 @@ export function TokenPane({
   const rememberedTab = useEditorStore((state) => state.settings.tabs[key]) ?? 'customize';
   // Nothing to show on Developer without tokens; the remembered tab is kept for the next that has some.
   const tab = styled ? rememberedTab : 'customize';
-  const remembered = useEditorStore((state) => state.settings.chips[key]);
   const setPaneTab = useEditorStore((state) => state.setTab);
-  const setPaneChip = useEditorStore((state) => state.setChip);
   const [query, setQuery] = useState('');
   // Adjusted during render, the way React documents for state that follows a prop.
   const [searchedFor, setSearchedFor] = useState(searchFor);
@@ -248,8 +237,6 @@ export function TokenPane({
     setSearchedFor(searchFor);
     setQuery('');
   }
-  // A chip no section is called any more reads as All, rather than as a filter that hides everything.
-  const chip = CHIPS.some((entry) => entry.id === remembered) ? (remembered ?? 'all') : 'all';
   const base = `perch-token-pane-${id}`;
   const known = styled ? tokensFor(scope, kind) : [];
 
@@ -275,15 +262,6 @@ export function TokenPane({
       >
         {tab === 'customize' ? (
           <>
-            {chips && styled ? (
-              <FilterBar
-                chips={CHIPS}
-                chip={chip}
-                onChip={(next) => {
-                  setPaneChip(key, next);
-                }}
-              />
-            ) : null}
             {leading}
             <CustomizeSections
               pane={id}
@@ -293,7 +271,6 @@ export function TokenPane({
               tokens={tokens}
               inherited={inherited}
               query={query}
-              chip={chip}
               titlePrefix={titlePrefix}
               sectionsOpen={sectionsOpen}
               disclosureKey={key}
@@ -323,7 +300,10 @@ function opensByDefault(group: TokenGroup, sectionsOpen: boolean | readonly Toke
   return typeof sectionsOpen === 'boolean' ? sectionsOpen : sectionsOpen.includes(group);
 }
 
-/** The vocabulary, one folding section per `ui-kit` group, filtered by the search and the chip. */
+/**
+ * The vocabulary, one folding section per `ui-kit` group, filtered by the search. Every section is
+ * always listed: its disclosure is what hides it, so there is no second, category filter on top.
+ */
 function CustomizeSections({
   pane,
   scope,
@@ -332,7 +312,6 @@ function CustomizeSections({
   tokens,
   inherited,
   query,
-  chip,
   titlePrefix,
   sectionsOpen,
   disclosureKey,
@@ -348,7 +327,6 @@ function CustomizeSections({
   readonly tokens: Readonly<Record<string, string>>;
   readonly inherited: Readonly<Record<string, string>> | undefined;
   readonly query: string;
-  readonly chip: string;
   readonly titlePrefix: string;
   readonly sectionsOpen: boolean | readonly TokenGroup[];
   readonly disclosureKey: string;
@@ -357,7 +335,6 @@ function CustomizeSections({
 }): ReactNode {
   const searching = query.trim() !== '';
   const sections = TOKEN_GROUPS.flatMap(({ group, title }) => {
-    if (chip !== 'all' && chip !== group) return [];
     const names = known.filter((name) => PERCH_TOKEN_LABELS[name].group === group);
     // Search by label, description and section title — never the raw name, which this tab never
     // shows. A placement pair is one grid, so one half matching keeps both.
@@ -392,7 +369,7 @@ function CustomizeSections({
             id={`${disclosureKey}/${group}`}
             title={`${titlePrefix}${title}`}
             defaultOpen={opensByDefault(group, sectionsOpen)}
-            forceOpen={searching || chip === group}
+            forceOpen={searching}
             summary={
               setCount === 0 ? undefined : (
                 <span
@@ -874,7 +851,6 @@ function AddToken({ onAdd }: { readonly onAdd: (name: string, value: string) => 
 export const TOKEN_PANE_STYLES = `
 .perch-token-pane { display: flex; flex-direction: column; }
 .perch-token-pane__panel { display: flex; flex-direction: column; background: var(--ed-bg); }
-.perch-token-pane .perch-filter__chips { border-bottom: 1px solid var(--ed-bar-shadow); }
 .perch-row--placement { align-items: start; padding-top: 3px; padding-bottom: 3px; }
 /* A padding or radius diagram: room above and below. On the row, not the diagram, so the label
    stays level with the diagram's top. The chrome has no vertical spacing variable (--ed-gap is the
