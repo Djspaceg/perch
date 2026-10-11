@@ -211,6 +211,7 @@ describe('content alignment', () => {
 
     expect(band).toContainElement(contentGrid(result));
     expect(band).toHaveTextContent('Content alignment');
+    expect(band.querySelector('.perch-row__label')).toHaveTextContent('Content alignment');
     expect(
       field(result, 'h').compareDocumentPosition(contentGrid(result)) &
         Node.DOCUMENT_POSITION_FOLLOWING,
@@ -221,19 +222,40 @@ describe('content alignment', () => {
     expect(within(contentGrid(result)).getAllByRole('radio')).toHaveLength(16);
   });
 
-  it('writes the content placement, with its caption, set dot and one reset', () => {
+  it('is an ordinary property row: label and caption on the left, the grid in the value column', () => {
+    const result = renderEditor();
+    select(result, 1);
+    const row = placement(result).querySelector<HTMLElement>('.perch-transform__content');
+    if (row === null) throw new Error('no content row');
+    const label = row.querySelector<HTMLElement>(':scope > .perch-row__label');
+    const value = row.querySelector<HTMLElement>(':scope > .perch-row__value');
+    if (label === null || value === null) throw new Error('not a property row');
+
+    expect(row).toHaveClass('perch-row');
+    expect(within(label).getByText('Content alignment')).toHaveClass('perch-row__label-text');
+    expect(label.querySelector('.perch-transform__caption')).toHaveTextContent('left, middle');
+    expect(value).toContainElement(contentGrid(result));
+    expect(label).not.toContainElement(contentGrid(result));
+    // Not inside the resize band's padded block, which would push its columns off the rows below.
+    expect(row.closest('.perch-transform')).toBeNull();
+  });
+
+  it('writes the content placement, with the set dot in the dot column and the reset at the end', () => {
     const result = renderEditor();
     select(result, 1);
     fireEvent.click(within(contentGrid(result)).getByRole('radio', { name: 'bottom right' }));
+    const row = placement(result).querySelector<HTMLElement>('.perch-transform__content');
+    if (row === null) throw new Error('no content row');
 
-    const caption = placement(result).querySelector('.perch-transform__caption');
-    expect(caption).toHaveTextContent('right, bottom');
-    expect(caption).toHaveAttribute('data-perch-source', 'own');
-    expect(caption?.querySelector('.perch-row__mark')).not.toBeNull();
-    fireEvent.click(
-      within(caption as HTMLElement).getByRole('button', { name: /^reset Content alignment/ }),
-    );
+    expect(row).toHaveAttribute('data-perch-source', 'own');
+    expect(row.querySelector(':scope > .perch-row__label > .perch-row__mark')).not.toBeNull();
+    expect(row.querySelector('.perch-transform__caption')).toHaveTextContent('right, bottom');
+    const end = row.querySelector<HTMLElement>(':scope > .perch-row__end');
+    if (end === null) throw new Error('no end slot');
+    fireEvent.click(within(end).getByRole('button', { name: /^reset Content alignment/ }));
+
     expect(contentGrid(result)).toHaveAccessibleName('Content alignment: left, middle');
+    expect(row.querySelector(':scope > .perch-row__end button')).toBeNull();
   });
 
   it('says it places the content, not the box', () => {

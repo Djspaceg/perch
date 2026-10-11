@@ -12,15 +12,16 @@
  * shows exactly the numbers the file holds. The canvas's own resize handles are unaffected: each
  * handle drags its own edge or corner and holds the opposite one, as before.
  *
- * ## The content band: content alignment
+ * ## Under it: content alignment, as an ordinary row
  *
- * On a band of its own under the fields, labelled "Content alignment": the text or readout placement
- * pair as its four-by-four (or three-by-three) grid, where the element's CONTENT sits inside its box
- * — a text's lines, a readout's number, unit and caption — never where the box sits. Beside the grid,
- * its value in words, tinted and marked like a row's source, with one reset for whatever half is
- * set here. A kind with no placement (media, a chart) has no such band; Placement is one section for
- * every element, kept mounted across a change of selection, and the band grows in or collapses away
- * (`Collapse`) as the selection changes kind, in height and opacity only.
+ * Under the resize band, content alignment is a property row like the token rows below it: the label
+ * "Content alignment" right-aligned in the label column with the grid's value in words ("left, top")
+ * under it, the set or inherited mark in the dot column, and the text or readout placement pair as
+ * its four-by-four (or three-by-three) grid in the value column, so the grid's left edge is the
+ * fields' left edge in every row below. The reset is at the row's end. The grid is where the
+ * element's CONTENT sits inside its box, never where the box sits. A kind with no placement (media,
+ * a chart) has no such row; Placement is one section for every element, kept mounted across a change
+ * of selection, and the row grows in or collapses away (`Collapse`) as the selection changes kind.
  *
  * Below `TRANSFORM_STACK_BELOW_PX` of block width (narrower than any sidebar allows) the anchor grid
  * stacks above its fields, as a guard.
@@ -38,7 +39,7 @@ import {
   resizeAbout,
   type AnchorEdge,
 } from './anchor.js';
-import { AlignGrid, Collapse, ResetButton, VectorField } from './controls/index.js';
+import { AlignGrid, Collapse, PropertyRow, ResetButton, VectorField } from './controls/index.js';
 import { optionLabel, type Property } from './descriptors.js';
 import {
   numberFromInput,
@@ -119,58 +120,59 @@ export function TransformBlock({
   };
 
   return (
-    <div className="perch-transform">
-      <div className="perch-transform__inner">
-        <div className="perch-transform__anchor">
-          <AlignGrid
-            label={`Resize anchor: ${where}`}
-            tip={`Resize anchor: ${where}. x and y are this point's position, and w and h resize about it.`}
-            across={{ options: ANCHOR_ACROSS, value: anchor.across }}
-            down={{ options: ANCHOR_DOWN, value: anchor.down }}
-            onPick={(across, down) => {
-              if (isEdge(across) && isEdge(down)) setAnchor({ across, down });
-            }}
-          />
-        </div>
-        <div className="perch-transform__fields">
-          {properties.map((property) =>
-            property.kind === 'vector' ? (
-              <div
-                key={property.id}
-                className="perch-transform__row"
-                role="group"
-                aria-label={property.label}
-                data-testid={`perch-editor-prop-${property.id}`}
-              >
-                <VectorField
-                  unit={property.unit}
-                  step={1}
-                  fields={property.fields.map((field) => ({
-                    key: field.key,
-                    label: field.label,
-                    ariaLabel: field.ariaLabel,
-                    axis: field.axis,
-                    min: field.min,
-                    ...about(field.key),
-                  }))}
-                />
-              </div>
-            ) : null,
-          )}
+    <>
+      <div className="perch-transform">
+        <div className="perch-transform__inner">
+          <div className="perch-transform__anchor">
+            <AlignGrid
+              label={`Resize anchor: ${where}`}
+              tip={`Resize anchor: ${where}. x and y are this point's position, and w and h resize about it.`}
+              across={{ options: ANCHOR_ACROSS, value: anchor.across }}
+              down={{ options: ANCHOR_DOWN, value: anchor.down }}
+              onPick={(across, down) => {
+                if (isEdge(across) && isEdge(down)) setAnchor({ across, down });
+              }}
+            />
+          </div>
+          <div className="perch-transform__fields">
+            {properties.map((property) =>
+              property.kind === 'vector' ? (
+                <div
+                  key={property.id}
+                  className="perch-transform__row"
+                  role="group"
+                  aria-label={property.label}
+                  data-testid={`perch-editor-prop-${property.id}`}
+                >
+                  <VectorField
+                    unit={property.unit}
+                    step={1}
+                    fields={property.fields.map((field) => ({
+                      key: field.key,
+                      label: field.label,
+                      ariaLabel: field.ariaLabel,
+                      axis: field.axis,
+                      min: field.min,
+                      ...about(field.key),
+                    }))}
+                  />
+                </div>
+              ) : null,
+            )}
+          </div>
         </div>
       </div>
       <Collapse open={placement !== undefined}>
         {placement === undefined ? null : (
-          <div className="perch-transform__content">
-            <ContentGrid placement={placement} content={contentOf(element.kind)} onSet={onSet} />
-            <div className="perch-transform__content-text">
-              <span className="perch-transform__content-label">Content alignment</span>
-              <Caption placement={placement} onRemove={onRemove} />
-            </div>
-          </div>
+          <ContentRow
+            placement={placement}
+            content={contentOf(element.kind)}
+            onSet={onSet}
+            onRemove={onRemove}
+          />
         )}
       </Collapse>
-    </div>
+    </>
   );
 }
 
@@ -216,12 +218,21 @@ function ContentGrid({
   );
 }
 
-/** The content grid's value in words, with its source mark and one reset. */
-function Caption({
+/**
+ * Content alignment as an ordinary property row, like every row of the token sections below it: the
+ * label and the grid's value in words in the label column, the set or inherited mark in the dot
+ * column, the grid in the value column, and one reset at the row's end for whatever half is set
+ * here.
+ */
+function ContentRow({
   placement,
+  content,
+  onSet,
   onRemove,
 }: {
   readonly placement: ContentPlacement;
+  readonly content: string;
+  readonly onSet: (name: string, value: string) => void;
   readonly onRemove: (name: string) => void;
 }): ReactNode {
   const { across, down } = placement;
@@ -237,27 +248,38 @@ function Caption({
   const returnsFrom = own[0]?.returnsTo.source ?? 'default';
 
   return (
-    <div className="perch-transform__caption" data-perch-source={source}>
-      {source === 'default' ? null : <span className="perch-row__mark" aria-hidden="true" />}
-      <span className="perch-transform__caption-text">{inWords(placement)}</span>
-      <span className="perch-sr-only">
-        {source === 'own'
+    <PropertyRow
+      label="Content alignment"
+      labelAs="group"
+      source={source}
+      sourceText={
+        source === 'own'
           ? 'set by this entity'
           : source === 'inherited'
             ? 'from the layout theme'
-            : 'default'}
-      </span>
-      {own.length === 0 ? null : (
-        <ResetButton
-          action="reset"
-          subject="Content alignment"
-          returnsTo={{ source: returnsFrom, value: `${after(across)}, ${after(down)}` }}
-          onReset={() => {
-            for (const half of own) onRemove(half.name);
-          }}
-        />
-      )}
-    </div>
+            : 'default'
+      }
+      className="perch-row--tall perch-transform__content"
+      labelNote={
+        <span className="perch-transform__caption" data-perch-source={source}>
+          {inWords(placement)}
+        </span>
+      }
+      end={
+        own.length === 0 ? null : (
+          <ResetButton
+            action="reset"
+            subject="Content alignment"
+            returnsTo={{ source: returnsFrom, value: `${after(across)}, ${after(down)}` }}
+            onReset={() => {
+              for (const half of own) onRemove(half.name);
+            }}
+          />
+        )
+      }
+    >
+      {() => <ContentGrid placement={placement} content={content} onSet={onSet} />}
+    </PropertyRow>
   );
 }
 
@@ -267,45 +289,9 @@ export const TRANSFORM_STYLES = `
 .perch-transform__anchor { flex: none; display: flex; }
 .perch-transform__fields { flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .perch-transform__row { display: flex; align-items: center; min-width: 0; min-height: var(--ed-row-h); }
-/* Content alignment: a band of its own under the resize fields, its grid and its value in words. */
-.perch-transform__content {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  min-width: 0;
-  margin-top: var(--ed-space-sm);
-  padding-top: var(--ed-space-sm);
-  border-top: 1px solid var(--ed-bar-edge);
-}
-.perch-transform__content-text { flex: 1 1 auto; display: flex; flex-direction: column; gap: var(--ed-space-xs); min-width: 0; }
-.perch-transform__content-label { font-size: var(--ed-font); color: var(--ed-label); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.perch-transform__caption {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  min-height: var(--ed-list-row-h);
-  padding-left: 10px;
-  font-size: var(--ed-font-small);
-  color: var(--ed-quiet);
-  white-space: nowrap;
-}
-.perch-transform__caption-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.perch-transform__caption[data-perch-source='own'] .perch-transform__caption-text { color: var(--ed-own-text); }
-.perch-transform__caption[data-perch-source='inherited'] .perch-transform__caption-text { color: var(--ed-inherited-text); }
-.perch-transform__caption .perch-row__mark {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 6px;
-  height: 6px;
-  box-sizing: border-box;
-  border-radius: 50%;
-  transform: translateY(-50%);
-}
-.perch-transform__caption[data-perch-source='own'] .perch-row__mark { background: var(--ed-own); }
-.perch-transform__caption[data-perch-source='inherited'] .perch-row__mark { border: 1.5px solid var(--ed-inherited); }
+/* Content alignment is a property row; only its caption's tint is its own. */
+.perch-transform__caption[data-perch-source='own'] { color: var(--ed-own-text); }
+.perch-transform__caption[data-perch-source='inherited'] { color: var(--ed-inherited-text); }
 /* Too narrow for the anchor grid beside the fields: it goes on its own row above them. */
 @container (max-width: ${TRANSFORM_STACK_BELOW_PX}px) {
   .perch-transform__inner { flex-direction: column; align-items: flex-start; gap: 4px; }

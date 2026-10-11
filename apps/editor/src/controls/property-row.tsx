@@ -48,6 +48,11 @@ export interface PropertyRowProps {
   readonly labelAs?: 'label' | 'group';
   /** A second line inside the row, under the value: a note that must be visible, not a tooltip. */
   readonly note?: ReactNode;
+  /**
+   * A second line in the label column, under the label: a grid's value in words, which the grid
+   * itself shows only as a pattern of cells.
+   */
+  readonly labelNote?: ReactNode;
   readonly testId?: string | undefined;
   readonly className?: string | undefined;
   readonly attributes?: Readonly<Record<`data-${string}`, string>>;
@@ -63,6 +68,7 @@ export function PropertyRow({
   scrub,
   labelAs = 'label',
   note,
+  labelNote,
   testId,
   className,
   attributes,
@@ -123,6 +129,9 @@ export function PropertyRow({
           <span className="perch-row__mark" aria-hidden="true" />
         ) : null}
         {labelNode}
+        {labelNote === undefined || labelNote === null ? null : (
+          <span className="perch-row__label-note">{labelNote}</span>
+        )}
         {sourceText === undefined ? null : (
           <span className="perch-sr-only" id={sourceId}>
             {sourceText}
@@ -185,6 +194,10 @@ export const PROPERTY_ROW_STYLES = `
 .perch-row[data-perch-source='inherited'] .perch-row__mark { border: 1.5px solid var(--ed-inherited); }
 .perch-row__value { display: flex; align-items: center; gap: var(--ed-gap); min-width: 0; }
 .perch-row__end { position: relative; display: flex; align-items: center; justify-content: center; }
+/* A label with a line under it: both right-aligned in the label column, the mark level with the label. */
+.perch-row__label:has(> .perch-row__label-note) { flex-direction: column; align-items: flex-end; justify-content: flex-start; gap: 1px; }
+.perch-row__label:has(> .perch-row__label-note) > .perch-row__mark { top: calc(var(--ed-field-h) / 2); }
+.perch-row__label-note { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--ed-font-small); color: var(--ed-quiet); }
 .perch-row__note {
   grid-column: 2 / 4;
   padding: 1px 0 2px;

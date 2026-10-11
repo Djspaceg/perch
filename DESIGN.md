@@ -589,7 +589,7 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 ### Placement
 - The selected entity's box, as Affinity's Transform panel lays it out. Global Placement, the theme's, is a different panel.
 - **Resize band**: a 3x3 resize anchor grid at the left, x/y and w/h as two rows of fields beside it with no label column. x and y are the anchor point's position; w and h resize about it, so it stays put. One anchor for every element, remembered, top left by default. Rects are still stored top-left; the canvas handles each hold the opposite edge as before. Below 200px of block width the grid goes on its own row above the fields.
-- **Content band**: under it, labelled "Content alignment", the 4x4 (text) or 3x3 (readout) grid of where the content sits inside the box, never where the box sits, with its value in words, source mark and reset. Only kinds that have it show the band; it grows in and collapses away in height.
+- **Content alignment**: under it, an ordinary property row: "Content alignment" right-aligned in the label column with its value in words ("left, top") under it, the source mark in the dot column, the 4x4 (text) or 3x3 (readout) grid in the value column, its left edge on the fields of the rows below, and the reset at the row's end. The grid is where the content sits inside the box, never where the box sits. Only kinds that have it show the row; it grows in and collapses away in height.
 
 ### Status indicator
 - `status-dot` is Faint when idle, Inherited while working, Success when good and Danger when lost. It always sits beside words.
