@@ -76,6 +76,8 @@ export type ControlSpec =
   | { readonly kind: 'background' }
   /** A media file beside the layout, from the ones the host found (`LocalMediaField`). */
   | { readonly kind: 'localMedia' }
+  /** A text template: a textarea, and a picker inserting sensors and clock tokens (`template-field.tsx`). */
+  | { readonly kind: 'template' }
   | {
       readonly kind: 'segmented';
       readonly options: readonly { readonly value: string; readonly label: string }[];
@@ -278,10 +280,12 @@ const TEXT: ScalarProperty<LayoutElement> = {
   kind: 'scalar',
   id: 'text',
   label: 'text',
-  description: 'What the text element says.',
+  description:
+    'What the text element says. {sensors/...} is a live value, {time} or {date:long} the clock, {{ and }} braces.',
   // A textarea: this is prose an author writes, often a sentence or two, and a one-line input showed
   // a sliver of it. The other free-text fields (src, topic, widget) are identifiers and stay one line.
-  spec: { kind: 'text', multiline: true },
+  // Beside it, the picker that inserts placeholders, since a template is still prose.
+  spec: { kind: 'template' },
   get: (element) => (element.kind === 'text' ? element.text : ''),
   write: (text, index) => setElementText(index, text),
 };

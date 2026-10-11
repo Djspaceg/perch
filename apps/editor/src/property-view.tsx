@@ -22,6 +22,7 @@ import { lengthStep, splitLength, type ControlSpec, type Property } from './desc
 import type { LayoutUpdate } from './layout-edits.js';
 import { BackgroundField, LocalMediaField } from './background-picker.js';
 import { TopicField } from './sensor-picker.js';
+import { TEMPLATE_FIELD_STYLES, TemplateField } from './template-field.js';
 
 /** What scrubbing the row's label should drive for this spec, if anything. */
 export function scrubFor(
@@ -212,6 +213,13 @@ export function SpecControl({
     case 'background':
       return <BackgroundField value={value} onValue={onValue} />;
 
+    case 'template':
+      return (
+        <TemplateField ids={ids} label={label} value={value} onValue={onValue}>
+          <TextControl ids={ids} value={value} onValue={onValue} multiline />
+        </TemplateField>
+      );
+
     case 'localMedia':
       return (
         <LocalMediaField
@@ -381,7 +389,8 @@ export function PropertyView<Subject>({
       scrub={scrubFor(property.spec, value, onValue)}
       testId={`perch-editor-prop-${property.id}`}
       className={
-        property.spec.kind === 'text' && property.spec.multiline === true
+        (property.spec.kind === 'text' && property.spec.multiline === true) ||
+        property.spec.kind === 'template'
           ? 'perch-row--tall'
           : undefined
       }
@@ -399,7 +408,7 @@ export function PropertyView<Subject>({
   );
 }
 
-export const PROPERTY_VIEW_STYLES = `
+export const PROPERTY_VIEW_STYLES = `${TEMPLATE_FIELD_STYLES}
 .perch-vector-group { flex: 1 1 auto; display: flex; min-width: 0; }
 .perch-input--unit { flex: 0 0 52px; }
 .perch-input--multiline {
