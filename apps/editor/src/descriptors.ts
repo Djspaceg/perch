@@ -26,6 +26,7 @@ import {
   type LayoutElement,
 } from '@perch/layout-schema';
 import { assertNever, type TokenLabel } from '@perch/ui-kit';
+import { LOCALE_CHOICES, TIME_ZONE_CHOICES, type ChoiceSource } from './clock-options.js';
 import type { BoxKind } from './controls/index.js';
 import {
   numberFromInput,
@@ -78,6 +79,8 @@ export type ControlSpec =
   | { readonly kind: 'localMedia' }
   /** A text template: a textarea, and a picker inserting sensors and clock tokens (`template-field.tsx`). */
   | { readonly kind: 'template' }
+  /** A long closed list that can still hold a value it leaves out: a searchable dropdown (`ChoiceField`). */
+  | { readonly kind: 'choice'; readonly choices: ChoiceSource }
   | {
       readonly kind: 'segmented';
       readonly options: readonly { readonly value: string; readonly label: string }[];
@@ -551,8 +554,8 @@ const LOCALE: ScalarProperty<Layout> = {
   id: 'locale',
   label: 'locale',
   description:
-    "The language the clock is written in, like en-GB or de-DE. Empty is the panel's own.",
-  spec: { kind: 'text' },
+    "The language the clock is written in, like en-GB or de-DE. System default is the panel's own.",
+  spec: { kind: 'choice', choices: LOCALE_CHOICES },
   get: (layout) => layout.locale ?? '',
   write: (text) => setLayoutClockField('locale', text),
 };
@@ -562,8 +565,8 @@ const TIME_ZONE: ScalarProperty<Layout> = {
   id: 'timeZone',
   label: 'timeZone',
   description:
-    "The time zone the clock reads, like Europe/London or UTC. Empty is the panel's own.",
-  spec: { kind: 'text' },
+    "The time zone the clock reads, like Europe/London or UTC. System default is the panel's own.",
+  spec: { kind: 'choice', choices: TIME_ZONE_CHOICES },
   get: (layout) => layout.timeZone ?? '',
   write: (text) => setLayoutClockField('timeZone', text),
 };

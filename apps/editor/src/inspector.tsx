@@ -231,7 +231,7 @@ export function Inspector({
                 <Section
                   id="global/clock"
                   title="Global Clock"
-                  summary={`${state.draft.locale ?? 'panel locale'} · ${state.draft.timeZone ?? 'panel zone'}`}
+                  summary={`${state.draft.locale ?? 'system locale'} · ${state.draft.timeZone ?? 'system zone'}`}
                 >
                   {clockProperties().map((property) => (
                     <PropertyView

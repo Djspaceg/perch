@@ -9,6 +9,7 @@ import type { ReactNode } from 'react';
 import { formatBoxToken, parseBoxToken } from '@perch/ui-kit';
 import {
   BoxDiagram,
+  ChoiceField,
   ColorField,
   NumberField,
   PropertyRow,
@@ -218,6 +219,19 @@ export function SpecControl({
         <TemplateField ids={ids} label={label} value={value} onValue={onValue}>
           <TextControl ids={ids} value={value} onValue={onValue} multiline />
         </TemplateField>
+      );
+
+    case 'choice':
+      return (
+        <ChoiceField
+          id={ids.controlId}
+          describedBy={ids.describedBy}
+          noun={spec.choices.noun}
+          value={value}
+          options={spec.choices.options(value)}
+          accept={spec.choices.accept}
+          onValue={onValue}
+        />
       );
 
     case 'localMedia':

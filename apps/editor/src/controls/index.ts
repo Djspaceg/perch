@@ -9,6 +9,7 @@
 
 import { ALIGN_GRID_STYLES } from './align-grid.js';
 import { BOX_DIAGRAM_STYLES } from './box-diagram.js';
+import { CHOICE_FIELD_STYLES } from './choice-field.js';
 import { CHROME_STYLES } from './chrome.js';
 import { COLLAPSE_STYLES } from './collapse.js';
 import { COLOR_FIELD_STYLES } from './color-field.js';
@@ -26,6 +27,7 @@ export { AlignGrid, type AlignAxis } from './align-grid.js';
 export { BoxDiagram, type BoxDiagramProps } from './box-diagram.js';
 export { parseBoxInput, shiftQuad, type BoxInput, type BoxKind } from './box-input.js';
 export { Collapse, CollapseEach, type CollapseEntry, type CollapseProps } from './collapse.js';
+export { ChoiceField, type ChoiceOption } from './choice-field.js';
 export { ColorField, swatchStyle } from './color-field.js';
 export { FilterBar, type FilterChip } from './filter-bar.js';
 export {
@@ -66,5 +68,6 @@ export const CONTROLS_STYLES = [
   RESET_BUTTON_STYLES,
   TAB_STRIP_STYLES,
   FILTER_BAR_STYLES,
+  CHOICE_FIELD_STYLES,
   TOOLTIP_STYLES,
 ].join('\n');
