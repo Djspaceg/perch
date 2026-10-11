@@ -132,7 +132,7 @@ export function Readout(props: ReadoutProps): ReactNode {
       data-state={view.state}
       data-tone={toneOf(view.state)}
       data-topic={parsed.canonical}
-      style={glyphCounts(view.value, view.unit)}
+      style={readoutGlyphCounts(view.value, view.unit)}
     >
       <div className="perch-readout__primary">
         <span className="perch-readout__value">{view.value}</span>
@@ -166,9 +166,10 @@ export const READOUT_GLYPH_PROPERTIES = Object.freeze([
  * The two numbers the type scale divides by, as custom properties on the readout.
  *
  * Counted in code points, so `°C` is two glyphs. React patches the attribute only when a count
- * changes, which within a decade of readings is never.
+ * changes, which within a decade of readings is never. A template's `fit` writes the same two on
+ * its own run (`text-block.tsx`), for the same `READOUT_VALUE_SIZE`.
  */
-function glyphCounts(value: string, unit: string): CSSProperties {
+export function readoutGlyphCounts(value: string, unit: string): CSSProperties {
   const [chars, unitChars] = READOUT_GLYPH_PROPERTIES;
   const counts: Record<string, string> = {
     [chars]: String(Math.max(1, Array.from(value).length)),
@@ -217,6 +218,21 @@ function parseTopic(topic: string): { canonical: string; metric: SensorMetric } 
   }
   return { canonical, metric: parts.metric };
 }
+
+/**
+ * The value's `font-size`: the largest size between the theme's two ends at which the reading and
+ * its unit fit `100cqw`, the inline size of the nearest query container. The arithmetic is set out
+ * on `READOUT_STYLES` below. Shared, so a template's `fit` (`text-block.tsx`) sizes its number by the
+ * very expression a readout does, inside a text element that is its own query container.
+ */
+export const READOUT_VALUE_SIZE = `clamp(
+    ${token('--perch-value-size-min')},
+    calc(
+      (100cqw - var(--perch-readout-unit-chars, 3) * ${String(READOUT_UNIT_ADVANCE_EM)} * ${token('--perch-unit-size')} - 1ex) /
+        (var(--perch-readout-chars, 8) * ${String(READOUT_DIGIT_ADVANCE_EM)})
+    ),
+    ${token('--perch-value-size-max')}
+  )`;
 
 /**
  * The widget's styles, as a string for the page to inject once.
@@ -320,14 +336,7 @@ export const READOUT_STYLES = `
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: clamp(
-    ${token('--perch-value-size-min')},
-    calc(
-      (100cqw - var(--perch-readout-unit-chars, 3) * ${String(READOUT_UNIT_ADVANCE_EM)} * ${token('--perch-unit-size')} - 1ex) /
-        (var(--perch-readout-chars, 8) * ${String(READOUT_DIGIT_ADVANCE_EM)})
-    ),
-    ${token('--perch-value-size-max')}
-  );
+  font-size: ${READOUT_VALUE_SIZE};
   font-weight: ${token('--perch-value-weight')};
   font-variant-numeric: tabular-nums;
   line-height: 1;

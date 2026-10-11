@@ -28,17 +28,29 @@
  *   width the author never saw is the responsive-layout failure this project's coordinate system
  *   exists to avoid.
  *
+ * ## The readout's rows, opt-in
+ *
+ * The annotations (`template.ts`) paint a readout's rows in a template, each by that row's own theme
+ * tokens, so a theme restyles a readout and its template alike. A `{#style}` span is a `<span>` per
+ * part it holds, nested as written. `fit` is the readout's number row, sized by the readout's own
+ * `READOUT_VALUE_SIZE` against the text element, which becomes a query container only when a part
+ * fits: sized against the whole width, as a readout's number is, so a fitted value shares its line
+ * with nothing. `hold` keeps the last value while stale; `note` is the readout's note, its line held
+ * at the note's height when it says nothing. A template with none of these paints as it did.
+ *
  * Placement inside the rect is a theme token pair rather than a prop, because it is presentation:
  * `--perch-text-justify` and `--perch-text-anchor` are the flex values, so a layout can centre a
  * title in its band or pin a footnote to the bottom-left without a schema field for either.
  */
 
 import {
+  isPlainTemplate,
   parseTextTemplate,
   type ClockToken,
   type ClockVariant,
   type TemplateFilter,
   type TemplatePart,
+  type TemplateStyle,
 } from '@perch/layout-schema';
 import {
   normalizeSensorTopic,
@@ -47,7 +59,8 @@ import {
 } from '@perch/sensor-contract';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { clockGranularityMs, formatClockToken } from './clock-format.js';
-import { READOUT_NO_READING_TEXT, readoutView } from './readout-view.js';
+import { READOUT_NO_READING_TEXT, readoutView, type ReadoutStateKind } from './readout-view.js';
+import { READOUT_VALUE_SIZE, readoutGlyphCounts } from './readout.js';
 import { useSensor, useSensorMeta } from './sensor-context.js';
 import { token } from './tokens.js';
 
@@ -66,15 +79,18 @@ export interface TextBlockProps {
 
 export function TextBlock({ text, locale, timeZone }: TextBlockProps): ReactNode {
   const parts = useMemo(() => templateParts(text), [text]);
+  const fits = parts.some(
+    (part) => part.kind === 'sensor' && part.filters.some((filter) => filter.name === 'fit'),
+  );
+
+  // One unstyled literal is a caption, and paints as its characters with no span at all.
+  const only = parts.length === 1 ? parts[0] : undefined;
+  const plain = only?.kind === 'literal' && isPlainTemplate(parts) ? only.text : undefined;
 
   return (
-    <div className="perch-text">
+    <div className={fits ? 'perch-text perch-text--fit' : 'perch-text'}>
       <span className="perch-text__body">
-        {parts.length === 1 && parts[0]?.kind === 'literal' ? (
-          parts[0].text
-        ) : (
-          <TemplateParts parts={parts} locale={locale} timeZone={timeZone} />
-        )}
+        {plain ?? <TemplateParts parts={parts} locale={locale} timeZone={timeZone} />}
       </span>
     </div>
   );
@@ -107,33 +123,50 @@ function TemplateParts({
   );
   const now = useClock(granularity);
 
-  return parts.map((part, index) => {
-    switch (part.kind) {
-      case 'literal':
-        // Index keys are right here: the parts are fixed for as long as the string is.
-        return <span key={index}>{part.text}</span>;
-      case 'sensor':
-        return (
-          <SensorPart
-            key={index}
-            topic={part.topic}
-            filters={part.filters}
-            fallback={part.fallback}
-          />
-        );
-      case 'clock':
-        return (
-          <ClockPart
-            key={index}
-            token={part.token}
-            variant={part.variant}
-            now={now}
-            locale={locale}
-            timeZone={timeZone}
-          />
-        );
-    }
-  });
+  // Index keys are right here: the parts are fixed for as long as the string is.
+  return parts.map((part, index) => (
+    <Styled key={index} styles={part.styles ?? []}>
+      {partNode(part, now, locale, timeZone)}
+    </Styled>
+  ));
+}
+
+function partNode(
+  part: TemplatePart,
+  now: number,
+  locale: string | undefined,
+  timeZone: string | undefined,
+): ReactNode {
+  switch (part.kind) {
+    case 'literal':
+      return <span>{part.text}</span>;
+    case 'sensor':
+      return <SensorPart topic={part.topic} filters={part.filters} fallback={part.fallback} />;
+    case 'clock':
+      return (
+        <ClockPart
+          token={part.token}
+          variant={part.variant}
+          now={now}
+          locale={locale}
+          timeZone={timeZone}
+        />
+      );
+  }
+}
+
+/** A part inside the spans it sits in, outermost first, one `<span>` each. */
+function Styled({
+  styles,
+  children,
+}: {
+  readonly styles: readonly TemplateStyle[];
+  readonly children: ReactNode;
+}): ReactNode {
+  return styles.reduceRight<ReactNode>(
+    (inner, style) => <span className={`perch-text__style--${style}`}>{inner}</span>,
+    children,
+  );
 }
 
 /**
@@ -190,6 +223,9 @@ function ClockPart({
  * there is no reading to believe — nothing heard yet, or stale. A sensor present and reporting
  * nothing says `n/a`, as a readout does, since that is a fact and not an absence of one. `unit` and
  * `label` show whatever the reading's state, since neither is a measurement.
+ *
+ * `hold` narrows "nothing to believe" to nothing heard yet: a stale value stays, in the stale colour.
+ * `note` says what a readout's note row says, and `fit` paints the readout's number row.
  */
 function SensorPart({
   topic,
@@ -203,39 +239,99 @@ function SensorPart({
   const snapshot = useSensor(topic);
   const meta = useSensorMeta(topic);
   const metric = useMemo(() => parseSensorTopic(topic)?.metric, [topic]);
-  const show = filters.find((filter) => filter.name !== 'fixed')?.name ?? 'text';
+  const show =
+    filters.find(
+      (filter) => filter.name !== 'fixed' && filter.name !== 'fit' && filter.name !== 'hold',
+    )?.name ?? 'text';
   const fixed = filters.find((filter) => filter.name === 'fixed');
   const places = fixed?.name === 'fixed' ? fixed.places : undefined;
+  const fit = filters.some((filter) => filter.name === 'fit');
+  const hold = filters.some((filter) => filter.name === 'hold');
 
-  let text: string;
-  let state: string;
   if (show === 'label') {
-    text = meta?.label ?? normalizeSensorTopic(topic) ?? topic;
-    state = 'label';
-  } else if (show === 'unit') {
-    text = metric === undefined ? '' : SENSOR_METRIC_UNITS[metric];
-    state = 'unit';
-  } else if (metric === undefined) {
-    text = fallback;
-    state = 'waiting';
-  } else {
-    const view = readoutView({ snapshot, metric, decimals: places });
-    state = view.state;
-    text =
-      view.state === 'waiting' || view.state === 'stale'
-        ? fallback
-        : view.state === 'no-reading'
-          ? READOUT_NO_READING_TEXT
-          : show === 'value'
-            ? view.value
-            : view.text;
+    return (
+      <span data-perch-template="sensor" data-state="label">
+        {meta?.label ?? normalizeSensorTopic(topic) ?? topic}
+      </span>
+    );
+  }
+  if (show === 'unit') {
+    return (
+      <span data-perch-template="sensor" data-state="unit">
+        {metric === undefined ? '' : SENSOR_METRIC_UNITS[metric]}
+      </span>
+    );
+  }
+
+  const view =
+    metric === undefined ? undefined : readoutView({ snapshot, metric, decimals: places });
+  const state: ReadoutStateKind = view?.state ?? 'waiting';
+
+  if (show === 'note') {
+    return (
+      <span
+        data-perch-template="sensor"
+        className="perch-text__note"
+        data-state={state}
+        data-tone={noteTone(state)}
+      >
+        {view?.note ?? 'waiting'}
+      </span>
+    );
+  }
+
+  // What the reading shows, split as a readout's number row is: the value, and its unit.
+  const believed =
+    view !== undefined &&
+    (state === 'value' || (hold && state === 'stale') || state === 'no-reading');
+  const value = !believed
+    ? fallback
+    : state === 'no-reading'
+      ? READOUT_NO_READING_TEXT
+      : view.value;
+  const unit = believed && show !== 'value' ? view.unit : '';
+
+  if (fit) {
+    return (
+      <span
+        data-perch-template="sensor"
+        className="perch-text__fit"
+        data-state={state}
+        style={readoutGlyphCounts(value, unit)}
+      >
+        <span className="perch-text__fit-value">{value}</span>
+        {/* The space is text, as in a readout, so the line reads `61.3 °C` when copied. */}
+        <span className="perch-text__fit-unit">{unit === '' ? '' : ` ${unit}`}</span>
+      </span>
+    );
   }
 
   return (
-    <span data-perch-template="sensor" data-state={state}>
-      {text}
+    <span
+      data-perch-template="sensor"
+      data-state={state}
+      {...(hold ? { className: 'perch-text__held' } : {})}
+    >
+      {unit === '' ? value : `${value} ${unit}`}
     </span>
   );
+}
+
+/**
+ * How loud a note is, as a readout decides it (`readout.tsx`'s `toneOf`): nothing for a live value,
+ * quiet while waiting, warn for a reading of nothing, alert for stale.
+ */
+function noteTone(state: ReadoutStateKind): 'none' | 'quiet' | 'warn' | 'alert' {
+  switch (state) {
+    case 'value':
+      return 'none';
+    case 'waiting':
+      return 'quiet';
+    case 'no-reading':
+      return 'warn';
+    case 'stale':
+      return 'alert';
+  }
 }
 
 /**
@@ -273,5 +369,70 @@ export const TEXT_BLOCK_STYLES = `
   letter-spacing: ${token('--perch-text-tracking')};
   text-transform: ${token('--perch-text-transform')};
   color: ${token('--perch-text-color')};
+}
+.perch-text--fit { container-type: inline-size; }
+.perch-text__fit-value {
+  font-size: ${READOUT_VALUE_SIZE};
+  font-weight: ${token('--perch-value-weight')};
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.perch-text__fit-unit {
+  font-size: ${token('--perch-unit-size')};
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  color: ${token('--perch-dim')};
+}
+.perch-text__fit[data-state='waiting'] .perch-text__fit-value { color: ${token('--perch-faint')}; }
+.perch-text__fit[data-state='no-reading'] .perch-text__fit-value { color: ${token('--perch-faint')}; }
+.perch-text__fit[data-state='value'] .perch-text__fit-value { color: ${token('--perch-fg')}; }
+.perch-text__fit[data-state='stale'] .perch-text__fit-value { color: ${token('--perch-stale')}; }
+.perch-text__held[data-state='stale'] { color: ${token('--perch-stale')}; }
+.perch-text__note {
+  display: inline-block;
+  vertical-align: top;
+  height: 1.125rem;
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.perch-text__note[data-tone='none'] { color: transparent; }
+.perch-text__note[data-tone='quiet'] { color: ${token('--perch-faint')}; }
+.perch-text__note[data-tone='warn'] { color: ${token('--perch-warn')}; }
+.perch-text__note[data-tone='alert'] { color: ${token('--perch-alert')}; }
+.perch-text__style--label {
+  font-size: ${token('--perch-label-size')};
+  font-weight: normal;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: ${token('--perch-dim')};
+}
+.perch-text__style--unit {
+  font-size: ${token('--perch-unit-size')};
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  color: ${token('--perch-dim')};
+}
+.perch-text__style--value {
+  font-size: ${token('--perch-value-size-max')};
+  font-weight: ${token('--perch-value-weight')};
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  color: ${token('--perch-fg')};
+}
+.perch-text__style--note {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: ${token('--perch-faint')};
 }
 `;
