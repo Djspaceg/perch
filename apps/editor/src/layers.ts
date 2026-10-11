@@ -39,15 +39,34 @@ export function gapAt(clientY: number, rows: readonly { top: number; bottom: num
 }
 
 /**
- * Where the element at `from` ends up, as an index in `elements`, when it is dropped in list gap
- * `gap` — or `null` for a gap either side of its own row, which is where it already is.
+ * Where the element at `from` ends up, as an index in `elements`, when it is dropped in gap `gap` of
+ * a list showing the elements `shown` (indices, top of the list first) — or `null` for a gap either
+ * side of its own row, which is where it already is. The list may show only some elements (the
+ * kind filter): a drop just under a row puts the element directly beneath that row's element in
+ * paint order, and a drop above the first row directly above it, whatever is hidden between.
  */
-export function dropTarget(from: number, gap: number, count: number): number | null {
-  const row = listRow(from, count);
-  if (gap === row || gap === row + 1 || gap < 0 || gap > count) return null;
-  const landed = gap > row ? gap - 1 : gap;
+export function dropTarget(from: number, gap: number, shown: readonly number[]): number | null {
+  if (gap < 0 || gap > shown.length) return null;
+  const at = shown.indexOf(from);
+  if (at !== -1 && (gap === at || gap === at + 1)) return null;
+  const above = gap === 0;
+  const neighbour = above ? shown[0] : shown[gap - 1];
+  if (neighbour === undefined) return null;
+  // Directly above `neighbour` in paint order is just after it; directly beneath is just before it.
+  const to = above
+    ? from < neighbour
+      ? neighbour
+      : neighbour + 1
+    : from < neighbour
+      ? neighbour - 1
+      : neighbour;
 
-  return listRow(landed, count);
+  return to === from ? null : to;
+}
+
+/** Every element of `count`, as the list shows them unfiltered: the topmost first. */
+export function allRows(count: number): number[] {
+  return Array.from({ length: count }, (_, row) => listRow(row, count));
 }
 
 /** How near an edge of the scrolling sidebar, in pixels, a held row starts it scrolling. */

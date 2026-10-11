@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { autoscrollStep, dropTarget, gapAt, layerTarget, listRow } from './layers.js';
+import { allRows, autoscrollStep, dropTarget, gapAt, layerTarget, listRow } from './layers.js';
 
 describe('listRow', () => {
   it('puts the last element on the top row, and is its own inverse', () => {
@@ -40,17 +40,30 @@ describe('gapAt', () => {
 
 describe('dropTarget', () => {
   // Four elements; list rows top to bottom are elements 3, 2, 1, 0.
+  const all = allRows(4);
+
   it('turns a gap of the list into an index in elements', () => {
-    expect(dropTarget(0, 0, 4)).toBe(3);
-    expect(dropTarget(0, 1, 4)).toBe(2);
-    expect(dropTarget(3, 4, 4)).toBe(0);
-    expect(dropTarget(3, 2, 4)).toBe(2);
+    expect(all).toEqual([3, 2, 1, 0]);
+    expect(dropTarget(0, 0, all)).toBe(3);
+    expect(dropTarget(0, 1, all)).toBe(2);
+    expect(dropTarget(3, 4, all)).toBe(0);
+    expect(dropTarget(3, 2, all)).toBe(2);
   });
 
   it('is null either side of the row it came from, and outside the list', () => {
-    expect(dropTarget(1, 2, 4)).toBeNull();
-    expect(dropTarget(1, 3, 4)).toBeNull();
-    expect(dropTarget(1, 5, 4)).toBeNull();
+    expect(dropTarget(1, 2, all)).toBeNull();
+    expect(dropTarget(1, 3, all)).toBeNull();
+    expect(dropTarget(1, 5, all)).toBeNull();
+  });
+
+  it('lands beside the shown element whatever the filter hides between', () => {
+    // Six elements, only 5, 2 and 0 shown. Element 0 dropped under element 5 goes just beneath it.
+    expect(dropTarget(0, 1, [5, 2, 0])).toBe(4);
+    // Element 5 dropped under element 2: just beneath 2, where it is index 2 once 5 is out of the way.
+    expect(dropTarget(5, 2, [5, 2, 0])).toBe(2);
+    // Element 2 above the top: directly above 5.
+    expect(dropTarget(2, 0, [5, 2, 0])).toBe(5);
+    expect(dropTarget(2, 1, [5, 2, 0])).toBeNull();
   });
 });
 

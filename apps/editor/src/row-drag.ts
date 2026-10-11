@@ -66,10 +66,13 @@ export interface ListDragOptions {
   readonly ghost?: ((pressed: HTMLElement) => HTMLElement | null) | undefined;
 }
 
-/** The Elements list's drag: its rows are the elements, drawn topmost first. */
+/**
+ * The Elements list's drag: its rows are the elements `shown`, topmost first — all of them, or the
+ * ones the kind filter leaves.
+ */
 export function useRowDrag(
   list: { readonly current: HTMLElement | null },
-  count: number,
+  shown: readonly number[],
   onMove: (from: number, to: number) => void,
 ): ListDrag {
   const rows = useCallback(
@@ -78,7 +81,7 @@ export function useRowDrag(
     ],
     [list],
   );
-  const target = useCallback((from: number, gap: number) => dropTarget(from, gap, count), [count]);
+  const target = useCallback((from: number, gap: number) => dropTarget(from, gap, shown), [shown]);
 
   return useListDrag({ list, rows, target, onMove });
 }
