@@ -255,8 +255,11 @@ function assertNeverSpec(spec: never): never {
 export const TEXT_ROWS_MIN = 2;
 export const TEXT_ROWS_MAX = 5;
 
-/** Roughly how many characters fit on one row of the value column at the sidebar's width. */
-const CHARS_PER_ROW = 34;
+/**
+ * Roughly how many characters fit on one row of a multi-line field at the sidebar's default width:
+ * the field spans the row (`perch-row--stacked`), so this is the whole sidebar less its gutters.
+ */
+const CHARS_PER_ROW = 44;
 
 /**
  * How many rows a multi-line field shows for `value`: its lines, each counted by how many rows it
@@ -388,10 +391,12 @@ export function PropertyView<Subject>({
       labelAs={isGroupSpec(property.spec) ? 'group' : 'label'}
       scrub={scrubFor(property.spec, value, onValue)}
       testId={`perch-editor-prop-${property.id}`}
+      // Prose and templates drop the label column: the label is a line of its own above, and the
+      // field takes the sidebar's whole width, so a long template wraps at the width it can use.
       className={
         (property.spec.kind === 'text' && property.spec.multiline === true) ||
         property.spec.kind === 'template'
-          ? 'perch-row--tall'
+          ? 'perch-row--stacked'
           : undefined
       }
     >

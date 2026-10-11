@@ -10,6 +10,7 @@ import { createMockSource } from '@perch/sensor-sources';
 import { fireEvent, render, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Editor } from './app.js';
+import { PROPERTY_ROW_STYLES } from './controls/property-row.js';
 import { createLayoutLibrary } from './layout-library.js';
 
 const LAYOUT: Layout = {
@@ -168,5 +169,38 @@ describe('the category tabs', () => {
     expect(within(global).getByRole('tab', { name: 'Customize' })).toBeInTheDocument();
     expect(within(global).getByRole('tab', { name: 'Developer' })).toBeInTheDocument();
     expect(within(global).getByRole('searchbox', { name: 'search theme tokens' })).toBeInTheDocument();
+  });
+});
+
+describe('the text field', () => {
+  it('drops the label column: the label sits above, and the field spans the row', () => {
+    const result = renderEditor();
+    selectElement(result, 1);
+    const row = result.getByTestId('perch-editor-prop-text');
+    const label = row.querySelector('.perch-row__label');
+    const value = row.querySelector('.perch-row__value');
+    if (label === null || value === null) throw new Error('the text row has no label or value');
+
+    expect(row).toHaveClass('perch-row--stacked');
+    expect(within(label as HTMLElement).getByText('text')).toBeInTheDocument();
+    expect(within(value as HTMLElement).getByRole('textbox')).toBeInstanceOf(HTMLTextAreaElement);
+    expect(
+      within(value as HTMLElement).getByRole('button', { name: /^insert a sensor/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('is laid out as a label line over a value that spans every column', () => {
+    const css = PROPERTY_ROW_STYLES.replace(/\s+/g, ' ');
+
+    expect(css).toMatch(/\.perch-row--stacked \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+    expect(css).toMatch(/\.perch-row--stacked \.perch-row__value \{[^}]*grid-column: 1 \/ -1/);
+    expect(css).toMatch(/\.perch-row--stacked \.perch-row__label \{[^}]*grid-row: 1/);
+  });
+
+  it('keeps a one-line field, the widget name, in the label column', () => {
+    const result = renderEditor();
+    selectElement(result, 0);
+
+    expect(result.getByTestId('perch-editor-prop-widget')).not.toHaveClass('perch-row--stacked');
   });
 });

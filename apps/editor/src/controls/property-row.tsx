@@ -5,7 +5,8 @@
  * reset appears on rows that are set here and nowhere else — so row height and alignment are decided
  * once, in `chrome.ts`'s variables, and every section lines up with every other. The value column is
  * `minmax(0, 1fr)` and the row and value are `min-width: 0`, so a long value truncates or wraps inside
- * its own column and never widens the sidebar.
+ * its own column and never widens the sidebar. A row given `perch-row--stacked` (a text element's
+ * template) has no label column: its label is a line above, and its value spans the whole row.
  *
  * Where a value comes from is said twice, for two readers: a mark in the left gutter and a tinted
  * label to glance at (filled blue for "set here", a hollow amber ring for "set one level up", nothing
@@ -190,4 +191,20 @@ export const PROPERTY_ROW_STYLES = `
   font-size: var(--ed-font-small);
   color: var(--ed-inherited-text);
 }
+/*
+ * Stacked: no label column. The label is a line of its own, left-aligned, with the end slot beside
+ * it; the value takes the full width of the row under it, and grows with the sidebar. For prose and
+ * templates, which are too long for the value column.
+ */
+.perch-row--stacked {
+  grid-template-columns: minmax(0, 1fr) var(--ed-control);
+  align-items: start;
+  row-gap: 2px;
+  padding-top: 3px;
+  padding-bottom: 4px;
+}
+.perch-row--stacked .perch-row__label { grid-column: 1; grid-row: 1; justify-content: flex-start; min-height: var(--ed-list-row-h); }
+.perch-row--stacked .perch-row__end { grid-column: 2; grid-row: 1; }
+.perch-row--stacked .perch-row__value { grid-column: 1 / -1; grid-row: 2; }
+.perch-row--stacked .perch-row__note { grid-column: 1 / -1; }
 `;
