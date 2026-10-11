@@ -9,7 +9,12 @@ import {
   isPlainTemplate,
   loadLayout,
   parseTextTemplate,
+  readoutElementAsText,
+  readoutTemplate,
+  TEMPLATE_FILTERS,
+  TEMPLATE_STYLES,
   templateHasClock,
+  templatePlaceholders,
   validateLayout,
   type TemplatePart,
   type ValidateLayoutOptions,
@@ -194,5 +199,164 @@ describe('the version 4 to version 5 boundary', () => {
     expect(parts((result.layout.elements[0] as { text: string }).text)).toEqual([
       { kind: 'literal', text: '{not a token} and }' },
     ]);
+  });
+});
+
+describe('annotations: the readout filters', () => {
+  it('reads fit, hold and note as filters, in any order', () => {
+    expect(parts(`{${FAN} | fit | hold}`)[0]).toMatchObject({
+      filters: [{ name: 'fit' }, { name: 'hold' }],
+    });
+    expect(parts(`{${FAN} | hold | fixed:1 | fit | value}`)[0]).toMatchObject({
+      filters: [{ name: 'hold' }, { name: 'fixed', places: 1 }, { name: 'fit' }, { name: 'value' }],
+    });
+    expect(parts(`{${FAN} | note}`)[0]).toMatchObject({ filters: [{ name: 'note' }] });
+    expect(TEMPLATE_FILTERS).toEqual(['fixed', 'value', 'unit', 'label', 'note', 'fit', 'hold']);
+  });
+
+  it.each([
+    ['fit on a unit', `{${FAN} | unit | fit}`, 0, '"fit" sizes a reading'],
+    ['hold on a label', `{${FAN} | label | hold}`, 0, '"hold" keeps a reading'],
+    ['fit on a note', `{${FAN} | note | fit}`, 0, '"fit" sizes a reading'],
+    ['two notes and a label', `{${FAN} | note | label}`, 0, 'use one'],
+    ['fit twice', `{${FAN} | fit | fit}`, 0, 'more than one "fit"'],
+    ['hold twice', `x {${FAN} | hold | hold}`, 2, 'more than one "hold"'],
+    ['a fallback on a note', `{${FAN} | note || never}`, 0, '"note" always says something'],
+    ['fixed on a note', `{${FAN} | note | fixed:1}`, 0, '"fixed" is for a value'],
+    ['a typo of fit', `{${FAN} | fitt}`, 0, 'unknown filter "fitt"'],
+  ])('refuses %s, saying where and why', (_what, text, offset, says) => {
+    const refused = error(text);
+    expect(refused.offset).toBe(offset);
+    expect(refused.message).toContain(says);
+  });
+});
+
+describe('annotations: style spans', () => {
+  it('styles the parts inside a span, outermost first, and nothing outside it', () => {
+    expect(parts(`a {#label}CPU {${FAN} | label}{/label} b`)).toEqual([
+      { kind: 'literal', text: 'a ' },
+      { kind: 'literal', text: 'CPU ', styles: ['label'] },
+      {
+        kind: 'sensor',
+        topic: FAN,
+        filters: [{ name: 'label' }],
+        fallback: '--',
+        styles: ['label'],
+      },
+      { kind: 'literal', text: ' b' },
+    ]);
+    expect(parts('{#value}12{#unit} V{/unit}{/value}{time}')).toEqual([
+      { kind: 'literal', text: '12', styles: ['value'] },
+      { kind: 'literal', text: ' V', styles: ['value', 'unit'] },
+      { kind: 'clock', token: 'time', variant: 'short' },
+    ]);
+    expect(TEMPLATE_STYLES).toEqual(['label', 'unit', 'value', 'note']);
+  });
+
+  it('takes spaces inside the tag, a span across lines, and an empty span', () => {
+    expect(parts('{ #note }a\nb{ /note }')).toEqual([
+      { kind: 'literal', text: 'a\nb', styles: ['note'] },
+    ]);
+    expect(parts('x{#unit}{/unit}')).toEqual([{ kind: 'literal', text: 'x' }]);
+  });
+
+  it('keeps {{#label}} a literal, as any doubled brace is', () => {
+    expect(parts('{{#label}}')).toEqual([{ kind: 'literal', text: '{#label}' }]);
+  });
+
+  it('is not plain when it is styled, though it has no placeholder', () => {
+    expect(isPlainTemplate(parts('{#label}CPU{/label}'))).toBe(false);
+    expect(isPlainTemplate(parts('CPU'))).toBe(true);
+  });
+
+  it.each([
+    [
+      'an unknown style',
+      'a {#big}x{/big}',
+      2,
+      'unknown style "big"; styles are label, unit, value, note',
+    ],
+    ['an unclosed span', 'a {#label}x', 2, '"{#label}" is never closed'],
+    ['a close with nothing open', 'x {/unit}', 2, 'nothing is open'],
+    ['a close out of order', '{#label}{#unit}x{/label}{/unit}', 16, 'close "unit" first'],
+    ['an empty style name', '{#}', 0, 'a style name after "#"'],
+    ['a fallback on a tag', '{#label || x}y{/label}', 0, 'takes no "||"'],
+    ['a filter on a tag', '{#label | fit}y{/label}', 0, 'unknown style "label | fit"'],
+  ])('refuses %s, saying where and why', (_what, text, offset, says) => {
+    const refused = error(text);
+    expect(refused.offset).toBe(offset);
+    expect(refused.message).toContain(says);
+  });
+
+  it('holds a sensor inside a span to the topic check', () => {
+    const result = validateLayout(layoutWithElements([label(`{#label}{sensors/nope}{/label}`)]), {
+      ...options,
+      isTopic: (topic) => topic !== 'sensors/nope',
+    });
+
+    expect(codesOf(result)).toEqual(['malformed-topic']);
+  });
+
+  it('refuses an unclosed span in a layout, naming the character', () => {
+    const result = validateLayout(layoutWithElements([label('ok {#note}x')]), options);
+
+    expect(codesOf(result)).toEqual(['malformed-template']);
+    expect(issueAt(result, 'elements[0].text').message).toMatch(/^at character 4: /);
+  });
+});
+
+describe('templatePlaceholders', () => {
+  it('finds each placeholder, where its head ends, and skips doubled braces', () => {
+    const text = `{{x}} {${FAN} | fixed:0 || Dunno} {time}`;
+    const found = templatePlaceholders(text);
+
+    expect(found.map((one) => text.slice(one.start, one.end))).toEqual([
+      `{${FAN} | fixed:0 || Dunno}`,
+      '{time}',
+    ]);
+    expect(found.map((one) => one.head)).toEqual([`${FAN} | fixed:0 `, 'time']);
+    const [first] = found;
+    expect(text.slice(first?.start, first?.headEnd)).toBe(`{${FAN} | fixed:0 `);
+  });
+
+  it('stops at the first malformed placeholder, keeping those before it', () => {
+    expect(templatePlaceholders('{time} } {date}').map((one) => one.head)).toEqual(['time']);
+  });
+});
+
+describe('readoutTemplate', () => {
+  it('writes a readout as three rows: its label, its fitted value held while stale, its note', () => {
+    expect(readoutTemplate('sensors/cpu/0/temperature/0')).toBe(
+      '{#label}{sensors/cpu/0/temperature/0 | label}{/label}\n' +
+        '{sensors/cpu/0/temperature/0 | fit | hold}\n' +
+        '{sensors/cpu/0/temperature/0 | note}',
+    );
+    for (const topic of ['sensors/gpu/0/fan/0', FAN]) {
+      expect(parseTextTemplate(readoutTemplate(topic)).ok).toBe(true);
+    }
+  });
+
+  it('turns a readout element into a text element in the same place, unused by any layout yet', () => {
+    const readout = {
+      kind: 'widget' as const,
+      widget: 'readout',
+      topic: FAN,
+      rect: { x: 1, y: 2, w: 3, h: 4 },
+      style: { '--perch-fg': '#fff', '--perch-readout-justify': 'center' },
+      opacity: 0.5,
+    };
+
+    expect(readoutElementAsText(readout)).toEqual({
+      kind: 'text',
+      text: readoutTemplate(FAN),
+      rect: { x: 1, y: 2, w: 3, h: 4 },
+      style: {
+        '--perch-text-anchor': 'flex-start',
+        '--perch-text-justify': 'center',
+        '--perch-text-align': 'center',
+        '--perch-fg': '#fff',
+      },
+      opacity: 0.5,
+    });
   });
 });

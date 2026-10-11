@@ -23,6 +23,21 @@
  *   (`MMM`, `mm`): a pattern fixes field order and the 12/24-hour choice, which is exactly what a
  *   locale decides, and its letters mean different things in every library that has them.
  *
+ * ## Annotations: the readout's rows, in a template
+ *
+ * Three more filters do what only a sensor placeholder can, since they depend on the reading:
+ * `fit` paints it as a readout's number row (the value sized to the box, its unit small and dim
+ * after it), `hold` keeps the last value while stale, and `note` says what a readout's note row
+ * says (`waiting`, `stale 8s`). And `{#name}...{/name}` is a style span: every part inside it looks
+ * like that row of a readout, by the same theme tokens. The names are closed (`TEMPLATE_STYLES`),
+ * so a typo is refused, and they are names rather than CSS so a theme restyles every run.
+ *
+ * Both live inside the braces: `{#` and `{/` were refused before spans existed, so no caption that
+ * was valid changes meaning, and `{{` stays the one escape. Spans nest and close in order, as
+ * Handlebars blocks and MessageFormat 2 markup (the same spelling) do. A part carries the spans it
+ * sits in as `styles`, outermost first, and only when there are any, so the parts of an unstyled
+ * template are exactly what they were. `docs/template-annotations.md` has the survey behind this.
+ *
  * This file parses and checks the grammar, and nothing else: which topics exist is the injected
  * topic validator's to say (`layout.ts`), and formatting is the renderer's (`ui-kit`), which reads
  * the parts from `parseTextTemplate` so the two cannot disagree about what a template says.
@@ -66,13 +81,43 @@ export type TemplateFilter =
   | { readonly name: 'fixed'; readonly places: number }
   | { readonly name: 'value' }
   | { readonly name: 'unit' }
-  | { readonly name: 'label' };
+  | { readonly name: 'label' }
+  /** The readout's note: `waiting`, `no reading`, `stale 8s`, or nothing while live. */
+  | { readonly name: 'note' }
+  /** The readout's number row: the value sized to the box, its unit small and dim after it. */
+  | { readonly name: 'fit' }
+  /** The last value while stale, rather than the fallback, which then shows only before the first. */
+  | { readonly name: 'hold' };
 
 /** The filter names, for the editor's suggestions and the error message. */
-export const TEMPLATE_FILTERS = Object.freeze(['fixed', 'value', 'unit', 'label'] as const);
+export const TEMPLATE_FILTERS = Object.freeze([
+  'fixed',
+  'value',
+  'unit',
+  'label',
+  'note',
+  'fit',
+  'hold',
+] as const);
+
+/** The filters that say what a sensor shows instead of its value and unit. One at most. */
+const SHOW_FILTERS: ReadonlySet<string> = new Set(['value', 'unit', 'label', 'note']);
+
+/**
+ * The style spans, one per row of a readout, each painted with that row's theme tokens (`ui-kit`'s
+ * `text-block.tsx`): its caption, its unit, its number at full size, its note.
+ */
+export const TEMPLATE_STYLES = Object.freeze(['label', 'unit', 'value', 'note'] as const);
+
+export type TemplateStyle = (typeof TEMPLATE_STYLES)[number];
+
+/** The spans a part sits in, outermost first. Absent outside every span. */
+interface Styled {
+  readonly styles?: readonly TemplateStyle[];
+}
 
 /** One piece of a parsed template, in order. */
-export type TemplatePart =
+export type TemplatePart = (
   | { readonly kind: 'literal'; readonly text: string }
   | {
       readonly kind: 'sensor';
@@ -86,7 +131,9 @@ export type TemplatePart =
       readonly kind: 'clock';
       readonly token: ClockToken;
       readonly variant: ClockVariant;
-    };
+    }
+) &
+  Styled;
 
 /** Why a template is not one: what, and at which character of the text. */
 export interface TemplateError {
@@ -100,7 +147,7 @@ export type ParseTemplateResult =
 
 /** Whether a template has any placeholder at all, or is a plain caption. */
 export function isPlainTemplate(parts: readonly TemplatePart[]): boolean {
-  return parts.every((part) => part.kind === 'literal');
+  return parts.every((part) => part.kind === 'literal' && part.styles === undefined);
 }
 
 /** Whether `text` holds any clock token: what tells a renderer it has to tick. */
@@ -116,11 +163,15 @@ export function escapeTemplateText(text: string): string {
 /** Parse a template. Total: every string is either parts or one error naming where. */
 export function parseTextTemplate(text: string): ParseTemplateResult {
   const parts: TemplatePart[] = [];
+  /** The open spans, innermost last, and where each opened. */
+  const open: { readonly style: TemplateStyle; readonly at: number }[] = [];
   let literal = '';
   let index = 0;
 
+  const styled = <T extends TemplatePart>(part: T): T =>
+    open.length === 0 ? part : { ...part, styles: open.map((span) => span.style) };
   const flush = (): void => {
-    if (literal !== '') parts.push({ kind: 'literal', text: literal });
+    if (literal !== '') parts.push(styled({ kind: 'literal', text: literal }));
     literal = '';
   };
 
@@ -148,15 +199,123 @@ export function parseTextTemplate(text: string): ParseTemplateResult {
 
     const placeholder = readPlaceholder(text, index);
     if (!placeholder.ok) return placeholder;
+    const tag = placeholder.head.trim();
+    if (tag.startsWith('#') || tag.startsWith('/')) {
+      const span = parseTag(tag, placeholder.fallback, index);
+      if ('message' in span) return { ok: false, error: span };
+      flush();
+      if (span.opens) {
+        open.push({ style: span.style, at: index });
+      } else {
+        const innermost = open.at(-1);
+        if (innermost === undefined) {
+          return fail(index, `"{/${span.style}}" closes a span, but nothing is open`);
+        }
+        if (innermost.style !== span.style) {
+          return fail(
+            index,
+            `"{/${span.style}}" closes "${span.style}", but "${innermost.style}" is open inside it; close "${innermost.style}" first with "{/${innermost.style}}"`,
+          );
+        }
+        open.pop();
+      }
+      index = placeholder.end;
+      continue;
+    }
     const part = parsePlaceholder(placeholder.head, placeholder.fallback, index);
     if ('message' in part) return { ok: false, error: part };
     flush();
-    parts.push(part);
+    parts.push(styled(part));
     index = placeholder.end;
   }
 
   flush();
+  const unclosed = open.at(-1);
+  if (unclosed !== undefined) {
+    return fail(
+      unclosed.at,
+      `"{#${unclosed.style}}" is never closed; end the span with "{/${unclosed.style}}"`,
+    );
+  }
   return { ok: true, parts };
+}
+
+/** Where each placeholder in `text` is, as the editor needs to add a filter to the one at the caret. */
+export interface TemplatePlaceholder {
+  /** The index of its `{`. */
+  readonly start: number;
+  /** The index after its `}`. */
+  readonly end: number;
+  /** What is between the braces up to any `||`, as written. */
+  readonly head: string;
+  /** The index where the head ends: at the `||`, or at the closing `}`. */
+  readonly headEnd: number;
+}
+
+/**
+ * Every placeholder and span tag in `text`, in order, by the tokenizer `parseTextTemplate` uses, so
+ * the two agree on where one ends. Stops at the first brace that does not tokenize, keeping those
+ * before it: a template being typed is often half a placeholder long.
+ */
+export function templatePlaceholders(text: string): readonly TemplatePlaceholder[] {
+  const found: TemplatePlaceholder[] = [];
+  let index = 0;
+  while (index < text.length) {
+    const char = text.charAt(index);
+    const next = text.charAt(index + 1);
+    if ((char === '{' || char === '}') && next === char) {
+      index += 2;
+      continue;
+    }
+    if (char === '}') break;
+    if (char !== '{') {
+      index += 1;
+      continue;
+    }
+    const placeholder = readPlaceholder(text, index);
+    if (!placeholder.ok) break;
+    found.push({
+      start: index,
+      end: placeholder.end,
+      head: placeholder.head,
+      headEnd: index + 1 + placeholder.head.length,
+    });
+    index = placeholder.end;
+  }
+  return found;
+}
+
+/** A span tag, `#name` or `/name`, trimmed. */
+function parseTag(
+  tag: string,
+  fallback: string | null,
+  at: number,
+): { readonly opens: boolean; readonly style: TemplateStyle } | TemplateError {
+  const opens = tag.startsWith('#');
+  const name = tag.slice(1).trim();
+  if (fallback !== null) {
+    return {
+      offset: at,
+      message: `"{${tag}}" is a style span, which takes no "||"; a fallback is for a sensor`,
+    };
+  }
+  if (name === '') {
+    return {
+      offset: at,
+      message: `a style name after "${opens ? '#' : '/'}"; styles are ${TEMPLATE_STYLES.join(', ')}`,
+    };
+  }
+  if (!isTemplateStyle(name)) {
+    return {
+      offset: at,
+      message: `unknown style "${name}"; styles are ${TEMPLATE_STYLES.join(', ')}`,
+    };
+  }
+  return { opens, style: name };
+}
+
+function isTemplateStyle(name: string): name is TemplateStyle {
+  return (TEMPLATE_STYLES as readonly string[]).includes(name);
 }
 
 /**
@@ -229,15 +388,43 @@ function parsePlaceholder(
       if ('message' in filter) return filter;
       filters.push(filter);
     }
-    const shows = filters.filter((filter) => filter.name !== 'fixed');
+    const shows = filters.filter((filter) => SHOW_FILTERS.has(filter.name));
     if (shows.length > 1) {
       return {
         offset: at,
         message: `"${shows.map((filter) => filter.name).join('" and "')}" each say what to show; use one`,
       };
     }
-    if (filters.filter((filter) => filter.name === 'fixed').length > 1) {
-      return { offset: at, message: 'more than one "fixed"; use one' };
+    for (const once of ['fixed', 'fit', 'hold'] as const) {
+      if (filters.filter((filter) => filter.name === once).length > 1) {
+        return { offset: at, message: `more than one "${once}"; use one` };
+      }
+    }
+    const show = shows[0]?.name;
+    if (show !== undefined && show !== 'value') {
+      if (filters.some((filter) => filter.name === 'fit')) {
+        return {
+          offset: at,
+          message: `"fit" sizes a reading to its box, so it cannot go with "${show}"`,
+        };
+      }
+      if (filters.some((filter) => filter.name === 'hold')) {
+        return {
+          offset: at,
+          message: `"hold" keeps a reading while it is stale, so it cannot go with "${show}"`,
+        };
+      }
+    }
+    if (show === 'note') {
+      if (filters.some((filter) => filter.name === 'fixed')) {
+        return { offset: at, message: '"fixed" is for a value, and a note is words' };
+      }
+      if (fallback !== null) {
+        return {
+          offset: at,
+          message: '"note" always says something, so "||" would never show',
+        };
+      }
     }
     return {
       kind: 'sensor',
@@ -279,7 +466,16 @@ function parsePlaceholder(
 }
 
 function parseFilter(raw: string, at: number): TemplateFilter | TemplateError {
-  if (raw === 'value' || raw === 'unit' || raw === 'label') return { name: raw };
+  if (
+    raw === 'value' ||
+    raw === 'unit' ||
+    raw === 'label' ||
+    raw === 'note' ||
+    raw === 'fit' ||
+    raw === 'hold'
+  ) {
+    return { name: raw };
+  }
   const fixed = /^fixed:(\d+)$/.exec(raw);
   if (fixed !== null) {
     const places = Number(fixed[1]);

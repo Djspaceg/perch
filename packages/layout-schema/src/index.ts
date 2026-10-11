@@ -64,17 +64,23 @@ export {
   TEMPLATE_DEFAULT_FALLBACK,
   TEMPLATE_FILTERS,
   TEMPLATE_MAX_DECIMALS,
+  TEMPLATE_STYLES,
   escapeTemplateText,
   isPlainTemplate,
   parseTextTemplate,
   templateHasClock,
+  templatePlaceholders,
   type ClockToken,
   type ClockVariant,
   type ParseTemplateResult,
   type TemplateError,
   type TemplateFilter,
   type TemplatePart,
+  type TemplatePlaceholder,
+  type TemplateStyle,
 } from './template.js';
+
+export { readoutElementAsText, readoutTemplate } from './readout-template.js';
 
 export { rectIntersectsCanvas, type Rect } from './geometry.js';
 
