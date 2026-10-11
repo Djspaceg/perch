@@ -226,7 +226,9 @@ describe('the opacity at the top', () => {
 
   it('edits the selected element’s own opacity, the same value its panel shows', () => {
     const result = renderEditor();
-    fireEvent.click(within(rowOf(result, 2)).getByRole('button', { current: false, name: /hello/ }));
+    fireEvent.click(
+      within(rowOf(result, 2)).getByRole('button', { current: false, name: /hello/ }),
+    );
     expect(field(result).value).toBe('100');
 
     fireEvent.change(field(result), { target: { value: '40' } });
@@ -265,7 +267,9 @@ describe('the panel options menu', () => {
     expect(button.querySelector('svg[data-perch-glyph="menu"]')).not.toBeNull();
     const menu = openMenu(result);
     expect(
-      [...menu.querySelectorAll('[role^="menuitem"]')].map((item) => item.textContent.replace('✓', '').trim()),
+      [...menu.querySelectorAll('[role^="menuitem"]')].map((item) =>
+        item.textContent.replace('✓', '').trim(),
+      ),
     ).toEqual(['Show thumbnails', 'Clear kind filter', 'Reset panel order']);
   });
 

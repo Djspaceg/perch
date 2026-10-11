@@ -13,7 +13,6 @@
 
 import type { ChoiceOption } from './controls/index.js';
 
-
 /** The empty value: no field, the panel's own. */
 export const SYSTEM_DEFAULT: ChoiceOption = Object.freeze({ value: '', label: 'System default' });
 
@@ -70,7 +69,9 @@ export const CURATED_LOCALES: readonly string[] = Object.freeze([
 /** A locale's name in its own language: `English (United Kingdom)`, or the tag if none is known. */
 export function localeName(tag: string): string {
   try {
-    return new Intl.DisplayNames([tag], { type: 'language', languageDisplay: 'standard' }).of(tag) ?? tag;
+    return (
+      new Intl.DisplayNames([tag], { type: 'language', languageDisplay: 'standard' }).of(tag) ?? tag
+    );
   } catch {
     return tag;
   }

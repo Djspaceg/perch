@@ -445,5 +445,4 @@ describe('dragging panels', () => {
 
     expect(panelTitles(global).slice(0, 2)).toEqual(['Global Target', 'Global Clock']);
   });
-
 });

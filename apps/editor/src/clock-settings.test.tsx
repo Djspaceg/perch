@@ -44,7 +44,9 @@ const dropdown = (id: string): HTMLElement =>
 /** Open a row's dropdown and return its list of options, by what each says. */
 function open(id: string): HTMLElement {
   fireEvent.click(dropdown(id));
-  return screen.getByRole('dialog', { name: `choose a ${id === 'locale' ? 'locale' : 'time zone'}` });
+  return screen.getByRole('dialog', {
+    name: `choose a ${id === 'locale' ? 'locale' : 'time zone'}`,
+  });
 }
 
 const options = (dialog: HTMLElement): string[] =>
