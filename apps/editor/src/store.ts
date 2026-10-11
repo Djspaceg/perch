@@ -76,6 +76,7 @@ import type { LayoutUpdate } from './layout-edits.js';
 import type { LayoutLibrary } from './layout-library.js';
 import { openLayoutByName, type Opened } from './open-layout.js';
 import { DEFAULT_SIDEBAR, clampSidebarWidth, type SidebarSettings } from './sidebar.js';
+import { ANCHOR_EDGES, TOP_LEFT, type Anchor, type AnchorEdge } from './anchor.js';
 
 /** The selection when there is none. Any out-of-range index means the same. */
 export const NOTHING_SELECTED = -1;
@@ -134,6 +135,12 @@ export interface EditorSettings {
   /** The chrome's colours: the system's, or a scheme the author picked (`controls/chrome.ts`). */
   readonly scheme: ChromeScheme;
   readonly panels: PanelSettings;
+  /**
+   * The point of an element's box its Placement fields are about (`anchor.ts`): one for every
+   * element, as Affinity's Transform panel has it. An editor setting only; the layout's rects are
+   * always stored top-left.
+   */
+  readonly anchor: Anchor;
 }
 
 /** Everything in the store and never persisted. */
@@ -165,6 +172,7 @@ export interface EditorActions {
   /** Replace command `id`'s keys with `bindings` (`[]` unbinds it), or with `undefined` restore them. */
   readonly setKeybinding: (id: CommandId, bindings: readonly string[] | undefined) => void;
   readonly setScheme: (scheme: ChromeScheme) => void;
+  readonly setAnchor: (anchor: Anchor) => void;
   /** The sidebar's width, kept within its range (`clampSidebarWidth`). */
   readonly setSidebarWidth: (width: number) => void;
   readonly setSidebarCollapsed: (collapsed: boolean) => void;
@@ -216,6 +224,7 @@ const DEFAULT_SETTINGS: EditorSettings = Object.freeze({
   layout: null,
   keybindings: Object.freeze({}),
   scheme: 'system',
+  anchor: TOP_LEFT,
   panels: Object.freeze({ sidebar: DEFAULT_SIDEBAR, order: Object.freeze({}), thumbnails: true }),
 });
 
@@ -334,6 +343,9 @@ export function createEditorStore(
             },
             setScheme: (scheme) => {
               settle({ scheme }, { type: 'set/scheme', scheme });
+            },
+            setAnchor: (anchor) => {
+              settle({ anchor }, { type: 'set/anchor', anchor });
             },
             setSidebarWidth: (width) => {
               const panels = get().settings.panels;
@@ -571,7 +583,19 @@ function readSettings(raw: unknown): EditorSettings {
     keybindings: readRecord(body['keybindings'], isStringList),
     scheme: isScheme(body['scheme']) ? body['scheme'] : DEFAULT_SETTINGS.scheme,
     panels: readPanels(body['panels']),
+    anchor: readAnchor(body['anchor']),
   };
+}
+
+function readAnchor(raw: unknown): Anchor {
+  if (!isRecord(raw)) return TOP_LEFT;
+  const { across, down } = raw;
+
+  return isAnchorEdge(across) && isAnchorEdge(down) ? { across, down } : TOP_LEFT;
+}
+
+function isAnchorEdge(value: unknown): value is AnchorEdge {
+  return ANCHOR_EDGES.some((edge) => edge === value);
 }
 
 function readPanels(raw: unknown): PanelSettings {
