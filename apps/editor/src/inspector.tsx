@@ -92,6 +92,7 @@ import {
 import {
   WIDGET_LIST_ID,
   backgroundProperties,
+  clockProperties,
   entitySections,
   targetProperties,
   type Property,
@@ -208,21 +209,39 @@ export function Inspector({
               onEdit(removeThemeToken(name));
             }}
             leading={
-              <Section
-                id="global/target"
-                title="Target"
-                summary={`${target.width} × ${target.height} · ${target.frameRate} fps`}
-              >
-                {targetProperties().map((property) => (
-                  <PropertyView
-                    key={property.id}
-                    property={property}
-                    subject={target}
-                    index={NOTHING_SELECTED}
-                    onEdit={onEdit}
-                  />
-                ))}
-              </Section>
+              <>
+                <Section
+                  id="global/target"
+                  title="Target"
+                  summary={`${target.width} × ${target.height} · ${target.frameRate} fps`}
+                >
+                  {targetProperties().map((property) => (
+                    <PropertyView
+                      key={property.id}
+                      property={property}
+                      subject={target}
+                      index={NOTHING_SELECTED}
+                      onEdit={onEdit}
+                    />
+                  ))}
+                </Section>
+                {/* What every {time}-style token in the layout's text is written in. */}
+                <Section
+                  id="global/clock"
+                  title="Clock"
+                  summary={`${state.draft.locale ?? 'panel locale'} · ${state.draft.timeZone ?? 'panel zone'}`}
+                >
+                  {clockProperties().map((property) => (
+                    <PropertyView
+                      key={property.id}
+                      property={property}
+                      subject={state.draft}
+                      index={NOTHING_SELECTED}
+                      onEdit={onEdit}
+                    />
+                  ))}
+                </Section>
+              </>
             }
           />
         </Group>
