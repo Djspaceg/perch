@@ -85,6 +85,8 @@ export { READOUT_STYLES, Readout, type ReadoutProps } from './readout.js';
 
 export { TEXT_BLOCK_STYLES, TextBlock, type TextBlockProps } from './text-block.js';
 
+export { clockGranularityMs, formatClockToken } from './clock-format.js';
+
 export {
   MEDIA_FRAME_FITS,
   MEDIA_FRAME_STYLES,

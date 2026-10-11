@@ -161,7 +161,7 @@ export function LayoutCanvas({
             data-perch-element-index={index}
             style={elementStyle(element, style, content, layout.theme)}
           >
-            {renderElement(element, content, resolveAsset, resolveBackground)}
+            {renderElement(element, content, resolveAsset, resolveBackground, layout)}
           </div>
         );
       })}
@@ -193,7 +193,7 @@ function renderLayoutBackground(
       data-perch-layer="background"
       style={elementStyle(element, undefined, content, layout.theme)}
     >
-      {renderElement(element, content, resolveAsset, resolveBackground)}
+      {renderElement(element, content, resolveAsset, resolveBackground, layout)}
     </div>
   );
 }
@@ -212,12 +212,13 @@ function renderElement(
   content: ContentBox,
   resolveAsset: (src: string) => string | undefined,
   resolveBackground: (ref: string) => BackgroundSource,
+  layout: Layout,
 ): ReactNode {
   switch (element.kind) {
     case 'widget':
       return renderWidget(element, content);
     case 'text':
-      return renderText(element);
+      return renderText(element, layout);
     case 'media':
       return isBackgroundRef(element.src)
         ? renderBackground(element, resolveBackground)
@@ -285,8 +286,8 @@ function renderWidget(element: WidgetElement, content: ContentBox): ReactNode {
   return widget.render(element, content);
 }
 
-function renderText(element: TextElement): ReactNode {
-  return <TextBlock text={element.text} />;
+function renderText(element: TextElement, layout: Layout): ReactNode {
+  return <TextBlock text={element.text} locale={layout.locale} timeZone={layout.timeZone} />;
 }
 
 /**
