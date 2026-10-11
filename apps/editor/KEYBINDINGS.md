@@ -142,7 +142,7 @@ replaces that command's defaults on every platform. `[]` unbinds it; absence mea
 | `selection.bringToFront` | Bring to front          | canvas, sidebar | ⇧⌘]   | Ctrl+Shift+]         |
 | `selection.sendToBack`   | Send to back            | canvas, sidebar | ⇧⌘[   | Ctrl+Shift+[         |
 
-`selection.delete` asks first, through the selection header's confirm. `selection.clear` acts only
+`selection.delete` asks first, through the confirm of the Elements list's trash can. `selection.clear` acts only
 while something is selected, and so do the four layer commands, which do nothing past the top or the
 bottom. Each move is one undo step, and the selection stays on the element that moved.
 `selection.duplicate` copies the selected layer directly above itself and selects the copy, as one

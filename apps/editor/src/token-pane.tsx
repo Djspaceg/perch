@@ -51,6 +51,8 @@ import { Fragment, useState, type ReactNode } from 'react';
 import {
   AdvancedSection,
   AlignGrid,
+  Collapse,
+  CollapseEach,
   FilterBar,
   PropertyRow,
   ResetButton,
@@ -58,6 +60,7 @@ import {
   TabStrip,
   matchesQuery,
   swatchStyle,
+  type CollapseEntry,
   type ReturnsTo,
   type TabSpec,
   type ValueSource,
@@ -111,6 +114,17 @@ export interface TokenPaneProps {
    * the tab the next one opens on, as a fold is.
    */
   readonly disclosureKey?: string;
+  /**
+   * Whether the surface carries tokens at all. A media element and the layout's background have none
+   * in the format: their pane is only its `leading` sections and `lead` rows, with the tabs and the
+   * search folded away. The same pane either way, so what two selections share stays mounted.
+   */
+  readonly styled?: boolean;
+  /**
+   * The search is cleared when this changes: the selection, so one entity's search is not carried
+   * into the next. The tab and the folds are remembered under `disclosureKey` and do carry over.
+   */
+  readonly searchFor?: string;
 }
 
 const TABS: readonly TabSpec<TokenTab>[] = Object.freeze([
@@ -211,40 +225,51 @@ export function TokenPane({
   chips = false,
   sectionsOpen = true,
   disclosureKey,
+  styled = true,
+  searchFor,
 }: TokenPaneProps): ReactNode {
   const key = disclosureKey ?? id;
-  const tab = useEditorStore((state) => state.settings.tabs[key]) ?? 'customize';
+  const rememberedTab = useEditorStore((state) => state.settings.tabs[key]) ?? 'customize';
+  // Nothing to show on Developer without tokens; the remembered tab is kept for the next that has some.
+  const tab = styled ? rememberedTab : 'customize';
   const remembered = useEditorStore((state) => state.settings.chips[key]);
   const setPaneTab = useEditorStore((state) => state.setTab);
   const setPaneChip = useEditorStore((state) => state.setChip);
   const [query, setQuery] = useState('');
+  // Adjusted during render, the way React documents for state that follows a prop.
+  const [searchedFor, setSearchedFor] = useState(searchFor);
+  if (searchedFor !== searchFor) {
+    setSearchedFor(searchFor);
+    setQuery('');
+  }
   // A chip no section is called any more reads as All, rather than as a filter that hides everything.
   const chip = CHIPS.some((entry) => entry.id === remembered) ? (remembered ?? 'all') : 'all';
   const base = `perch-token-pane-${id}`;
-  const known = tokensFor(scope, kind);
+  const known = styled ? tokensFor(scope, kind) : [];
 
   return (
     <div className="perch-token-pane">
-      <TabStrip
-        label={`${title} tabs`}
-        idBase={base}
-        tabs={TABS}
-        selected={tab}
-        onSelect={(next) => {
-          setPaneTab(key, next);
-        }}
-        trailing={<FilterBar label={`search ${title} tokens`} query={query} onQuery={setQuery} />}
-      />
+      <Collapse open={styled}>
+        <TabStrip
+          label={`${title} tabs`}
+          idBase={base}
+          tabs={TABS}
+          selected={tab}
+          onSelect={(next) => {
+            setPaneTab(key, next);
+          }}
+          trailing={<FilterBar label={`search ${title} tokens`} query={query} onQuery={setQuery} />}
+        />
+      </Collapse>
       <div
         className="perch-token-pane__panel"
-        role="tabpanel"
+        {...(styled ? { role: 'tabpanel', 'aria-labelledby': `${base}-tab-${tab}` } : {})}
         id={`${base}-panel`}
-        aria-labelledby={`${base}-tab-${tab}`}
         data-testid={`${base}-panel`}
       >
         {tab === 'customize' ? (
           <>
-            {chips ? (
+            {chips && styled ? (
               <FilterBar
                 chips={CHIPS}
                 chip={chip}
@@ -265,6 +290,7 @@ export function TokenPane({
               chip={chip}
               sectionsOpen={sectionsOpen}
               disclosureKey={key}
+              styled={styled}
               onSet={onSet}
               onRemove={onRemove}
             />
@@ -302,12 +328,14 @@ function CustomizeSections({
   chip,
   sectionsOpen,
   disclosureKey,
+  styled,
   onSet,
   onRemove,
 }: {
   readonly pane: string;
   readonly scope: TokenScope;
   readonly known: readonly KnownToken[];
+  readonly styled: boolean;
   readonly lead: readonly LeadRow[];
   readonly tokens: Readonly<Record<string, string>>;
   readonly inherited: Readonly<Record<string, string>> | undefined;
@@ -348,71 +376,78 @@ function CustomizeSections({
     const advancedSet = advanced.filter((name) => tokens[name] !== undefined).length;
 
     return [
-      <Section
-        key={group}
-        id={`${disclosureKey}/${group}`}
-        title={title}
-        defaultOpen={opensByDefault(group, sectionsOpen)}
-        forceOpen={searching || chip === group}
-        summary={
-          setCount === 0 ? undefined : (
-            <span
-              data-testid={`perch-editor-section-count-${pane}-${group}`}
-            >{`${setCount} set`}</span>
-          )
-        }
-        summaryActive={setCount > 0}
-        testId={scope === 'element' ? `perch-editor-${group}` : undefined}
-      >
-        {leadShown.map((row) => (
-          <Fragment key={row.label}>{row.row}</Fragment>
-        ))}
-        <TokenRows
-          pane={pane}
-          scope={scope}
-          names={main}
-          tokens={tokens}
-          inherited={inherited}
-          onSet={onSet}
-          onRemove={onRemove}
-        />
-        {advancedShown.length === 0 ? null : (
-          <AdvancedSection
-            id={`${disclosureKey}/${group}/advanced`}
-            setCount={advancedSet}
-            forceOpen={searching}
+      {
+        key: group,
+        node: (
+          <Section
+            id={`${disclosureKey}/${group}`}
+            title={title}
+            defaultOpen={opensByDefault(group, sectionsOpen)}
+            forceOpen={searching || chip === group}
+            summary={
+              setCount === 0 ? undefined : (
+                <span
+                  data-testid={`perch-editor-section-count-${pane}-${group}`}
+                >{`${setCount} set`}</span>
+              )
+            }
+            summaryActive={setCount > 0}
+            testId={scope === 'element' ? `perch-editor-${group}` : undefined}
           >
+            {leadShown.map((row) => (
+              <Fragment key={row.label}>{row.row}</Fragment>
+            ))}
             <TokenRows
               pane={pane}
               scope={scope}
-              names={advancedShown}
+              names={main}
               tokens={tokens}
               inherited={inherited}
               onSet={onSet}
               onRemove={onRemove}
             />
-          </AdvancedSection>
-        )}
-      </Section>,
+            {advancedShown.length === 0 ? null : (
+              <AdvancedSection
+                id={`${disclosureKey}/${group}/advanced`}
+                setCount={advancedSet}
+                forceOpen={searching}
+              >
+                <TokenRows
+                  pane={pane}
+                  scope={scope}
+                  names={advancedShown}
+                  tokens={tokens}
+                  inherited={inherited}
+                  onSet={onSet}
+                  onRemove={onRemove}
+                />
+              </AdvancedSection>
+            )}
+          </Section>
+        ),
+      },
     ];
   });
 
+  // Keyed by group, so a section two selections share stays mounted, and one that stops applying (or
+  // stops matching the search) collapses away rather than vanishing.
   return (
     <>
-      {sections.length === 0 ? (
+      <CollapseEach entries={sections} />
+      {sections.length === 0 && searching ? (
         <p className="perch-token-empty">{`no token matches “${query.trim()}”`}</p>
-      ) : (
-        sections
-      )}
-      <p className="perch-token-legend">
-        <span className="perch-token-legend__own">set here</span>
-        {scope === 'element' ? (
-          <span className="perch-token-legend__inherited">set by the layout theme</span>
-        ) : null}
-        <span>
-          <span aria-hidden="true">↺ </span>resets to what is underneath
-        </span>
-      </p>
+      ) : null}
+      <Collapse open={styled}>
+        <p className="perch-token-legend">
+          <span className="perch-token-legend__own">set here</span>
+          {scope === 'element' ? (
+            <span className="perch-token-legend__inherited">set by the layout theme</span>
+          ) : null}
+          <span>
+            <span aria-hidden="true">↺ </span>resets to what is underneath
+          </span>
+        </p>
+      </Collapse>
     </>
   );
 }
@@ -435,7 +470,7 @@ function TokenRows({
   readonly onSet: (name: string, value: string) => void;
   readonly onRemove: (name: string) => void;
 }): ReactNode {
-  const rows: ReactNode[] = [];
+  const rows: CollapseEntry[] = [];
   const drawn = new Set<string>();
 
   for (const name of names) {
@@ -449,24 +484,25 @@ function TokenRows({
         state.entry.placement?.axis === 'across' ? [state, other] : [other, state];
       drawn.add(name);
       drawn.add(pair);
-      rows.push(
-        <PlacementRow
-          key={name}
-          pane={pane}
-          across={across}
-          down={down}
-          onSet={onSet}
-          onRemove={onRemove}
-        />,
-      );
+      rows.push({
+        key: name,
+        node: (
+          <PlacementRow pane={pane} across={across} down={down} onSet={onSet} onRemove={onRemove} />
+        ),
+      });
       continue;
     }
 
     drawn.add(name);
-    rows.push(<TokenRow key={name} pane={pane} state={state} onSet={onSet} onRemove={onRemove} />);
+    rows.push({
+      key: name,
+      node: <TokenRow pane={pane} state={state} onSet={onSet} onRemove={onRemove} />,
+    });
   }
 
-  return rows;
+  // Kept by name: a row two selections share stays mounted, and one only the other kind reads, or
+  // that stops matching the search, collapses away.
+  return <CollapseEach entries={rows} />;
 }
 
 /** One token: the stamp, plus the reset its state asks for. */

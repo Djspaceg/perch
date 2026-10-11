@@ -35,6 +35,11 @@ export interface SectionProps {
   /** Tints the summary: something in this section is set here. */
   readonly summaryActive?: boolean;
   readonly variant?: 'section' | 'advanced';
+  /**
+   * Controls at the bar's right edge, after the summary, that act on what the section holds: the
+   * Elements list's Add and Delete. Outside the heading, so they stay reachable while it is folded.
+   */
+  readonly actions?: ReactNode;
   readonly testId?: string | undefined;
   readonly children: ReactNode;
 }
@@ -48,6 +53,7 @@ export function Section({
   summary,
   summaryActive = false,
   variant = 'section',
+  actions,
   testId,
   children,
 }: SectionProps): ReactNode {
@@ -93,6 +99,7 @@ export function Section({
           </button>
         </Heading>
         {variant === 'section' ? summaryNode : null}
+        {actions === undefined ? null : <div className="perch-section__actions">{actions}</div>}
       </div>
       <Collapse open={shown} keepMounted id={bodyId}>
         <div className="perch-section__body">{children}</div>
@@ -184,6 +191,16 @@ export const SECTION_STYLES = `
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* The bar, not the actions, is what a delete's confirm floats in: it is wider than the can it replaces. */
+.perch-section__bar:has(> .perch-section__actions) { position: relative; }
+.perch-section__actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: -4px;
+}
+.perch-section__actions .perch-add { margin-left: 0; }
 .perch-section__summary[data-perch-active='true'] { color: var(--ed-own-text); }
 .perch-section__body { display: flex; flex-direction: column; padding: 3px 0 5px; }
 .perch-section--advanced .perch-section__bar { background: none; border: 0; min-height: var(--ed-list-row-h); }

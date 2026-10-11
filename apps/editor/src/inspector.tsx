@@ -6,8 +6,8 @@
  *
  * The rect, the binding and the target are descriptors (`descriptors.ts`); the tokens are `ui-kit`'s
  * labels. Both are stamped through the primitives in `controls/` by `property-view.tsx` and
- * `token-pane.tsx`. What this file decides is the arrangement: two groups, the selection header, and
- * which sections start open.
+ * `token-pane.tsx`. What this file decides is the arrangement: two groups, the Elements list and its
+ * bar, the selection header, and which sections start open.
  *
  * ## Controls write straight through `layout-edits.ts`
  *
@@ -33,12 +33,15 @@
  *
  * ## Adding and deleting
  *
- * "+ Add" sits in the Selected-entity bar and offers every kind, media as an Image beside the layout or
- * a cloud Video (`new-element.ts`); the new element goes on top and is selected at once. Delete is in the selection
- * header, the red trash can the token panes also use for a removal nothing replaces, and it asks
- * once, inline, even though undo brings it back. The Delete and Backspace keys ask through the same confirm
- * when the canvas has focus (`app.tsx`), never while typing in a field. There is no deselect button:
- * a click on empty canvas deselects, and so does Escape (`app.tsx`).
+ * Both are in the Elements list's bar, so the list is where layers are made, ordered and removed.
+ * "+ Add" offers every kind, media as an Image beside the layout or a cloud Video (`new-element.ts`);
+ * the new element goes on top and is selected at once. Beside it is Delete, the red trash can the
+ * token panes also use for a removal nothing replaces, acting on the selection; it asks once, inline,
+ * even though undo brings it back. The Delete and Backspace keys ask through the same confirm when
+ * the canvas has focus (`app.tsx`), never while typing in a field. With the background selected the
+ * same can removes its source, as the background's own header used to, and never the row. Duplicate
+ * stays at the end of the selected row. There is no deselect button: a click on empty canvas
+ * deselects, and so does Escape (`app.tsx`).
  *
  * ## Nothing appears or vanishes
  *
@@ -47,10 +50,16 @@
  * sidebar rather than jump it. A deleted element's controls and its row stay on screen, inert, for
  * the length of the collapse; focus inside them moves to the Selected-entity group first.
  *
+ * A change of selection is not a new set of controls. Element or background, the selection is one
+ * region with one header and one stack of sections, each kept by name (`EntityPanes`): what the two
+ * selections share stays mounted where it was, folded or open, with only its values changed, and only
+ * what does not carry over collapses away or grows in.
+ *
  * ## Two groups, stacked: the layout, and the one entity being pointed at
  *
- * **Global** is everything layout-wide — the target and the theme. **Selected entity** is only what
- * belongs to the element that was clicked. Both are always on screen, as labelled regions, rather than
+ * **Global** is everything layout-wide — the target and the theme. **Selected entity** opens with the
+ * Elements list, which is how an entity is chosen, and then holds only what belongs to the one that
+ * was. Both are always on screen, as labelled regions, rather than
  * two tabs of a rail: an entity's rows say which values it inherits from the theme, and an author
  * moving between the two should not have to switch a mode to see the value being inherited. Folding
  * does the work a rail would: each group is a stack of sections, and a folded section is one bar.
@@ -73,6 +82,7 @@ import { assertNever } from '@perch/ui-kit';
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import {
   Collapse,
+  CollapseEach,
   NumberField,
   PropertyRow,
   ResetButton,
@@ -84,6 +94,7 @@ import {
   backgroundProperties,
   entitySections,
   targetProperties,
+  type Property,
   type PropertySection,
 } from './descriptors.js';
 import type { DraftState } from './draft.js';
@@ -125,7 +136,7 @@ export interface InspectorProps {
   readonly onMove: (from: number, to: number) => void;
   /** Duplicate the selected layer, and select the copy: one edit (`selection.duplicate`). */
   readonly onDuplicate: () => void;
-  /** Whether the selection header's delete is asking, for the Delete key on the canvas to open. */
+  /** Whether the Elements list's delete is asking, for the Delete key on the canvas to open. */
   readonly deleteAsked: boolean;
   readonly onDeleteAsked: (asked: boolean) => void;
   /** Topics known to exist before any is heard: the mock source's own. Merged with what arrives. */
@@ -150,16 +161,24 @@ export function Inspector({
   widgets,
 }: InspectorProps): ReactNode {
   const element = state.draft.elements[selected];
-  const onBackground = selected === BACKGROUND_SELECTED;
+  const subject: Subject | null =
+    element !== undefined
+      ? { kind: 'element', element, index: selected }
+      : selected === BACKGROUND_SELECTED
+        ? { kind: 'background', background: state.draft.background }
+        : null;
   const entityGroup = useRef<HTMLElement>(null);
   const { target } = state.draft;
 
   // A new selection brings its group into view. Only when something is selected: clearing the
-  // selection must not yank the pane away from where the author is working. Feature-tested because
-  // jsdom does not implement it.
+  // selection must not yank the pane away from where the author is working. And not when it was made
+  // in the group itself — a row of the Elements list, at the group's top — where the author is
+  // already looking, and a scroll would move the row out from under the pointer. Feature-tested
+  // because jsdom does not implement it.
   useEffect(() => {
     const group = entityGroup.current;
     if (selected === NOTHING_SELECTED || group === null || !('scrollIntoView' in group)) return;
+    if (group.contains(document.activeElement)) return;
     group.scrollIntoView({ block: 'start' });
   }, [selected]);
 
@@ -208,50 +227,23 @@ export function Inspector({
           />
         </Group>
 
-        <Group
-          id="entity"
-          title="Selected entity"
-          groupRef={entityGroup}
-          action={<AddMenu target={target} onAdd={onAdd} />}
-        >
-          <Collapse open={onBackground} focusOnClose={entityGroup}>
-            {onBackground ? (
-              <>
-                <BackgroundHeader background={state.draft.background} onEdit={onEdit} />
-                <BackgroundPanes background={state.draft.background} onEdit={onEdit} />
-              </>
-            ) : null}
-          </Collapse>
-          <Collapse open={element !== undefined} focusOnClose={entityGroup}>
-            {element === undefined ? null : (
-              <>
-                <SelectionHeader
-                  element={element}
-                  index={selected}
-                  deleteAsked={deleteAsked}
-                  onDeleteAsked={onDeleteAsked}
-                  onDelete={() => {
-                    onDelete(selected);
-                  }}
-                />
-                <EntityPanes
-                  element={element}
-                  index={selected}
-                  theme={state.draft.theme}
-                  onEdit={onEdit}
-                />
-              </>
-            )}
-          </Collapse>
-          <Collapse open={element === undefined && !onBackground}>
-            <p className="perch-editor-empty">
-              nothing selected. click an entity on the canvas, or pick one from Elements below.
-            </p>
-          </Collapse>
+        <Group id="entity" title="Selected entity" groupRef={entityGroup}>
           <Section
             id="entity/elements"
             title="Elements"
             summary={`${state.draft.elements.length} · topmost first`}
+            actions={
+              <>
+                <AddMenu target={target} onAdd={onAdd} />
+                <DeleteLayer
+                  subject={subject}
+                  deleteAsked={deleteAsked}
+                  onDeleteAsked={onDeleteAsked}
+                  onDelete={onDelete}
+                  onEdit={onEdit}
+                />
+              </>
+            }
           >
             {/* A different layout is a different list: it arrives whole, not row by row. */}
             <ElementList
@@ -264,6 +256,20 @@ export function Inspector({
               onDuplicate={onDuplicate}
             />
           </Section>
+          {/*
+           * One region for whatever is selected, element or background, so a change of selection
+           * updates it in place rather than swapping one region for another.
+           */}
+          <Collapse open={subject !== null} focusOnClose={entityGroup}>
+            {subject === null ? null : (
+              <EntityPanes subject={subject} theme={state.draft.theme} onEdit={onEdit} />
+            )}
+          </Collapse>
+          <Collapse open={subject === null}>
+            <p className="perch-editor-empty">
+              nothing selected. click an entity on the canvas, or pick one from Elements above.
+            </p>
+          </Collapse>
         </Group>
       </div>
     </SensorCatalogueProvider>
@@ -321,41 +327,50 @@ const KIND_GLYPH: Readonly<Record<LayoutElement['kind'], string>> = Object.freez
   media: '▣',
 });
 
+/** What the entity half of the sidebar is showing: an element, or the layout's background. */
+type Subject =
+  | { readonly kind: 'element'; readonly element: LayoutElement; readonly index: number }
+  | { readonly kind: 'background'; readonly background: LayoutBackground | undefined };
+
 /**
- * The selection, named: what it is, which element, what it reads — and the one control on it, delete,
- * which asks first. Deselecting is a click on empty canvas or Escape, so it needs no button here.
+ * The selection, named: what it is, which element, what it reads; or the background, locked and
+ * always lowest. One header for both, so a change of selection changes its words, not the header.
+ * It holds no control: deleting is in the Elements list's bar, and deselecting is a click on empty
+ * canvas or Escape.
  */
-function SelectionHeader({
-  element,
-  index,
-  onDelete,
-  deleteAsked,
-  onDeleteAsked,
-}: {
-  readonly element: LayoutElement;
-  readonly index: number;
-  readonly onDelete: () => void;
-  readonly deleteAsked: boolean;
-  readonly onDeleteAsked: (asked: boolean) => void;
-}): ReactNode {
-  const { name, detail } = identify(element);
+function EntityHeader({ subject }: { readonly subject: Subject }): ReactNode {
+  const background = subject.kind === 'background' ? subject.background : undefined;
+  const { name, detail } =
+    subject.kind === 'element'
+      ? identify(subject.element)
+      : { name: background?.src ?? NO_BACKGROUND, detail: undefined };
 
   return (
     <div
       className="perch-selection"
       data-testid="perch-editor-selection"
-      data-perch-kind={element.kind}
+      data-perch-kind={subject.kind === 'element' ? subject.element.kind : 'background'}
     >
       <span className="perch-selection__icon" aria-hidden="true">
-        {KIND_GLYPH[element.kind]}
+        {subject.kind === 'element' ? KIND_GLYPH[subject.element.kind] : <LockGlyph />}
       </span>
       <span className="perch-selection__text">
         <span className="perch-selection__name" data-perch-tip={name}>
           {name}
         </span>
         <span className="perch-selection__meta">
-          <span className="perch-selection__kind">{element.kind}</span>
-          <span>{`elements[${index}]`}</span>
+          {subject.kind === 'element' ? (
+            <>
+              <span className="perch-selection__kind">{subject.element.kind}</span>
+              <span>{`elements[${subject.index}]`}</span>
+            </>
+          ) : (
+            <>
+              <span className="perch-selection__kind">background</span>
+              <span>locked · always lowest</span>
+              {background?.hidden === true ? <span>hidden</span> : null}
+            </>
+          )}
           {detail === undefined ? null : (
             <span className="perch-selection__detail" data-perch-tip={detail}>
               {detail}
@@ -363,6 +378,35 @@ function SelectionHeader({
           )}
         </span>
       </span>
+    </div>
+  );
+}
+
+/**
+ * Delete, in the Elements list's bar beside Add: the red trash can, acting on the selection, asking
+ * once, inline, even though undo brings it back. For an element it deletes the element, and the
+ * Delete and Backspace keys on the canvas ask through the same confirm (`deleteAsked`). For the
+ * background it is what the background's header offered: its source goes and the theme's canvas
+ * colour shows, and the row stays, since the background is never removed as an element is. With
+ * nothing to delete it stays where it is, dimmed, saying why.
+ */
+function DeleteLayer({
+  subject,
+  deleteAsked,
+  onDeleteAsked,
+  onDelete,
+  onEdit,
+}: {
+  readonly subject: Subject | null;
+  readonly deleteAsked: boolean;
+  readonly onDeleteAsked: (asked: boolean) => void;
+  readonly onDelete: (index: number) => void;
+  readonly onEdit: (update: LayoutUpdate) => void;
+}): ReactNode {
+  if (subject?.kind === 'element') {
+    const { element, index } = subject;
+
+    return (
       <ResetButton
         action="delete"
         subject={`elements[${index}]`}
@@ -370,9 +414,32 @@ function SelectionHeader({
         ask="delete?"
         confirming={deleteAsked}
         onConfirming={onDeleteAsked}
-        onReset={onDelete}
+        onReset={() => {
+          onDelete(index);
+        }}
       />
-    </div>
+    );
+  }
+
+  return (
+    <ResetButton
+      action="delete"
+      subject="the background"
+      consequence="its source, fit, opacity and eye go, and the canvas colour shows. undo brings them back."
+      ask="remove?"
+      confirming={deleteAsked}
+      onConfirming={onDeleteAsked}
+      unavailable={
+        subject === null
+          ? 'nothing to delete: select a layer first'
+          : subject.background === undefined
+            ? 'nothing to delete: the background has no source'
+            : undefined
+      }
+      onReset={() => {
+        onEdit(clearBackground());
+      }}
+    />
   );
 }
 
@@ -400,6 +467,28 @@ function summarise(section: PropertySection<LayoutElement>, element: LayoutEleme
   const { name, detail } = identify(element);
 
   return detail ?? name;
+}
+
+/**
+ * A section's rows, each kept by its label: the rows two selections share (a media element's and the
+ * background's source rows, a widget's and a chart's sensor) stay mounted, and the rest grow in or
+ * collapse away. Labels, not ids, because the background's rows are their own descriptors with the
+ * same names.
+ */
+function propertyRows<Subject>(
+  properties: readonly Property<Subject>[],
+  subject: Subject,
+  index: number,
+  onEdit: (update: LayoutUpdate) => void,
+): ReactNode {
+  return (
+    <CollapseEach
+      entries={properties.map((property) => ({
+        key: property.label,
+        node: <PropertyView property={property} subject={subject} index={index} onEdit={onEdit} />,
+      }))}
+    />
+  );
 }
 
 /** What the opacity row says it does. */
@@ -478,208 +567,137 @@ function OpacityRow({
 }
 
 /**
- * One element's sections: Content and Transform from descriptors, then its style tokens in the
- * sections `ui-kit` groups them into, with the element's opacity first in Appearance. A media element
- * carries no `style` in the format, so it gets Content, Transform and an Appearance holding only its
- * opacity, and a sentence saying why there is nothing else.
+ * Whatever is selected, as one stack of sections with stable names: Content, then Transform, then the
+ * style token sections `ui-kit` groups them into, with the entity's opacity first in Appearance.
  *
- * The token pane is keyed by index so switching selection resets its tab and search rather than
- * carrying one element's into another's. Folded sections are remembered by name, not by index, so
- * they stay folded across the switch.
+ * Every entity goes through the same token pane, so a section two selections share — Transform for
+ * two elements, Content and Appearance for a media element and the background — is the same mounted
+ * section, folded or open as it was, with only its values changed; the token pane is not keyed by
+ * the selection. A section that does not apply to the new selection collapses away where it was, and
+ * one that newly applies grows in (`CollapseEach`): a media element has no style in the format, so
+ * its Placement, Typography and Colour go, and the tabs and the search fold away; the background has
+ * no rect, so its Transform goes. The rows inside Content are kept by name in the same way.
+ *
+ * Nothing in a kept section holds a value of its own that could go stale: every field renders from
+ * the draft, and the box diagram's half-typed text is tied to the value it was typed against. The
+ * search is the one piece of local state, and the pane clears it on a change of selection.
  */
 function EntityPanes({
-  element,
-  index,
+  subject,
   theme,
   onEdit,
 }: {
-  readonly element: LayoutElement;
-  readonly index: number;
+  readonly subject: Subject;
   readonly theme: Readonly<Record<string, string>> | undefined;
   readonly onEdit: (update: LayoutUpdate) => void;
 }): ReactNode {
-  const sections = entitySections(element).map((section) => (
-    <Section
-      key={section.id}
-      id={`entity/${section.id}`}
-      title={section.title}
-      summary={summarise(section, element)}
-    >
-      {section.properties.map((property) => (
-        <PropertyView
-          key={property.id}
-          property={property}
-          subject={element}
-          index={index}
-          onEdit={onEdit}
-        />
-      ))}
-    </Section>
-  ));
+  const element = subject.kind === 'element' ? subject.element : undefined;
+  const background = subject.kind === 'background' ? subject.background : undefined;
+  const index = subject.kind === 'element' ? subject.index : NOTHING_SELECTED;
+  const styled = element !== undefined && element.kind !== 'media';
 
-  const opacity = (
-    <OpacityRow
-      opacity={element.opacity}
-      onOpacity={(value) => {
-        onEdit(setElementOpacity(index, value));
-      }}
-    />
-  );
+  const sections =
+    element === undefined
+      ? [
+          {
+            key: 'content',
+            node: (
+              <Section
+                id="entity/content"
+                title="Content"
+                summary={background?.src ?? NO_BACKGROUND}
+              >
+                {propertyRows(backgroundProperties(background), background, index, onEdit)}
+              </Section>
+            ),
+          },
+        ]
+      : entitySections(element).map((section) => ({
+          key: section.id,
+          node: (
+            <Section
+              id={`entity/${section.id}`}
+              title={section.title}
+              summary={summarise(section, element)}
+            >
+              {propertyRows(section.properties, element, index, onEdit)}
+            </Section>
+          ),
+        }));
 
-  if (element.kind === 'media') {
-    return (
-      <>
-        {sections}
-        {/* The id every element's Appearance folds under, so folding it here folds it there. */}
-        <Section
-          id="style/appearance"
-          title="Appearance"
-          testId="perch-editor-appearance"
-          summary={element.opacity === undefined ? undefined : '1 set'}
-          summaryActive={element.opacity !== undefined}
-        >
-          {opacity}
-        </Section>
+  const opacity = element?.opacity ?? background?.opacity;
+  // The background's opacity is only there to set once it has a source.
+  const lead =
+    element === undefined && background === undefined
+      ? []
+      : [
+          {
+            group: 'appearance' as const,
+            label: 'Opacity',
+            description: OPACITY_DESCRIPTION,
+            set: opacity !== undefined,
+            row: (
+              <OpacityRow
+                opacity={opacity}
+                onOpacity={(value) => {
+                  onEdit(
+                    element === undefined
+                      ? setBackgroundOpacity(value)
+                      : setElementOpacity(index, value),
+                  );
+                }}
+              />
+            ),
+          },
+        ];
+
+  return (
+    <>
+      <EntityHeader subject={subject} />
+      <TokenPane
+        id={element === undefined ? 'style-background' : `style-${index}`}
+        title="style"
+        scope="element"
+        kind={element?.kind}
+        styled={styled}
+        searchFor={element === undefined ? 'background' : String(index)}
+        tokens={styled ? (element.style ?? {}) : NO_TOKENS}
+        inherited={theme}
+        sectionsOpen={['appearance', 'placement']}
+        disclosureKey="style"
+        leading={<CollapseEach entries={sections} />}
+        lead={lead}
+        onSet={(name, value) => {
+          if (styled) onEdit(setElementStyleToken(index, name, value));
+        }}
+        onRemove={(name) => {
+          if (styled) onEdit(removeElementStyleToken(index, name));
+        }}
+      />
+      <Collapse open={element?.kind === 'media'}>
         <p className="perch-editor-empty">
           a media element carries no style in the layout format, so it has no background, corner,
           padding or placement controls.
         </p>
-      </>
-    );
-  }
-
-  return (
-    <TokenPane
-      key={index}
-      id={`style-${index}`}
-      title="style"
-      scope="element"
-      kind={element.kind}
-      tokens={element.style ?? {}}
-      inherited={theme}
-      sectionsOpen={['appearance', 'placement']}
-      disclosureKey="style"
-      leading={sections}
-      lead={[
-        {
-          group: 'appearance',
-          label: 'Opacity',
-          description: OPACITY_DESCRIPTION,
-          set: element.opacity !== undefined,
-          row: opacity,
-        },
-      ]}
-      onSet={(name, value) => {
-        onEdit(setElementStyleToken(index, name, value));
-      }}
-      onRemove={(name) => {
-        onEdit(removeElementStyleToken(index, name));
-      }}
-    />
+      </Collapse>
+      <Collapse open={subject.kind === 'background'}>
+        <p className="perch-editor-empty">
+          the background is always the lowest layer and covers the whole canvas. with no source, or
+          hidden, the theme&apos;s canvas colour shows.
+        </p>
+      </Collapse>
+    </>
   );
 }
+
+/** The token map of a surface that has none. */
+const NO_TOKENS: Readonly<Record<string, string>> = Object.freeze({});
 
 /** What the background row and header say there is, with no source. */
 const NO_BACKGROUND = 'none';
 
 /** Why the background row is never dragged or dropped on, as its tooltip says. */
 const BACKGROUND_LOCKED = 'locked: always the lowest layer, under every element';
-
-/**
- * The background, named, as the selection header names an element: locked, always lowest, and the
- * one control on it, which removes its source (asking first) so the theme's canvas colour shows.
- */
-function BackgroundHeader({
-  background,
-  onEdit,
-}: {
-  readonly background: LayoutBackground | undefined;
-  readonly onEdit: (update: LayoutUpdate) => void;
-}): ReactNode {
-  const name = background?.src ?? NO_BACKGROUND;
-
-  return (
-    <div
-      className="perch-selection"
-      data-testid="perch-editor-selection"
-      data-perch-kind="background"
-    >
-      <span className="perch-selection__icon" aria-hidden="true">
-        <LockGlyph />
-      </span>
-      <span className="perch-selection__text">
-        <span className="perch-selection__name" data-perch-tip={name}>
-          {name}
-        </span>
-        <span className="perch-selection__meta">
-          <span className="perch-selection__kind">background</span>
-          <span>locked · always lowest</span>
-          {background?.hidden === true ? <span>hidden</span> : null}
-        </span>
-      </span>
-      {background === undefined ? null : (
-        <ResetButton
-          action="delete"
-          subject="the background"
-          consequence="its source, fit, opacity and eye go, and the canvas colour shows. undo brings them back."
-          ask="remove?"
-          onReset={() => {
-            onEdit(clearBackground());
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-/**
- * The background's sections: its source, chosen from the cloud catalogue or the files beside the
- * layout or typed as a path, and its fit; then an Appearance holding its opacity. It has no rect,
- * since it always covers the canvas, and no style, as a media element has none.
- */
-function BackgroundPanes({
-  background,
-  onEdit,
-}: {
-  readonly background: LayoutBackground | undefined;
-  readonly onEdit: (update: LayoutUpdate) => void;
-}): ReactNode {
-  return (
-    <>
-      <Section id="entity/background" title="Source" summary={background?.src ?? NO_BACKGROUND}>
-        {backgroundProperties(background).map((property) => (
-          <PropertyView
-            key={property.id}
-            property={property}
-            subject={background}
-            index={NOTHING_SELECTED}
-            onEdit={onEdit}
-          />
-        ))}
-      </Section>
-      {background === undefined ? null : (
-        <Section
-          id="style/appearance"
-          title="Appearance"
-          testId="perch-editor-appearance"
-          summary={background.opacity === undefined ? undefined : '1 set'}
-          summaryActive={background.opacity !== undefined}
-        >
-          <OpacityRow
-            opacity={background.opacity}
-            onOpacity={(value) => {
-              onEdit(setBackgroundOpacity(value));
-            }}
-          />
-        </Section>
-      )}
-      <p className="perch-editor-empty">
-        the background is always the lowest layer and covers the whole canvas. with no source, or
-        hidden, the theme&apos;s canvas colour shows.
-      </p>
-    </>
-  );
-}
 
 /** A padlock: the background row cannot be moved. Decoration; the row says so in words too. */
 function LockGlyph(): ReactNode {

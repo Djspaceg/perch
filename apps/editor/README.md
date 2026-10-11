@@ -65,10 +65,10 @@ between them, **preview** the selected one live on the shared canvas at its own
 target size scaled to fit, **edit** the fields that already exist (element rects,
 text, theme tokens, media `src`/`fit`, widget/chart bindings and ranges), and
 **write** a valid layout back out. Since then: drag and resize on the canvas,
-and **adding and deleting** elements. "+ Add" in the Selected-entity bar makes a
+and **adding and deleting** elements. "+ Add" in the Elements list's bar makes a
 live reading, a chart or a label, with a searchable sensor picker listing what
 the connected source has published (the same picker backs the topic field); the
-selection header's trash can deletes, asking once inline, and the Delete or
+trash can beside it deletes the selection, asking once inline, and the Delete or
 Backspace key asks the same way when the canvas has focus. **Undo and redo** cover
 every change to the layout (see [Undo](#undo)).
 **Cloud backgrounds** (docs/backgrounds.md): a media element's `background` row,

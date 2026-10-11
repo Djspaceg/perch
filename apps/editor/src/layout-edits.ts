@@ -346,7 +346,7 @@ export function duplicateBackground(): LayoutUpdate {
  * Remove the element at `index`; the ones after it move up one. A no-op for an index that names no
  * element, which is what "nothing selected" is.
  *
- * The caller asks first (the selection header's inline confirm), and undo can bring it back; this is
+ * The caller asks first (the Elements list's inline confirm), and undo can bring it back; this is
  * only the edit.
  */
 export function removeElement(index: number): LayoutUpdate {

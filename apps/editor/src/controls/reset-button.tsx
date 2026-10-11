@@ -53,6 +53,12 @@ export type ResetButtonProps =
       /** Controlled confirm, for a caller that also opens it another way. */
       readonly confirming?: boolean | undefined;
       readonly onConfirming?: ((confirming: boolean) => void) | undefined;
+      /**
+       * Set when there is nothing to delete just now — the Elements list with nothing selected: why.
+       * The can stays, dimmed and `aria-disabled`, so the bar keeps its shape and focus that was on
+       * the confirm can come back to it.
+       */
+      readonly unavailable?: string | undefined;
     };
 
 export function ResetButton(props: ResetButtonProps): ReactNode {
@@ -92,27 +98,28 @@ export function ResetButton(props: ResetButtonProps): ReactNode {
     );
   }
 
-  const { subject, onReset } = props;
+  const { subject, onReset, unavailable } = props;
   const ask = `delete ${subject}. ${props.consequence ?? GONE}`;
 
   return (
     <>
-      {confirming ? null : (
+      {confirming && unavailable === undefined ? null : (
         <button
           ref={deleteRef}
           type="button"
           className="perch-reset perch-reset--delete"
-          aria-label={ask}
-          data-perch-tip={ask}
+          aria-label={unavailable ?? ask}
+          data-perch-tip={unavailable ?? ask}
+          aria-disabled={unavailable === undefined ? undefined : 'true'}
           onClick={() => {
-            setConfirming(true);
+            if (unavailable === undefined) setConfirming(true);
           }}
         >
           <TrashGlyph />
         </button>
       )}
       <Collapse
-        open={confirming}
+        open={confirming && unavailable === undefined}
         appear
         as="span"
         className="perch-reset__unfold"
@@ -209,7 +216,8 @@ export const RESET_BUTTON_STYLES = `
 .perch-reset--revert { color: var(--ed-accent); }
 .perch-reset--revert:hover { background: var(--ed-hover); color: var(--ed-text); }
 .perch-reset--delete { color: var(--ed-danger); }
-.perch-reset--delete:hover { background: var(--ed-danger-fill); color: var(--ed-danger-strong); }
+.perch-reset--delete[aria-disabled='true'] { color: var(--ed-faint); opacity: 0.5; cursor: default; }
+.perch-reset--delete:not([aria-disabled='true']):hover { background: var(--ed-danger-fill); color: var(--ed-danger-strong); }
 /*
  * The confirm floats over the row's value, right-aligned to the slot, so the row does not reflow; it
  * unfolds from the row's middle, through Collapse, rather than appearing.

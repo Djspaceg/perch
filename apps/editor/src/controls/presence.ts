@@ -122,3 +122,85 @@ export function reconcile<T>(record: PresenceState<T>, items: readonly T[]): Pre
 
   return { items, rows: [...rows, ...tail], nextKey };
 }
+
+/** One rendered entry of a keyed list. */
+export interface KeyedRow<T> {
+  readonly key: string;
+  readonly item: T;
+  /** False while an entry that stopped applying collapses away. */
+  readonly present: boolean;
+  /** Arrived after the list first rendered, so it grows in. */
+  readonly arrived: boolean;
+}
+
+/**
+ * useKeyedPresence: `usePresence` for entries that name themselves — the sections of whatever is
+ * selected, the rows of one of them. An entry keeps its key, so the same key across two renders is
+ * the same component, mounted where it was, however the entries around it change; one that stops
+ * applying stays where it was, not present, until it has collapsed away; one that starts applying
+ * arrives at its place in the new order.
+ */
+export function useKeyedPresence<T>(
+  items: readonly T[],
+  keyOf: (item: T) => string,
+): {
+  readonly rows: readonly KeyedRow<T>[];
+  readonly exited: (key: string) => void;
+} {
+  const [record, setRecord] = useState<{
+    readonly items: readonly T[];
+    readonly rows: readonly KeyedRow<T>[];
+  }>(() => ({
+    items,
+    rows: items.map((item) => ({ key: keyOf(item), item, present: true, arrived: false })),
+  }));
+
+  let current = record;
+  if (record.items !== items) {
+    current = { items, rows: reconcileKeyed(record.rows, items, keyOf) };
+    setRecord(current);
+  }
+
+  const exited = useCallback((key: string) => {
+    setRecord((was) => ({
+      ...was,
+      rows: was.rows.filter((row) => row.present || row.key !== key),
+    }));
+  }, []);
+
+  return { rows: current.rows, exited };
+}
+
+/**
+ * The rows for `items`, given the rows there were: each item in its new order, and each row whose key
+ * no item has any more kept, not present, after the row it followed. Exported for its tests.
+ */
+export function reconcileKeyed<T>(
+  rows: readonly KeyedRow<T>[],
+  items: readonly T[],
+  keyOf: (item: T) => string,
+): readonly KeyedRow<T>[] {
+  const wanted = new Set(items.map(keyOf));
+  const next: KeyedRow<T>[] = [];
+  const leave = (row: KeyedRow<T> | undefined): void => {
+    if (row !== undefined && !wanted.has(row.key)) next.push({ ...row, present: false });
+  };
+  let at = 0;
+  for (const item of items) {
+    const key = keyOf(item);
+    const was = rows.findIndex((row) => row.key === key);
+    if (was >= at) {
+      // Whatever stood between the last placed row and this one, and no longer applies, stays here.
+      for (; at < was; at++) leave(rows[at]);
+      at = was + 1;
+    } else if (was === -1) {
+      // A new entry goes after any leaving ones that followed the last placed row, not between them
+      // and the row they followed.
+      while (at < rows.length && !wanted.has(rows[at]?.key ?? '')) leave(rows[at++]);
+    }
+    next.push({ key, item, present: true, arrived: was === -1 || (rows[was]?.arrived ?? true) });
+  }
+  for (; at < rows.length; at++) leave(rows[at]);
+
+  return next;
+}

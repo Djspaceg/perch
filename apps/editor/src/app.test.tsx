@@ -562,7 +562,7 @@ describe('the three common edits', () => {
 });
 
 describe('the selection header and the sections', () => {
-  it('names what is selected: kind, widget and topic, with the one way out beside it', () => {
+  it('names what is selected: kind, widget and topic, and holds no control', () => {
     const { result } = renderEditor();
     selectElement(result, 1);
     const header = result.getByTestId('perch-editor-selection');
@@ -570,11 +570,13 @@ describe('the selection header and the sections', () => {
     expect(header).toHaveTextContent('readout');
     expect(header).toHaveTextContent('widget');
     expect(header).toHaveTextContent('sensors/cpu/0/temperature/0');
-    // The way out beside it is the trash-can delete; deselecting is Escape or empty canvas.
+    // Delete is in the Elements list's bar; deselecting is Escape or empty canvas.
+    expect(within(header).queryByRole('button')).toBeNull();
     expect(
-      within(header).getByRole('button', { name: /^delete elements\[1\]/ }),
+      within(result.getByRole('region', { name: 'Elements' })).getByRole('button', {
+        name: /^delete elements\[1\]/,
+      }),
     ).toBeInTheDocument();
-    expect(within(header).queryByRole('button', { name: /^deselect/i })).toBeNull();
   });
 
   it('groups an entity by what its fields are about, each section folding on its own', () => {
@@ -938,7 +940,7 @@ describe('the element delete', () => {
   it('is the red trash can, named and titled with what it deletes, with no deselect beside it', () => {
     const { result } = renderEditor();
     selectElement(result, 1);
-    const destroy = within(result.getByTestId('perch-editor-selection')).getByRole('button', {
+    const destroy = within(result.getByRole('region', { name: 'Elements' })).getByRole('button', {
       name: /^delete elements\[1\]/,
     });
 
@@ -993,8 +995,13 @@ describe('motion in the sidebar', () => {
     // Element 1 was the topmost, so its row is the list's first.
     expect(rows[0]).toHaveAttribute('inert');
     expect(elementCount(result)).toBe(1);
-    // Focus was on the confirm, now inert: it moves to the group rather than onto the page.
-    expect(result.getByRole('region', { name: 'Selected entity' })).toHaveFocus();
+    // Focus was on the confirm: it goes back to the trash can, which now has nothing to delete,
+    // rather than onto the page.
+    expect(
+      within(result.getByRole('region', { name: 'Elements' })).getByRole('button', {
+        name: /^nothing to delete/,
+      }),
+    ).toHaveFocus();
 
     finish(result);
     expect(result.queryByTestId('perch-editor-selection')).toBeNull();

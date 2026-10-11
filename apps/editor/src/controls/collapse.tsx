@@ -2,7 +2,8 @@
  * Collapse: a region that grows open and shrinks shut, so what is below it slides instead of jumping.
  *
  * Every place the sidebar gains or loses content goes through this one component — a section's body,
- * the selected entity's controls, a row of the Elements list, the inline delete confirm — so how
+ * the selected entity's controls, a section that applies to one selection and not the next
+ * (`CollapseEach`), a row of the Elements list, the inline delete confirm — so how
  * motion looks, how long it takes and what it does to focus are decided here, once.
  *
  * ## How it animates an unknown height
@@ -33,6 +34,7 @@
  */
 
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useKeyedPresence } from './presence.js';
 
 /**
  * Where a region is. `entering` is the one unpainted frame at `0fr` that gives the browser a start
@@ -161,6 +163,43 @@ export function Collapse({
       <Clip className="perch-collapse__clip">{open || keepMounted ? children : lastOpen}</Clip>
     </Tag>
   );
+}
+
+/** One entry of a `CollapseEach`: what it is called, and what it shows. */
+export interface CollapseEntry {
+  readonly key: string;
+  readonly node: ReactNode;
+}
+
+const entryKey = (entry: CollapseEntry): string => entry.key;
+
+/**
+ * A stack of regions that name themselves: the sections of whatever is selected, or the rows of one.
+ *
+ * An entry is kept by its key, so one that is still there after a change is the same mounted region,
+ * in the same place, with only what it shows updated; one that has gone collapses away where it was
+ * (`useKeyedPresence`); one that is new grows in. A change of selection is a change of entries, not
+ * a new stack.
+ */
+export function CollapseEach({
+  entries,
+}: {
+  readonly entries: readonly CollapseEntry[];
+}): ReactNode {
+  const { rows, exited } = useKeyedPresence(entries, entryKey);
+
+  return rows.map(({ key, item, present, arrived }) => (
+    <Collapse
+      key={key}
+      open={present}
+      appear={arrived}
+      onExited={() => {
+        exited(key);
+      }}
+    >
+      {present ? item.node : null}
+    </Collapse>
+  ));
 }
 
 /** Whether the author asked for no motion. Feature-tested: jsdom has no `matchMedia`. */

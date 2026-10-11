@@ -25,7 +25,7 @@ import { VECTOR_FIELD_STYLES } from './vector-field.js';
 export { AlignGrid, type AlignAxis } from './align-grid.js';
 export { BoxDiagram, type BoxDiagramProps } from './box-diagram.js';
 export { parseBoxInput, shiftQuad, type BoxInput, type BoxKind } from './box-input.js';
-export { Collapse, type CollapseProps } from './collapse.js';
+export { Collapse, CollapseEach, type CollapseEntry, type CollapseProps } from './collapse.js';
 export { ColorField, swatchStyle } from './color-field.js';
 export { FilterBar, type FilterChip } from './filter-bar.js';
 export {
@@ -43,7 +43,12 @@ export { TOOLTIP_DELAY, TooltipLayer } from './tooltip.js';
 export { VectorField, type VectorComponent } from './vector-field.js';
 export { matchesQuery, queryWords } from './filter.js';
 export { usePopover, type Popover } from './popover.js';
-export { usePresence, type PresentRow } from './presence.js';
+export {
+  useKeyedPresence,
+  usePresence,
+  type KeyedRow,
+  type PresentRow,
+} from './presence.js';
 export { stepFor } from './scrub.js';
 
 /** Every primitive's stylesheet, chrome variables first. One `<style>` in `app.tsx` mounts it. */

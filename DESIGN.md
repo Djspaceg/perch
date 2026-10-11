@@ -508,6 +508,7 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 - **Timing**: every region that appears or disappears (a section body, a new row, an inline confirm) grows or shrinks in 180ms with `cubic-bezier(0.2, 0, 0, 1)`.
 - **Properties**: only height and opacity change.
 - **Focus**: a closing region is inert, and any focus inside it moves somewhere sensible.
+- **Changing what is selected**: sections have stable names, so a section two selections share stays where it is, folded or open, and only its values change. Sections and rows that do not carry over shrink away while the new ones grow, in the same 180ms. Nothing scrolls.
 - **Reduced motion**: `prefers-reduced-motion` makes every change instant.
 - **Disclosure triangles** turn in 80ms.
 
@@ -515,6 +516,7 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 - `panel` holds groups, each headed by an uppercase `{typography.group-title}` bar.
 - `section-bar` is a raised 22px header. Its title is the disclosure button, with a quiet triangle beside it.
 - `section-summary` sits at the right edge of the header and truncates first. It turns `section-summary-set` when anything inside the section is set.
+- A header can end in actions for what the section holds. The Elements list is the first section of Selected entity, above the selected entity's own sections, and its header carries Add and Delete. Delete acts on the selection and is dimmed when nothing is selected. Its confirm floats over the header.
 - **States**:
   - Hover brightens the title to `{colors.heading-hover}`.
   - Focus shows an inset ring.

@@ -1,9 +1,10 @@
 /**
  * usePresence's bookkeeping: which row left, which arrived, and that every other row keeps its key.
+ * And useKeyedPresence's, for entries that carry their own keys.
  */
 
 import { describe, expect, it } from 'vitest';
-import { reconcile, type PresentRow } from './presence.js';
+import { reconcile, reconcileKeyed, type KeyedRow, type PresentRow } from './presence.js';
 
 function start<T>(items: readonly T[]): Parameters<typeof reconcile<T>>[0] {
   return {
@@ -48,5 +49,40 @@ describe('reconcile', () => {
 
   it('matches by position when the list was replaced wholesale, and only the surplus leaves', () => {
     expect(shape(reconcile(start([a, b, c]), ['x', 'y']).rows)).toEqual(['0:x', '1:y', '2:c-']);
+  });
+});
+
+describe('reconcileKeyed', () => {
+  const key = (item: string): string => item;
+  const rowsOf = (items: readonly string[]): readonly KeyedRow<string>[] =>
+    items.map((item) => ({ key: item, item, present: true, arrived: false }));
+  const keyed = (rows: readonly KeyedRow<string>[]): string[] =>
+    rows.map((row) => `${row.key}${row.present ? '' : '-'}${row.arrived ? '+' : ''}`);
+
+  it('keeps every shared entry, leaves the gone one where it was, and grows the new one in', () => {
+    const next = reconcileKeyed(
+      rowsOf(['content', 'transform', 'appearance', 'placement']),
+      ['content', 'appearance', 'colour'],
+      key,
+    );
+
+    expect(keyed(next)).toEqual(['content', 'transform-', 'appearance', 'placement-', 'colour+']);
+  });
+
+  it('brings back an entry that was on its way out, under its own key', () => {
+    const leaving = reconcileKeyed(rowsOf(['content', 'transform']), ['content'], key);
+    const back = reconcileKeyed(leaving, ['content', 'transform'], key);
+
+    expect(keyed(back)).toEqual(['content', 'transform']);
+  });
+
+  it('keeps entries through a reorder, losing none', () => {
+    const next = reconcileKeyed(rowsOf(['a', 'b', 'c']), ['c', 'a'], key);
+
+    expect(keyed(next).sort()).toEqual(['a', 'b-', 'c']);
+  });
+
+  it('changes nothing for the same keys', () => {
+    expect(keyed(reconcileKeyed(rowsOf(['a', 'b']), ['a', 'b'], key))).toEqual(['a', 'b']);
   });
 });

@@ -41,9 +41,9 @@
  *
  * An added element goes through `addElement` and a deleted one through `removeElement`, both plain
  * `LayoutUpdate`s into `editDraft`, so each is validated exactly as a keystroke is. An addition is
- * selected at once; a deletion leaves nothing selected. A delete still asks first — the selection
- * header's inline confirm, which the Delete and Backspace keys open when the canvas has focus — and
- * undo brings it back.
+ * selected at once; a deletion leaves nothing selected. A delete still asks first — the inline
+ * confirm of the Elements list's trash can, which the Delete and Backspace keys open when the canvas
+ * has focus — and undo brings it back.
  *
  * ## Keys
  *
@@ -462,7 +462,7 @@ function EditorShell({
   const canUndo = useEditorStore((state) => state.session.history.past.length > 0);
   const canRedo = useEditorStore((state) => state.session.history.future.length > 0);
   const gesture = useEditGesture();
-  /** Whether the selection header's delete is asking. Any change of selection withdraws the ask. */
+  /** Whether the Elements list's delete is asking. Any change of selection withdraws the ask. */
   const [deleteAsked, setDeleteAsked] = useState(false);
   /**
    * An open — a switch in the picker, New or Open — waiting on the author's decision about unsaved
@@ -651,7 +651,7 @@ function EditorShell({
     { enabled: hasSelection },
   );
 
-  /** Delete or Backspace with the canvas focused: ask, through the header's own confirm. */
+  /** Delete or Backspace with the canvas focused: ask, through the Elements list's own confirm. */
   useCommand('selection.delete', () => {
     if (hasSelection) setDeleteAsked(true);
   });
