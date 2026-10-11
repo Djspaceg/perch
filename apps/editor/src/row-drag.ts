@@ -1,5 +1,7 @@
 /**
- * useRowDrag: drag a row of the Elements list to another place in it, with native pointer events.
+ * useRowDrag: drag a row of the Elements list to another place in it, with native pointer events;
+ * and `useListDrag`, the same drag for any list of rows, which the panels of a group use too
+ * (`controls/panel-stack.tsx`).
  *
  * A press on a row does nothing until the pointer has moved `DRAG_THRESHOLD_PX` up or down, so a
  * click still selects. From there the row is held: the gap it would land in is read from the rows'
@@ -12,6 +14,11 @@
  * Listened to on `window`, as a scrub is (`controls/number-field.tsx`), so the drag carries on over
  * the rest of the page and past the list's ends. Not HTML5 drag and drop, which has no auto-scroll
  * a page can steer, draws its own ghost and behaves differently in each engine.
+ *
+ * A list can ask for a ghost: a copy of part of the held row (a panel's header bar), drawn faint and
+ * following the pointer for as long as the drag lasts. It is a plain DOM clone, without ids, inert
+ * and hidden from assistive technology, moved by a transform on each move, so following the pointer
+ * re-renders nothing. The drop state itself only changes when the gap does.
  */
 
 import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
@@ -29,11 +36,8 @@ export interface RowDrag {
   readonly gap: number;
 }
 
-export function useRowDrag(
-  list: { readonly current: HTMLElement | null },
-  count: number,
-  onMove: (from: number, to: number) => void,
-): {
+/** What `useListDrag` and `useRowDrag` hand back. */
+export interface ListDrag {
   /** The drag in progress, for the list to draw; `null` while none is. */
   readonly drag: RowDrag | null;
   /** A row's `onPointerDown`. */
@@ -42,7 +46,61 @@ export function useRowDrag(
   readonly swallowClick: () => boolean;
   /** Let go of a drag in progress without moving anything: the list it was measuring has changed. */
   readonly cancel: () => void;
-} {
+}
+
+/** The class a drag's ghost carries. */
+export const DRAG_GHOST_CLASS = 'perch-drag-ghost';
+
+export interface ListDragOptions {
+  /** The list: the scroller is the sidebar around it, and the ghost is drawn inside that. */
+  readonly list: { readonly current: HTMLElement | null };
+  /** The rows the drag measures, in the order they are drawn. */
+  readonly rows: () => readonly HTMLElement[];
+  /** Where the row at `from` lands for gap `gap`, or `null` where it already is. */
+  readonly target: (from: number, gap: number) => number | null;
+  readonly onMove: (from: number, to: number) => void;
+  /**
+   * The part to clone as a ghost that follows the pointer, found from the element that was pressed
+   * (a panel's grip gives its header bar); no ghost without it.
+   */
+  readonly ghost?: ((pressed: HTMLElement) => HTMLElement | null) | undefined;
+}
+
+/** The Elements list's drag: its rows are the elements, drawn topmost first. */
+export function useRowDrag(
+  list: { readonly current: HTMLElement | null },
+  count: number,
+  onMove: (from: number, to: number) => void,
+): ListDrag {
+  const rows = useCallback(
+    (): readonly HTMLElement[] => [
+      ...(list.current?.querySelectorAll<HTMLElement>(`[${LAYER_INDEX_ATTRIBUTE}]`) ?? []),
+    ],
+    [list],
+  );
+  const target = useCallback((from: number, gap: number) => dropTarget(from, gap, count), [count]);
+
+  return useListDrag({ list, rows, target, onMove });
+}
+
+/** A copy of `part` to draw faint under the pointer: no ids, inert, unread. */
+function cloneGhost(part: HTMLElement, host: HTMLElement): HTMLElement {
+  const box = part.getBoundingClientRect();
+  const ghost = part.cloneNode(true) as HTMLElement;
+  for (const node of [ghost, ...ghost.querySelectorAll('[id]')]) node.removeAttribute('id');
+  ghost.classList.add(DRAG_GHOST_CLASS);
+  ghost.setAttribute('aria-hidden', 'true');
+  ghost.inert = true;
+  ghost.style.left = `${box.left}px`;
+  ghost.style.top = `${box.top}px`;
+  ghost.style.width = `${box.width}px`;
+  host.append(ghost);
+
+  return ghost;
+}
+
+/** Drag the rows of any list into a new order. */
+export function useListDrag({ list, rows, target, onMove, ghost }: ListDragOptions): ListDrag {
   const [drag, setDrag] = useState<RowDrag | null>(null);
   const dragged = useRef(false);
   const active = useRef<(() => void) | null>(null);
@@ -51,22 +109,24 @@ export function useRowDrag(
     (event: ReactPointerEvent, from: number) => {
       if (event.button !== 0) return;
       dragged.current = false;
+      const pressed = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+      const startX = event.clientX;
       const startY = event.clientY;
       const scroller = list.current?.closest<HTMLElement>('.perch-editor-inspector') ?? null;
       let lastY = startY;
       let dragging = false;
       let gap: number | null = null;
       let frame = 0;
+      let shade: HTMLElement | null = null;
 
-      const rows = (): HTMLElement[] => [
-        ...(list.current?.querySelectorAll<HTMLElement>(`[${LAYER_INDEX_ATTRIBUTE}]`) ?? []),
-      ];
       const track = (): void => {
-        gap = gapAt(
+        const next = gapAt(
           lastY,
           rows().map((row) => row.getBoundingClientRect()),
         );
-        setDrag({ from, gap });
+        if (next === gap) return;
+        gap = next;
+        setDrag({ from, gap: next });
       };
       /**
        * One frame of scrolling, if the pointer is near an edge. Whether it scrolled: at the top or the
@@ -95,6 +155,11 @@ export function useRowDrag(
           dragging = true;
           dragged.current = true;
           document.body.classList.add('perch-dragging');
+          const part = pressed === null ? null : (ghost?.(pressed) ?? null);
+          if (part !== null) shade = cloneGhost(part, scroller ?? document.body);
+        }
+        if (shade !== null) {
+          shade.style.transform = `translate(${moved.clientX - startX}px, ${lastY - startY}px)`;
         }
         moved.preventDefault();
         // The frame loop scrolls while it runs; a move only starts it, so moving is not faster.
@@ -128,10 +193,12 @@ export function useRowDrag(
         active.current = null;
         if (frame !== 0) cancelAnimationFrame(frame);
         document.body.classList.remove('perch-dragging');
+        shade?.remove();
+        shade = null;
         if (!dragging) return;
         settle(released);
         setDrag(null);
-        const to = drop && gap !== null ? dropTarget(from, gap, count) : null;
+        const to = drop && gap !== null ? target(from, gap) : null;
         if (to !== null) onMove(from, to);
       };
       const up = (): void => {
@@ -155,7 +222,7 @@ export function useRowDrag(
       window.addEventListener('pointercancel', lost);
       window.addEventListener('keydown', key, true);
     },
-    [list, count, onMove],
+    [list, rows, target, onMove, ghost],
   );
 
   const swallowClick = useCallback(() => {

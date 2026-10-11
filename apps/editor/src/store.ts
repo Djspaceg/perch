@@ -5,9 +5,10 @@
  * ## Two halves
  *
  * - **`settings`** is how the author has arranged the editor: the sensor host, which sections are
- *   open, which tab and chip each token pane shows, the layout last picked, the author's keybinding
+ *   open, which tab each token pane shows, the layout last picked, the author's keybinding
  *   overrides (`keybindings/`, KEYBINDINGS.md), the chrome's colour scheme, and the panels: how
- *   wide the sidebar is and whether it is folded (`sidebar.tsx`). It is persisted to `localStorage` under
+ *   wide the sidebar is and whether it is folded (`sidebar.tsx`), and the order each group's panels
+ *   were dragged into (`panel-order.ts`). It is persisted to `localStorage` under
  *   `EDITOR_STORE_KEY` (`persist`, with `partialize` choosing it and nothing else), so it survives a
  *   reload and a new tab alike. How a sidebar is folded is not a fact about a dashboard, so none of
  *   it is ever written into a layout.
@@ -107,6 +108,11 @@ export interface ConnectionSettings {
 /** Where the panels sit and how big they are: the sidebar's width, and whether it is folded. */
 export interface PanelSettings {
   readonly sidebar: SidebarSettings;
+  /**
+   * The order each group's panels were dragged into, by group (`global`, `entity`), as panel keys
+   * (`target`, `colour`). A group with none is in the order the code lists.
+   */
+  readonly order: Readonly<Record<string, readonly string[]>>;
 }
 
 /** Everything persisted. */
@@ -160,6 +166,8 @@ export interface EditorActions {
   /** The sidebar's width, kept within its range (`clampSidebarWidth`). */
   readonly setSidebarWidth: (width: number) => void;
   readonly setSidebarCollapsed: (collapsed: boolean) => void;
+  /** Remember `group`'s panels in `order`, or with `undefined` go back to the default order. */
+  readonly setPanelOrder: (group: string, order: readonly string[] | undefined) => void;
   /** Open the first layout — `?layout=`, else the one last picked, else the library's first — once. */
   readonly openFirst: (library: LayoutLibrary, initialLayout: string | undefined) => void;
   /** Open a layout, dropping the selection. `remember` records it as the layout last picked. */
@@ -205,7 +213,7 @@ const DEFAULT_SETTINGS: EditorSettings = Object.freeze({
   layout: null,
   keybindings: Object.freeze({}),
   scheme: 'system',
-  panels: Object.freeze({ sidebar: DEFAULT_SIDEBAR }),
+  panels: Object.freeze({ sidebar: DEFAULT_SIDEBAR, order: Object.freeze({}) }),
 });
 
 /**
@@ -341,6 +349,19 @@ export function createEditorStore(
               settle(
                 { panels: { ...panels, sidebar: { ...panels.sidebar, collapsed } } },
                 { type: 'set/sidebarCollapsed', collapsed },
+              );
+            },
+            setPanelOrder: (group, order) => {
+              const panels = get().settings.panels;
+              const { [group]: _replaced, ...others } = panels.order;
+              settle(
+                {
+                  panels: {
+                    ...panels,
+                    order: order === undefined ? others : { ...others, [group]: order },
+                  },
+                },
+                { type: 'set/panelOrder', group, order },
               );
             },
             setKeybinding: (id, bindings) => {
@@ -556,6 +577,7 @@ function readPanels(raw: unknown): PanelSettings {
           : DEFAULT_SIDEBAR.width,
       collapsed: typeof collapsed === 'boolean' ? collapsed : DEFAULT_SIDEBAR.collapsed,
     },
+    order: readRecord(isRecord(raw) ? raw['order'] : undefined, isStringList),
   };
 }
 

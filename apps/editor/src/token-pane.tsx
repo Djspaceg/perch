@@ -54,6 +54,7 @@ import {
   Collapse,
   CollapseEach,
   FilterBar,
+  PanelStack,
   PropertyRow,
   ResetButton,
   Section,
@@ -97,8 +98,14 @@ export interface TokenPaneProps {
   readonly kind?: ElementKind | undefined;
   readonly onSet: (name: string, value: string) => void;
   readonly onRemove: (name: string) => void;
-  /** Sections that are not tokens, shown first on the Customize tab: Target, or Content then Transform. */
-  readonly leading?: ReactNode;
+  /**
+   * Sections that are not tokens, first on the Customize tab: Target and Clock, or Content then
+   * Transform. Each is keyed, and is a Section whose `panel` is its key, so it is dragged among the
+   * token sections like one of them.
+   */
+  readonly leading?: readonly CollapseEntry[];
+  /** The group the panels' dragged order is remembered under (`global`, `entity`); `id` if unset. */
+  readonly panels?: string;
   /**
    * Rows that are not tokens but belong at the top of a token section: an element's own opacity, first
    * in its Appearance. Searched by label and description like a token row, and counted when `set`.
@@ -217,7 +224,8 @@ export function TokenPane({
   kind,
   onSet,
   onRemove,
-  leading,
+  leading = [],
+  panels,
   lead = [],
   titlePrefix = '',
   sectionsOpen = true,
@@ -262,10 +270,11 @@ export function TokenPane({
       >
         {tab === 'customize' ? (
           <>
-            {leading}
             <CustomizeSections
               pane={id}
               scope={scope}
+              leading={leading}
+              panels={panels ?? id}
               known={known}
               lead={lead}
               tokens={tokens}
@@ -307,6 +316,8 @@ function opensByDefault(group: TokenGroup, sectionsOpen: boolean | readonly Toke
 function CustomizeSections({
   pane,
   scope,
+  leading,
+  panels,
   known,
   lead,
   tokens,
@@ -321,6 +332,8 @@ function CustomizeSections({
 }: {
   readonly pane: string;
   readonly scope: TokenScope;
+  readonly leading: readonly CollapseEntry[];
+  readonly panels: string;
   readonly known: readonly KnownToken[];
   readonly styled: boolean;
   readonly lead: readonly LeadRow[];
@@ -368,6 +381,7 @@ function CustomizeSections({
           <Section
             id={`${disclosureKey}/${group}`}
             title={`${titlePrefix}${title}`}
+            panel={group}
             defaultOpen={opensByDefault(group, sectionsOpen)}
             forceOpen={searching}
             summary={
@@ -416,10 +430,11 @@ function CustomizeSections({
   });
 
   // Keyed by group, so a section two selections share stays mounted, and one that stops applying (or
-  // stops matching the search) collapses away rather than vanishing.
+  // stops matching the search) collapses away rather than vanishing. One stack with the leading
+  // sections, in the order the author dragged them into.
   return (
     <>
-      <CollapseEach entries={sections} />
+      <PanelStack group={panels} entries={[...leading, ...sections]} />
       {sections.length === 0 && searching ? (
         <p className="perch-token-empty">{`no token matches “${query.trim()}”`}</p>
       ) : null}

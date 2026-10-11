@@ -15,6 +15,7 @@ import { COLLAPSE_STYLES } from './collapse.js';
 import { COLOR_FIELD_STYLES } from './color-field.js';
 import { FILTER_BAR_STYLES } from './filter-bar.js';
 import { NUMBER_FIELD_STYLES } from './number-field.js';
+import { PANEL_STACK_STYLES } from './panel-stack.js';
 import { PROPERTY_ROW_STYLES } from './property-row.js';
 import { RESET_BUTTON_STYLES } from './reset-button.js';
 import { SECTION_STYLES } from './section.js';
@@ -36,6 +37,7 @@ export {
   type NumberFieldProps,
   type ScrubTarget,
 } from './number-field.js';
+export { PanelStack, ResetPanelOrder } from './panel-stack.js';
 export { PropertyRow, type RowIds, type ValueSource } from './property-row.js';
 export { ResetButton, type ResetButtonProps, type ReturnsTo } from './reset-button.js';
 export { AdvancedSection, Section } from './section.js';
@@ -58,6 +60,7 @@ export const CONTROLS_STYLES = [
   CHROME_STYLES,
   COLLAPSE_STYLES,
   SECTION_STYLES,
+  PANEL_STACK_STYLES,
   PROPERTY_ROW_STYLES,
   NUMBER_FIELD_STYLES,
   VECTOR_FIELD_STYLES,

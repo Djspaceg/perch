@@ -22,6 +22,7 @@
 
 import { useId, type ReactNode } from 'react';
 import { Collapse } from './collapse.js';
+import { PanelGrip, usePanelAttributes } from './panel-stack.js';
 import { useDisclosure } from '../store.js';
 
 export interface SectionProps {
@@ -35,6 +36,11 @@ export interface SectionProps {
   /** Tints the summary: something in this section is set here. */
   readonly summaryActive?: boolean;
   readonly variant?: 'section' | 'advanced';
+  /**
+   * Its key in the group's `PanelStack`: a grip before the triangle drags it, and Alt+ArrowUp and
+   * Alt+ArrowDown on the grip move it. Outside a stack, or without a key, it has no grip.
+   */
+  readonly panel?: string | undefined;
   readonly testId?: string | undefined;
   readonly children: ReactNode;
 }
@@ -48,6 +54,7 @@ export function Section({
   summary,
   summaryActive = false,
   variant = 'section',
+  panel,
   testId,
   children,
 }: SectionProps): ReactNode {
@@ -57,6 +64,7 @@ export function Section({
   const headingId = `${base}-heading`;
   const bodyId = `${base}-body`;
   const Heading = `h${level}` as const;
+  const panelAttributes = usePanelAttributes(panel);
   const summaryNode =
     summary === undefined || summary === null || summary === '' ? null : (
       <span
@@ -76,8 +84,10 @@ export function Section({
       aria-labelledby={headingId}
       data-perch-open={shown ? 'true' : 'false'}
       data-testid={testId}
+      {...panelAttributes}
     >
       <div className="perch-section__bar">
+        <PanelGrip panel={panel} title={title} />
         <Heading className="perch-section__heading" id={headingId}>
           <button
             type="button"

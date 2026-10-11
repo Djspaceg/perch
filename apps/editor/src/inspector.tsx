@@ -87,6 +87,7 @@ import {
   NumberField,
   PropertyRow,
   ResetButton,
+  ResetPanelOrder,
   Section,
   usePresence,
 } from './controls/index.js';
@@ -195,7 +196,12 @@ export function Inspector({
           ))}
         </datalist>
 
-        <Group id="global" title="Global" hint="the whole layout">
+        <Group
+          id="global"
+          title="Global"
+          hint="the whole layout"
+          action={<ResetPanelOrder group="global" title="Global" />}
+        >
           <TokenPane
             id="theme"
             title="theme"
@@ -204,47 +210,58 @@ export function Inspector({
             titlePrefix="Global "
             sectionsOpen={false}
             disclosureKey="theme"
+            panels="global"
             onSet={(name, value) => {
               onEdit(setThemeToken(name, value));
             }}
             onRemove={(name) => {
               onEdit(removeThemeToken(name));
             }}
-            leading={
-              <>
-                <Section
-                  id="global/target"
-                  title="Global Target"
-                  summary={`${target.width} × ${target.height} · ${target.frameRate} fps`}
-                >
-                  {targetProperties().map((property) => (
-                    <PropertyView
-                      key={property.id}
-                      property={property}
-                      subject={target}
-                      index={NOTHING_SELECTED}
-                      onEdit={onEdit}
-                    />
-                  ))}
-                </Section>
-                {/* What every {time}-style token in the layout's text is written in. */}
-                <Section
-                  id="global/clock"
-                  title="Global Clock"
-                  summary={`${state.draft.locale ?? 'system locale'} · ${state.draft.timeZone ?? 'system zone'}`}
-                >
-                  {clockProperties().map((property) => (
-                    <PropertyView
-                      key={property.id}
-                      property={property}
-                      subject={state.draft}
-                      index={NOTHING_SELECTED}
-                      onEdit={onEdit}
-                    />
-                  ))}
-                </Section>
-              </>
-            }
+            leading={[
+              {
+                key: 'target',
+                node: (
+                  <Section
+                    id="global/target"
+                    panel="target"
+                    title="Global Target"
+                    summary={`${target.width} × ${target.height} · ${target.frameRate} fps`}
+                  >
+                    {targetProperties().map((property) => (
+                      <PropertyView
+                        key={property.id}
+                        property={property}
+                        subject={target}
+                        index={NOTHING_SELECTED}
+                        onEdit={onEdit}
+                      />
+                    ))}
+                  </Section>
+                ),
+              },
+              {
+                key: 'clock',
+                // What every {time}-style token in the layout's text is written in.
+                node: (
+                  <Section
+                    id="global/clock"
+                    panel="clock"
+                    title="Global Clock"
+                    summary={`${state.draft.locale ?? 'system locale'} · ${state.draft.timeZone ?? 'system zone'}`}
+                  >
+                    {clockProperties().map((property) => (
+                      <PropertyView
+                        key={property.id}
+                        property={property}
+                        subject={state.draft}
+                        index={NOTHING_SELECTED}
+                        onEdit={onEdit}
+                      />
+                    ))}
+                  </Section>
+                ),
+              },
+            ]}
           />
         </Group>
 
@@ -275,7 +292,12 @@ export function Inspector({
           />
         </Group>
 
-        <Group id="entity" title="Selected entity" groupRef={entityGroup}>
+        <Group
+          id="entity"
+          title="Selected entity"
+          groupRef={entityGroup}
+          action={<ResetPanelOrder group="entity" title="Selected entity" />}
+        >
           {/*
            * One region for whatever is selected, element or background, so a change of selection
            * updates it in place rather than swapping one region for another.
@@ -563,6 +585,7 @@ function EntityPanes({
             node: (
               <Section
                 id="entity/content"
+                panel="content"
                 title="Content"
                 summary={background?.src ?? NO_BACKGROUND}
               >
@@ -576,6 +599,7 @@ function EntityPanes({
           node: (
             <Section
               id={`entity/${section.id}`}
+              panel={section.id}
               title={section.title}
               summary={summarise(section, element)}
             >
@@ -624,7 +648,8 @@ function EntityPanes({
         inherited={theme}
         sectionsOpen={['appearance', 'placement']}
         disclosureKey="style"
-        leading={<CollapseEach entries={sections} />}
+        panels="entity"
+        leading={sections}
         lead={lead}
         onSet={(name, value) => {
           if (styled) onEdit(setElementStyleToken(index, name, value));

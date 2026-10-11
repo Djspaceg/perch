@@ -7,7 +7,7 @@
 
 import { LAYOUT_SCHEMA_VERSION, type Layout } from '@perch/layout-schema';
 import { createMockSource } from '@perch/sensor-sources';
-import { fireEvent, render, within } from '@testing-library/react';
+import { act, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Editor } from './app.js';
 import { PROPERTY_ROW_STYLES } from './controls/property-row.js';
@@ -273,5 +273,140 @@ describe('delete on the selected row', () => {
     ]);
 
     expect(words.filter((text) => /layer/i.test(text))).toEqual([]);
+  });
+});
+
+describe('dragging panels', () => {
+  const PANEL_HEIGHT = 40;
+
+  /** The group's panels as drawn, each given a box PANEL_HEIGHT tall from y = 100. */
+  function layOut(region: HTMLElement): void {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const panels = [...region.querySelectorAll<HTMLElement>('[data-perch-panel]')];
+      const section = this.closest<HTMLElement>('[data-perch-panel]');
+      const at = section === null ? -1 : panels.indexOf(section);
+      const top = at === -1 ? 0 : 100 + at * PANEL_HEIGHT;
+      const height = at === -1 ? 0 : this === section ? PANEL_HEIGHT : 22;
+      return { top, bottom: top + height, left: 0, right: 300, width: 300, height, x: 0, y: top, toJSON: () => ({}) };
+    });
+  }
+
+  const grip = (region: HTMLElement, title: string): HTMLElement =>
+    within(region).getByRole('button', { name: `move the ${title} panel` });
+
+  it('gives each panel a grip just before its disclosure triangle', () => {
+    const result = renderEditor();
+    const global = group(result, 'Global');
+    const handle = grip(global, 'Global Target');
+    const toggle = within(global).getByRole('button', { name: 'Global Target' });
+
+    expect(handle.closest('.perch-section__bar')).toBe(toggle.closest('.perch-section__bar'));
+    expect(precedes(handle, toggle)).toBe(true);
+    expect(handle).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
+    expect(handle.getAttribute('data-perch-tip')).not.toMatch(/layer/i);
+  });
+
+  it('moves a panel with Alt+Up and Alt+Down on its grip, keeping focus on it', () => {
+    const result = renderEditor();
+    const global = group(result, 'Global');
+    const clock = grip(global, 'Global Clock');
+    clock.focus();
+    fireEvent.keyDown(clock, { key: 'ArrowUp', altKey: true });
+
+    expect(panelTitles(global).slice(0, 2)).toEqual(['Global Clock', 'Global Target']);
+    expect(grip(global, 'Global Clock')).toHaveFocus();
+    fireEvent.keyDown(grip(global, 'Global Clock'), { key: 'ArrowDown', altKey: true });
+    expect(panelTitles(global).slice(0, 2)).toEqual(['Global Target', 'Global Clock']);
+  });
+
+  it('drags a panel: an insertion line where it would land, a faint clone following, and a drop', () => {
+    const result = renderEditor();
+    const global = group(result, 'Global');
+    layOut(global);
+    const target = grip(global, 'Global Target');
+
+    fireEvent.pointerDown(target, { button: 0, buttons: 1, pointerId: 1, clientX: 10, clientY: 110 });
+    // Below the middle of the third panel (Global Appearance, 180 to 220): gap 3.
+    fireEvent.pointerMove(window, { buttons: 1, pointerId: 1, clientX: 30, clientY: 205 });
+
+    const marked = global.querySelector('[data-perch-drop]');
+    expect(marked).toHaveAttribute('data-perch-drop', 'above');
+    expect(marked?.querySelector('.perch-section__toggle')).toHaveTextContent('Global Placement');
+    const ghost = document.querySelector<HTMLElement>('.perch-drag-ghost');
+    expect(ghost).not.toBeNull();
+    expect(ghost).toHaveTextContent('Global Target');
+    expect(ghost?.style.transform).toBe('translate(20px, 95px)');
+    expect(ghost?.querySelector('[id]')).toBeNull();
+    expect(within(global).getByRole('region', { name: 'Global Target' })).toHaveAttribute(
+      'data-perch-dragging',
+      'true',
+    );
+
+    fireEvent.pointerUp(window, { button: 0, pointerId: 1, clientX: 30, clientY: 205 });
+
+    expect(panelTitles(global).slice(0, 3)).toEqual([
+      'Global Clock',
+      'Global Appearance',
+      'Global Target',
+    ]);
+    expect(document.querySelector('.perch-drag-ghost')).toBeNull();
+    expect(global.querySelector('[data-perch-drop]')).toBeNull();
+  });
+
+  it('lets go on Escape without moving anything', () => {
+    const result = renderEditor();
+    const global = group(result, 'Global');
+    layOut(global);
+
+    fireEvent.pointerDown(grip(global, 'Global Target'), { button: 0, buttons: 1, pointerId: 1, clientX: 10, clientY: 110 });
+    fireEvent.pointerMove(window, { buttons: 1, pointerId: 1, clientX: 10, clientY: 205 });
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(panelTitles(global)[0]).toBe('Global Target');
+    expect(document.querySelector('.perch-drag-ghost')).toBeNull();
+  });
+
+  it('remembers the order across a reload, in the editor settings', () => {
+    const storage = memoryStorage();
+    const first = renderEditor(LAYOUT, storage);
+    fireEvent.keyDown(grip(group(first, 'Global'), 'Global Clock'), { key: 'ArrowUp', altKey: true });
+    first.unmount();
+
+    const stored = JSON.parse(storage.getItem('perch-editor') ?? '{}') as {
+      state?: { settings?: { panels?: { order?: Record<string, string[]> } } };
+    };
+    expect(stored.state?.settings?.panels?.order?.['global']?.slice(0, 2)).toEqual(['clock', 'target']);
+    const again = renderEditor(LAYOUT, storage);
+    expect(panelTitles(group(again, 'Global')).slice(0, 2)).toEqual(['Global Clock', 'Global Target']);
+  });
+
+  it('keeps entity panels among entity panels, in one order for every element', () => {
+    const result = renderEditor();
+    selectElement(result, 0);
+    const entity = group(result, 'Selected entity');
+    fireEvent.keyDown(grip(entity, 'Transform'), { key: 'ArrowUp', altKey: true });
+    expect(panelTitles(entity).slice(0, 2)).toEqual(['Transform', 'Content']);
+    expect(panelTitles(group(result, 'Global'))[0]).toBe('Global Target');
+
+    selectElement(result, 1);
+    expect(panelTitles(entity).slice(0, 2)).toEqual(['Transform', 'Content']);
+  });
+
+  it('puts the default order back from "Reset panel order"', () => {
+    const result = renderEditor();
+    const global = group(result, 'Global');
+    expect(within(global).queryByRole('button', { name: /reset panel order/i })).toBeNull();
+    fireEvent.keyDown(grip(global, 'Global Clock'), { key: 'ArrowUp', altKey: true });
+
+    const reset = within(global).getByRole('button', { name: 'Reset Global panel order' });
+    expect(reset).toHaveTextContent('Reset panel order');
+    act(() => {
+      fireEvent.click(reset);
+    });
+
+    expect(panelTitles(global).slice(0, 2)).toEqual(['Global Target', 'Global Clock']);
+    expect(within(global).queryByRole('button', { name: /reset panel order/i })).toBeNull();
   });
 });
