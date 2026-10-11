@@ -89,8 +89,11 @@ edges), or press Alt+Up / Alt+Down on a row; Cmd/Ctrl+] and [ move the selection
 one place, with Shift to the front or back (KEYBINDINGS.md). Each move is one undo
 step and keeps the element selected. Every element has an **Opacity**, first in
 its Appearance.
-Every panel of Global and of Selected entity has a grip before its triangle:
-drag it, or press Alt+Up / Alt+Down on it, to reorder the panels of that group.
+Every panel of Global and of Selected entity can be dragged by its header (a
+click still folds it), or moved with Alt+Up / Alt+Down on the grip before its
+triangle, to reorder the panels of that group. An element's Placement panel has
+a resize anchor, as Affinity's Transform panel does: x/y show that point of the
+box, and w/h resize about it.
 Escape, or a click on empty canvas, deselects. The sidebar's sections, the
 selected entity's controls, the element rows and the delete confirm slide open
 and shut rather than jumping (instant under `prefers-reduced-motion`).

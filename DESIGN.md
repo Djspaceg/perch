@@ -509,7 +509,6 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 - **Properties**: only height and opacity change.
 - **Focus**: a closing region is inert, and any focus inside it moves somewhere sensible.
 - **Changing what is selected**: sections have stable names, so a section two selections share stays where it is, folded or open, and only its values change. Sections and rows that do not carry over shrink away while the new ones grow, in the same 180ms. Nothing scrolls.
-- **Sideways, once**: Transform's content alignment grid folds out sideways when the selection has no placement, and back in when it does, by its column in the same 180ms; it is the one region that moves sideways, because the fields beside it take its width.
 - **Reduced motion**: `prefers-reduced-motion` makes every change instant.
 - **Disclosure triangles** turn in 80ms.
 
@@ -517,9 +516,9 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 - `panel` holds groups, each headed by an uppercase `{typography.group-title}` bar.
 - `section-bar` is a raised 22px header. Its title is the disclosure button, with a quiet triangle beside it.
 - `section-summary` sits at the right edge of the header and truncates first. It turns `section-summary-set` when anything inside the section is set.
-- The panel's groups, top to bottom: **Global** (each of its panels titled "Global ...": Global Target, Global Clock, Global Appearance and so on), **Elements**, then **Selected entity**, which opens with the selection header.
+- The panel's groups, top to bottom: **Global** (each of its panels titled "Global ...": Global Target, Global Clock, Global Appearance and so on), **Elements**, then **Selected entity**, which opens with the selection header: its name line and its kind and path line 3px apart (`{spacing.xs}`), with 6px above (`{spacing.sm}`) and 10px below before the tabs (`{spacing.md}`), each line one line, ellipsised.
 - **No category filter.** Every section is always listed; its disclosure triangle is what hides it. The Customize and Developer tabs switch what a token pane shows, and its search filters by text; neither is a category filter.
-- **Drag handle.** Every top-level section of Global and of Selected entity has a six-dot grip just before its triangle, faint until hovered. Dragging it moves the section: a 0.3-opacity copy of its header follows the pointer, and a 2px Primary line marks the gap it will drop into. Escape lets go. With the grip focused, Alt+ArrowUp and Alt+ArrowDown move it one place. Sections move only within their group, and the order is remembered per group; the selected entity's order is one order for every element.
+- **Drag handle.** Every top-level section of Global and of Selected entity has a six-dot grip just before its triangle, faint until hovered, and its whole header is a drag source, with a grab cursor (the title keeps its pointer). A press that moves less than 4px and lets go is a click, and folds the section; past 4px it drags, and does not fold. A control of the header's own stays a control. Dragging moves the section: a 0.3-opacity copy of its header follows the pointer, and a 2px Primary line marks the gap it will drop into. Escape lets go. With the grip focused, Alt+ArrowUp and Alt+ArrowDown move it one place. Sections move only within their group, and the order is remembered per group; the selected entity's order is one order for every element.
 - **States**:
   - Hover brightens the title to `{colors.heading-hover}`.
   - Focus shows an inset ring.
@@ -580,17 +579,17 @@ Softness comes from low contrast, not from rounding. Icons are thin strokes in `
 - Whatever is inserted, the field's validator judges the result as it would typing, and the preview paints it live.
 
 ### List row
-- `list-row` (the Elements list, after Photoshop's Layers palette): the eye in a fixed first column, a 16px kind glyph or thumbnail (T, a chart line, a gauge for a reading, an image's own picture or a picture glyph), the truncating name, and the element's index, faint, at the right. It hovers to `{colors.hover}`; selected is `list-row-selected`, and ends in Duplicate and Delete.
+- `list-row` (the Elements list, after Photoshop's Layers palette): the eye in a fixed first column, a kind glyph or thumbnail two thirds of the row's height (T, a chart line, a gauge for a reading, an image's own picture or a picture glyph), the truncating name, and the element's index, faint, at the right. A row is half again the base row, from one variable (`--ed-element-row-h`): 33px at mouse density, 45px under a coarse pointer. It hovers to `{colors.hover}`; selected is `list-row-selected`, and ends in Duplicate and Delete.
 - **The background row** is last: "Background" in italics, its source quiet after it, a lock at the right edge, and no delete (its source is cleared in its Content section).
 - **Above the list**: a "Kind" label with Text, Media, Chart and Reading toggles, which list only the kinds pressed (the background stays) and title the panel "Elements (filtered)", with a clear while any is on; and beside them the selected element's opacity, the same scrubbing field as its Appearance row.
 - **Panel options**: a three-line button in the Elements bar opens a menu: Show thumbnails, Clear kind filter, Reset panel order.
 - **Reordering**: a 2px Primary line marks where the row will drop, and the same move works from the keyboard.
 - Everything here says "element", never "layer".
 
-### Transform
-- One block: the content alignment grid at the left, x/y and w/h as two rows of fields beside it with no label column, and a caption under them giving the grid's value in words with its source mark and reset.
-- The grid is where the content sits inside the box (a text's lines, a readout's number), never where the box sits. Its name and tooltip say "Content alignment: left, top".
-- A kind with no placement shows only the fields, at the full width. Below 200px of block width the grid goes on its own row above the fields.
+### Placement
+- The selected entity's box, as Affinity's Transform panel lays it out. Global Placement, the theme's, is a different panel.
+- **Resize band**: a 3x3 resize anchor grid at the left, x/y and w/h as two rows of fields beside it with no label column. x and y are the anchor point's position; w and h resize about it, so it stays put. One anchor for every element, remembered, top left by default. Rects are still stored top-left; the canvas handles each hold the opposite edge as before. Below 200px of block width the grid goes on its own row above the fields.
+- **Content band**: under it, labelled "Content alignment", the 4x4 (text) or 3x3 (readout) grid of where the content sits inside the box, never where the box sits, with its value in words, source mark and reset. Only kinds that have it show the band; it grows in and collapses away in height.
 
 ### Status indicator
 - `status-dot` is Faint when idle, Inherited while working, Success when good and Danger when lost. It always sits beside words.
