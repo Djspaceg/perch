@@ -2,7 +2,8 @@
  * PanelStack: a group's panels, in the order the author dragged them into.
  *
  * Every top-level `Section` given a `panel` key inside a stack gets a grip just before its
- * disclosure triangle. Pressing the grip and moving the pointer drags the panel: a faint copy of its
+ * disclosure triangle, and its whole header becomes a drag source (`usePanelDrag`). A press that
+ * stays within the drag threshold is a click, and folds the panel; one that moves past it drags: a faint copy of its
  * header follows the pointer (`useListDrag`'s ghost, at 0.3 opacity), a 2px line in the accent marks
  * the gap it would drop into, and letting go puts it there. With the grip focused, Alt+ArrowUp and
  * Alt+ArrowDown move it one place, and focus stays on its grip. Escape lets go of a drag.
@@ -43,6 +44,8 @@ interface PanelStackContext {
   /** Where the drop line is drawn, on which panel, while a drag would move something. */
   readonly mark: (key: string) => 'above' | 'below' | undefined;
   readonly dragging: (key: string) => boolean;
+  /** Whether the click a drag's release makes should be ignored; answering clears it. */
+  readonly swallowClick: () => boolean;
 }
 
 const StackContext = createContext<PanelStackContext | null>(null);
@@ -93,7 +96,13 @@ export function PanelStack({
     (pressed: HTMLElement) => pressed.closest<HTMLElement>('.perch-section__bar'),
     [],
   );
-  const { drag, begin, cancel } = useListDrag({ list: box, rows, target, onMove, ghost });
+  const { drag, begin, cancel, swallowClick } = useListDrag({
+    list: box,
+    rows,
+    target,
+    onMove,
+    ghost,
+  });
 
   // A drag measures the panels it began over; any change to them ends it. And after a keyboard
   // move, focus goes back to the grip that was pressed, wherever its panel went.
@@ -131,8 +140,9 @@ export function PanelStack({
         return dropping.gap === shown.length && at === shown.length - 1 ? 'below' : undefined;
       },
       dragging: (key) => drag !== null && shown[drag.from] === key,
+      swallowClick,
     };
-  }, [drag, begin, shown, group, stored, setPanelOrder]);
+  }, [drag, begin, shown, group, stored, setPanelOrder, swallowClick]);
 
   return (
     <StackContext.Provider value={context}>
@@ -156,6 +166,36 @@ export function usePanelAttributes(key: string | undefined): Readonly<Record<str
   };
 }
 
+/** The controls in a header that are not the title or the grip: pressing one never drags. */
+const OWN_CONTROLS =
+  'button:not(.perch-section__toggle):not(.perch-panel-grip), a, input, select, textarea';
+
+/**
+ * A stacked Section's header as a drag source: the whole bar, title and summary included, so a
+ * press there that moves past the drag threshold drags the panel, and one that does not is still a
+ * click that folds it. A control of the header's own (a reset, an action) stays a control.
+ * `swallowClick` is for the title's click handler: true for the click a drag's release makes.
+ */
+export function usePanelDrag(panel: string | undefined): {
+  readonly barProps: Readonly<Record<string, unknown>>;
+  readonly swallowClick: () => boolean;
+} {
+  const stack = useContext(StackContext);
+  if (stack === null || panel === undefined) return { barProps: {}, swallowClick: () => false };
+
+  return {
+    barProps: {
+      'data-perch-drag-source': 'true',
+      onPointerDown: (event: ReactPointerEvent) => {
+        const target = event.target;
+        if (target instanceof Element && target.closest(OWN_CONTROLS) !== null) return;
+        stack.begin(event, panel);
+      },
+    },
+    swallowClick: stack.swallowClick,
+  };
+}
+
 /** The grip on a stacked Section's bar, or nothing outside a stack. */
 export function PanelGrip({
   panel,
@@ -175,9 +215,6 @@ export function PanelGrip({
       aria-label={name}
       aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
       data-perch-tip="drag to move this panel, or Alt+Up and Alt+Down"
-      onPointerDown={(event) => {
-        stack.begin(event, panel);
-      }}
       onKeyDown={(event: ReactKeyboardEvent) => {
         if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
         if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
@@ -221,6 +258,8 @@ export const PANEL_STACK_STYLES = `
 .perch-section[data-perch-drop='above']::after { top: 0; }
 .perch-section[data-perch-drop='below']::after { bottom: 0; }
 .perch-section[data-perch-dragging='true'] > .perch-section__bar { opacity: 0.45; }
+/* The whole header drags; the title keeps the pointer of the click that folds it. */
+.perch-section__bar[data-perch-drag-source] { cursor: grab; }
 .perch-panel-grip {
   flex: none;
   display: flex;

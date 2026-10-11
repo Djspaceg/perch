@@ -22,7 +22,7 @@
 
 import { useId, type ReactNode } from 'react';
 import { Collapse } from './collapse.js';
-import { PanelGrip, usePanelAttributes } from './panel-stack.js';
+import { PanelGrip, usePanelAttributes, usePanelDrag } from './panel-stack.js';
 import { useDisclosure } from '../store.js';
 
 export interface SectionProps {
@@ -37,8 +37,9 @@ export interface SectionProps {
   readonly summaryActive?: boolean;
   readonly variant?: 'section' | 'advanced';
   /**
-   * Its key in the group's `PanelStack`: a grip before the triangle drags it, and Alt+ArrowUp and
-   * Alt+ArrowDown on the grip move it. Outside a stack, or without a key, it has no grip.
+   * Its key in the group's `PanelStack`: its whole header drags it (a press that does not move
+   * past the threshold still folds it), a grip before the triangle shows that it can, and Alt+ArrowUp
+   * and Alt+ArrowDown on the grip move it. Outside a stack, or without a key, it has no grip.
    */
   readonly panel?: string | undefined;
   readonly testId?: string | undefined;
@@ -65,6 +66,7 @@ export function Section({
   const bodyId = `${base}-body`;
   const Heading = `h${level}` as const;
   const panelAttributes = usePanelAttributes(panel);
+  const { barProps, swallowClick } = usePanelDrag(panel);
   const summaryNode =
     summary === undefined || summary === null || summary === '' ? null : (
       <span
@@ -86,7 +88,7 @@ export function Section({
       data-testid={testId}
       {...panelAttributes}
     >
-      <div className="perch-section__bar">
+      <div className="perch-section__bar" {...barProps}>
         <PanelGrip panel={panel} title={title} />
         <Heading className="perch-section__heading" id={headingId}>
           <button
@@ -95,6 +97,8 @@ export function Section({
             aria-expanded={shown}
             aria-controls={bodyId}
             onClick={() => {
+              // The click a header drag's release makes is the drag's, not a fold.
+              if (swallowClick()) return;
               setOpen(!shown);
             }}
           >

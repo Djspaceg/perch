@@ -311,6 +311,88 @@ describe('dragging panels', () => {
   const grip = (region: HTMLElement, title: string): HTMLElement =>
     within(region).getByRole('button', { name: `move the ${title} panel` });
 
+  const toggle = (region: HTMLElement, title: string): HTMLElement =>
+    within(region).getByRole('button', { name: title });
+
+  it('drags a panel by its whole header, not toggling it when the drag lets go', () => {
+    const result = renderEditor();
+    const global = group(result, 'Global');
+    layOut(global);
+    const title = toggle(global, 'Global Target');
+    expect(title).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.pointerDown(title, {
+      button: 0,
+      buttons: 1,
+      pointerId: 1,
+      clientX: 60,
+      clientY: 110,
+    });
+    fireEvent.pointerMove(window, { buttons: 1, pointerId: 1, clientX: 70, clientY: 205 });
+    expect(document.querySelector('.perch-drag-ghost')).toHaveTextContent('Global Target');
+    fireEvent.pointerUp(window, { button: 0, pointerId: 1, clientX: 70, clientY: 205 });
+    // The browser's click after the release lands on the header it began on.
+    fireEvent.click(title);
+
+    expect(panelTitles(global).slice(0, 3)).toEqual([
+      'Global Clock',
+      'Global Appearance',
+      'Global Target',
+    ]);
+    expect(toggle(global, 'Global Target')).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('drags from the summary side of the header too', () => {
+    const result = renderEditor();
+    const global = group(result, 'Global');
+    layOut(global);
+    const summary = global.querySelector('[data-perch-panel="target"] .perch-section__summary');
+    if (!(summary instanceof HTMLElement)) throw new Error('no summary');
+
+    fireEvent.pointerDown(summary, {
+      button: 0,
+      buttons: 1,
+      pointerId: 1,
+      clientX: 250,
+      clientY: 110,
+    });
+    fireEvent.pointerMove(window, { buttons: 1, pointerId: 1, clientX: 250, clientY: 205 });
+    fireEvent.pointerUp(window, { button: 0, pointerId: 1, clientX: 250, clientY: 205 });
+
+    expect(panelTitles(global)[2]).toBe('Global Target');
+  });
+
+  it('still folds on a press that stays within the threshold', () => {
+    const result = renderEditor();
+    const global = group(result, 'Global');
+    layOut(global);
+    const title = toggle(global, 'Global Target');
+
+    fireEvent.pointerDown(title, {
+      button: 0,
+      buttons: 1,
+      pointerId: 1,
+      clientX: 60,
+      clientY: 110,
+    });
+    fireEvent.pointerMove(window, { buttons: 1, pointerId: 1, clientX: 62, clientY: 112 });
+    fireEvent.pointerUp(window, { button: 0, pointerId: 1, clientX: 62, clientY: 112 });
+    fireEvent.click(title);
+
+    expect(toggle(global, 'Global Target')).toHaveAttribute('aria-expanded', 'false');
+    expect(document.querySelector('.perch-drag-ghost')).toBeNull();
+    expect(panelTitles(global)[0]).toBe('Global Target');
+  });
+
+  it('marks the whole header as a drag source', () => {
+    const result = renderEditor();
+    const bar = group(result, 'Global').querySelector(
+      '[data-perch-panel="target"] .perch-section__bar',
+    );
+
+    expect(bar).toHaveAttribute('data-perch-drag-source', 'true');
+  });
+
   it('gives each panel a grip just before its disclosure triangle', () => {
     const result = renderEditor();
     const global = group(result, 'Global');
