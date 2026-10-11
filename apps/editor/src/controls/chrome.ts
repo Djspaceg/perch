@@ -240,8 +240,12 @@ export const CHROME_STYLES = `
   --ed-field-h: 20px;
   /* Icon buttons, chips, the search pill, the row's end slot. */
   --ed-control: 18px;
-  /* A list row: the Elements list, a sensor, a folded Advanced bar. */
+  /* A list row: a sensor, a menu entry, a folded Advanced bar. */
   --ed-list-row-h: 20px;
+  /* An Elements list row: half again the base row, at either density, for room and a larger target. */
+  --ed-element-row-h: calc(var(--ed-row-h) * 1.5);
+  /* Its kind glyph or thumbnail: two thirds of the row, so it grows with the row. */
+  --ed-element-thumb: calc(var(--ed-element-row-h) * 2 / 3);
   /* The least a text button may be: nothing extra under a mouse. */
   --ed-target: 0px;
   /* The splitter's grab zone, straddling the sidebar's edge. */

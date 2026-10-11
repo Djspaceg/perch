@@ -1225,7 +1225,7 @@ ${TRANSFORM_STYLES}
   align-items: center;
   gap: 6px;
   width: 100%;
-  height: var(--ed-list-row-h);
+  height: var(--ed-element-row-h);
   border: 0;
   border-radius: 2px;
   background: none;
@@ -1269,11 +1269,11 @@ body.perch-dragging, body.perch-dragging * { cursor: grabbing !important; user-s
 .perch-editor-layer > .perch-editor-element { flex: 1 1 auto; min-width: 0; }
 .perch-editor-layer[data-perch-hidden='true'] > .perch-editor-element { color: var(--ed-faint); }
 .perch-editor-eye {
-  flex: 0 0 var(--ed-list-row-h);
+  flex: 0 0 var(--ed-element-row-h);
   display: flex;
   align-items: center;
   justify-content: center;
-  height: var(--ed-list-row-h);
+  height: var(--ed-element-row-h);
   padding: 0;
   border: 0;
   border-radius: 2px;

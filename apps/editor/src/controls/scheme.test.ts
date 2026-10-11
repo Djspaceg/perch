@@ -172,7 +172,7 @@ describe('touch', () => {
     expect(CONTROLS_STYLES).toMatch(/\.perch-filter__search \{[^}]*height: var\(--ed-control\);/);
     expect(CONTROLS_STYLES).toMatch(/\.perch-align__cell \{[^}]*width: var\(--ed-control\);/);
     expect(INSPECTOR_STYLES).toMatch(
-      /\.perch-editor-element \{[^}]*height: var\(--ed-list-row-h\);/,
+      /\.perch-editor-element \{[^}]*height: var\(--ed-element-row-h\);/,
     );
     expect(EDITOR_STYLES).toMatch(/\.perch-editor-button \{[^}]*min-height: var\(--ed-target\);/);
     expect(SIDEBAR_STYLES).toMatch(/\.perch-sidebar-splitter \{[^}]*width: var\(--ed-hit\);/);

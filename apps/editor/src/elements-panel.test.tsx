@@ -10,6 +10,8 @@ import { createMockSource } from '@perch/sensor-sources';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { Editor } from './app.js';
+import { CHROME_STYLES } from './controls/chrome.js';
+import { INSPECTOR_STYLES } from './inspector.js';
 import { createLayoutLibrary } from './layout-library.js';
 
 const LAYOUT: Layout = {
@@ -319,5 +321,33 @@ describe('the panel options menu', () => {
     ]);
 
     expect(words.filter((text) => /layer/i.test(text))).toEqual([]);
+  });
+});
+
+describe('the row height', () => {
+  const css = (sheet: string): string => sheet.replace(/\s+/g, ' ');
+
+  it('is one variable, half again the base row, at either density', () => {
+    expect(css(CHROME_STYLES)).toMatch(/--ed-element-row-h: calc\(var\(--ed-row-h\) \* 1\.5\);/);
+    // Declared once, at the root: the coarse pointer's taller --ed-row-h scales it the same way.
+    expect(css(CHROME_STYLES).match(/--ed-element-row-h:/g)).toHaveLength(1);
+  });
+
+  it('sizes the rows, the eye and the thumbnail from it', () => {
+    const sheet = css(INSPECTOR_STYLES);
+    const rule = (selector: string): string => {
+      const at = sheet.indexOf(`${selector} {`);
+      if (at === -1) throw new Error(`no rule for ${selector}`);
+      return sheet.slice(at, sheet.indexOf('}', at));
+    };
+
+    expect(rule('.perch-editor-element')).toMatch(/height: var\(--ed-element-row-h\)/);
+    expect(rule('.perch-editor-eye')).toMatch(/height: var\(--ed-element-row-h\)/);
+    expect(rule('.perch-editor-eye')).toMatch(/flex: 0 0 var\(--ed-element-row-h\)/);
+    expect(rule('.perch-editor-element__thumb')).toMatch(/width: var\(--ed-element-thumb\)/);
+    expect(css(CHROME_STYLES)).toMatch(
+      /--ed-element-thumb: calc\(var\(--ed-element-row-h\) \* 2 \/ 3\);/,
+    );
+    expect(sheet).not.toMatch(/\.perch-editor-element \{[^}]*--ed-list-row-h/);
   });
 });

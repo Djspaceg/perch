@@ -4,7 +4,7 @@
  *
  * - **Glyph or thumbnail.** Each row shows its kind before its name: T for text, a chart line for a
  *   chart, a gauge for a reading, and for media its own picture when it is an image the editor can
- *   already fetch (the URL the canvas paints it from, so nothing extra is loaded but a 16px copy of
+ *   already fetch (the URL the canvas paints it from, so nothing extra is loaded but a small copy of
  *   what is on screen), else a picture glyph — a video's poster would mean loading the video. A
  *   picture that fails to load falls back to the glyph. The options menu turns thumbnails off.
  * - **Kind filter.** Text, Media, Chart and Reading, as toggles after a "Kind" label: pressed ones are
@@ -91,12 +91,12 @@ export function KindGlyph({ kind }: { readonly kind: FilterKind }): ReactNode {
   }
 }
 
-/** Files a 16px `<img>` can show as they are. A video's first frame would mean loading the video. */
+/** Files a thumbnail `<img>` can show as they are. A video's first frame would mean loading the video. */
 const IMAGE_FILE = /\.(?:png|jpe?g|gif|webp|avif|svg|bmp)$/i;
 
 /**
  * The thumbnail slot at the start of a row: an image's own picture, or the kind's glyph. Always the
- * same 16px box, so a row never moves when a picture arrives or fails.
+ * same box, two thirds of the row, so a row never moves when a picture arrives or fails.
  */
 export function RowThumb({
   kind,
@@ -421,15 +421,16 @@ export const ELEMENTS_PANEL_STYLES = `
 .perch-menu__item[aria-disabled='true'] { color: var(--ed-faint); cursor: default; }
 .perch-menu__check { flex: 0 0 12px; text-align: center; color: var(--ed-accent); }
 .perch-editor-element__thumb {
-  flex: 0 0 16px;
+  flex: 0 0 var(--ed-element-thumb);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: var(--ed-element-thumb);
+  height: var(--ed-element-thumb);
   overflow: hidden;
   border-radius: 2px;
   color: var(--ed-quiet);
 }
-.perch-editor-thumb { display: block; width: 16px; height: 16px; object-fit: cover; }
+.perch-editor-thumb { display: block; width: 100%; height: 100%; object-fit: cover; }
+.perch-editor-element__thumb > svg { width: 70%; height: 70%; }
 `;
