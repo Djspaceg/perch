@@ -6,9 +6,9 @@
  * `usePopover` box like the sensor picker's: a search (`FilterBar`) that matches every word typed
  * against an entry's words, its value and its note, and the entries as a listbox, the chosen one
  * marked and scrolled into view. ArrowDown from the search moves into the list, ArrowUp and
- * ArrowDown move through it, Enter in the search takes the first match. A search that is itself a
- * value `accept` takes — a tag or zone the list leaves out — is offered as "use ...", so nothing the
- * old text field could hold is lost.
+ * ArrowDown move through it, Enter in the search takes the first match. A search that matches
+ * nothing listed but is itself a value `accept` takes — a tag or zone the list leaves out — is
+ * offered as "use ...", so nothing the old text field could hold is lost.
  *
  * Not a native `<select>`: one could not be searched, and the time zones are four hundred long.
  */
@@ -55,7 +55,9 @@ export function ChoiceField({
   const shown = options.filter((option) =>
     matchesQuery(query, option.label, option.value, option.detail),
   );
-  const typed = query.trim() === '' ? undefined : accept?.(query);
+  // A search the list has nothing for, that is itself a value: "deutsch" finds Deutsch, and is not
+  // offered as a tag of its own, though it is a well-formed one.
+  const typed = query.trim() === '' || shown.length > 0 ? undefined : accept?.(query);
   const offerTyped = typed !== undefined && !options.some((option) => option.value === typed);
 
   // The chosen entry is in view when the list opens, not four hundred entries down.

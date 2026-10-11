@@ -362,7 +362,7 @@ function StyleList({
 }
 
 export const TEMPLATE_FIELD_STYLES = `
-.perch-topic--tall { align-items: start; }
+.perch-topic.perch-topic--tall { align-items: start; }
 .perch-template__clock { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 4px; list-style: none; max-height: min(50vh, 360px); overflow-y: auto; }
 .perch-template__token {
   display: flex;

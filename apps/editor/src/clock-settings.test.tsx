@@ -135,4 +135,17 @@ describe('the layout clock rows', () => {
     expect(dropdown('timeZone')).toHaveTextContent('US/Pacific');
     expect(chosen(open('timeZone'))).toHaveTextContent('US/Pacific');
   });
+
+  it('offers a typed value as "use ..." only when nothing listed matches it', () => {
+    renderEditor();
+    const locales = open('locale');
+    fireEvent.change(within(locales).getByRole('searchbox'), { target: { value: 'deutsch' } });
+    expect(options(locales).some((text) => text.startsWith('use'))).toBe(false);
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+    const zones = open('timeZone');
+    fireEvent.change(within(zones).getByRole('searchbox'), { target: { value: 'Etc/GMT+5' } });
+    fireEvent.click(within(zones).getByRole('option', { name: 'use Etc/GMT+5' }));
+    expect(dropdown('timeZone')).toHaveTextContent('Etc/GMT+5');
+  });
 });
