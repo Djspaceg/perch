@@ -5247,3 +5247,45 @@ Elements list now sits above the selected entity, with + Add and Delete in its b
 ## Residuals
 - Remount: none needed. Fields render from the draft; the box diagram's typed text is tied to the value it was typed against.
 - The Developer tab content hides Content/Transform, as before.
+
+# Tool panels, Elements panel, Transform - decisions
+
+## Outcome
+Eight panel changes, the Photoshop-style Elements panel and the Transform grid are on local main (6aa7103..HEAD, not pushed). Lanes green; mac package signed.
+
+## Decisions to evaluate
+- D1 Template text rows are stacked: the label is a line above, the field spans the row, and {} sits top-right. Why: a long template wraps at full width. If overruled: drop perch-row--stacked in PropertyView.
+- D2 Chips are as wide as their labels, in one strip that scrolls sideways with edge fades. The {} picker's tabs never truncated. If overruled: wrap the strip.
+- D3 Elements is a top-level group with no fold, like Global. If overruled: wrap the list in a Section.
+- D4 Global panels are titled "Global ..."; section ids are unchanged, so saved folds still apply.
+- D5 The category chips are removed, along with settings.chips. Customize/Developer and search are a different mechanism and stay.
+- D6 Panels drag by a grip. The ghost is the header bar only, at 0.3 opacity. Order is saved per group in settings.panels.order, and one entity order serves every element. Alt+Up/Down works on the grip. Supersedes: Reset in each group's bar, because phase 2 put it in the Elements options menu.
+- D7 Clock: a searchable ChoiceField, not a native select; 46 locales in their own language, every zone with its offset; an unknown stored value stays selected.
+- D8 Delete is on the selected row only, after Duplicate, tipped "Delete element". The background row has none. Supersedes: earlier D4 (the background's "remove?" can), because the human removed it.
+- D9 Kind filter: pressed kinds OR'd, not saved, drag works while filtered.
+- D10 Thumbnails: images only, from the canvas's URL; video keeps the glyph.
+- D11 The top Opacity edits the same value as the Appearance row (background too).
+- D12 Transform is one block: grid plus x/y and w/h, a caption with a source dot and one reset. The entity Placement panel is removed (it held only that pair); Global Placement stays. Nothing needed shrinking. Under 200px the grid stacks above the fields.
+- D13 usePopover focuses once placed; before, focus never moved into any popover in Chrome.
+
+"layer" to "element" in user text: background tip "always the lowest layer" became "always lowest"; Duplicate tip "a media layer" became "a media element"; the new delete tip is "Delete element". "select a layer first" left with the bar delete. In the README and KEYBINDINGS, "a layer" became "one place".
+
+## Open questions
+- Should the Elements group fold? Default: no.
+- Should the kind filter persist? Default: it resets each launch.
+- Locks beyond the background? About 1 day: a schema field, canvas handles, a row toggle.
+- Element groups? About 1 week: schema nesting, tree list, drag into groups, migration.
+- Blend modes? 1-2 days: a schema field, mix-blend-mode in ui-kit, a dropdown beside Opacity.
+- Video poster thumbnails? About half a day, with a frame cache.
+
+## Gate facts
+- Publish: local commits on main only. The repo is on GitHub, so cr and AutoSDE do not apply. No CR.
+- packages/*: none touched. Shared editor controls changed, with callers: FilterBar chips (SensorList), usePopover (all popovers), Section.panel (inspector, token-pane), useListDrag (Elements list, PanelStack).
+- Lanes: build EXIT 0 (build.log), typecheck EXIT 0 (typecheck.log), test EXIT 0 with 2841 tests, editor 992 (test.log). Editor lint is clean (lint-editor.log). The one repo lint error is in apps/desktop/src/packaging.test.ts, untouched this round (lint.log).
+- Review rounds: 0; code-review.md waived by the human.
+
+## Evidence
+red-*/green-*.log (each change failing, then passing); drive-*.log (headless Chrome, real input); measure-transform*.log (300/420/540px, mouse and coarse); package.log, codesign.log.
+
+## Residuals
+Screenshots were for my own checks, not sent, as asked. Electron was not launched, only packaged. Chip overflow was checked at a forced narrow popover (the mock has six devices).
