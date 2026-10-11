@@ -1,0 +1,293 @@
+{
+  "schemaVersion": 5,
+  "target": {
+    "width": 1920,
+    "height": 400,
+    "frameRate": 30
+  },
+  "theme": {
+    "--perch-canvas-bg": "#0b0e13",
+    "--perch-letterbox-bg": "#050608",
+    "--perch-font": "ui-monospace, SFMono-Regular, Menlo, monospace",
+    "--perch-fg": "#e8f1ff",
+    "--perch-dim": "#7f8da3",
+    "--perch-faint": "#4c586b",
+    "--perch-value-weight": "600",
+    "--perch-value-size-min": "1.25rem",
+    "--perch-value-size-max": "2.5rem",
+    "--perch-unit-size": "1rem",
+    "--perch-label-size": "0.8125rem",
+    "--perch-text-color": "#7f8da3"
+  },
+  "elements": [
+    {
+      "kind": "text",
+      "text": "readout beside template · {weekday:short} {time}",
+      "rect": {
+        "x": 34,
+        "y": 20,
+        "w": 1000,
+        "h": 36
+      },
+      "style": {
+        "--perch-text-size": "1.125rem",
+        "--perch-text-weight": "700",
+        "--perch-text-tracking": "0.24em",
+        "--perch-text-transform": "uppercase",
+        "--perch-text-color": "#cfe0ff"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "readout",
+      "rect": {
+        "x": 34,
+        "y": 70,
+        "w": 214,
+        "h": 20
+      },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-size": "0.75rem",
+        "--perch-text-tracking": "0.18em",
+        "--perch-text-transform": "uppercase",
+        "--perch-text-color": "#4c586b"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "template",
+      "rect": {
+        "x": 268,
+        "y": 70,
+        "w": 214,
+        "h": 20
+      },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-size": "0.75rem",
+        "--perch-text-tracking": "0.18em",
+        "--perch-text-transform": "uppercase",
+        "--perch-text-color": "#4c586b"
+      }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/cpu/0/temperature/0",
+      "rect": {
+        "x": 34,
+        "y": 96,
+        "w": 214,
+        "h": 176
+      }
+    },
+    {
+      "kind": "text",
+      "text": "{#label}{sensors/cpu/0/temperature/0 | label}{/label}\n{sensors/cpu/0/temperature/0 | fit | hold}\n{sensors/cpu/0/temperature/0 | note}",
+      "rect": {
+        "x": 268,
+        "y": 96,
+        "w": 214,
+        "h": 176
+      },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-line-height": "1.25"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "readout",
+      "rect": {
+        "x": 502,
+        "y": 70,
+        "w": 214,
+        "h": 20
+      },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-size": "0.75rem",
+        "--perch-text-tracking": "0.18em",
+        "--perch-text-transform": "uppercase",
+        "--perch-text-color": "#4c586b"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "template",
+      "rect": {
+        "x": 736,
+        "y": 70,
+        "w": 214,
+        "h": 20
+      },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-size": "0.75rem",
+        "--perch-text-tracking": "0.18em",
+        "--perch-text-transform": "uppercase",
+        "--perch-text-color": "#4c586b"
+      }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/gpu/0/fan/0",
+      "rect": {
+        "x": 502,
+        "y": 96,
+        "w": 214,
+        "h": 176
+      }
+    },
+    {
+      "kind": "text",
+      "text": "{#label}{sensors/gpu/0/fan/0 | label}{/label}\n{sensors/gpu/0/fan/0 | fit | hold}\n{sensors/gpu/0/fan/0 | note}",
+      "rect": {
+        "x": 736,
+        "y": 96,
+        "w": 214,
+        "h": 176
+      },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-line-height": "1.25"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "readout",
+      "rect": {
+        "x": 970,
+        "y": 70,
+        "w": 214,
+        "h": 20
+      },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-size": "0.75rem",
+        "--perch-text-tracking": "0.18em",
+        "--perch-text-transform": "uppercase",
+        "--perch-text-color": "#4c586b"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "template",
+      "rect": {
+        "x": 1204,
+        "y": 70,
+        "w": 214,
+        "h": 20
+      },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-size": "0.75rem",
+        "--perch-text-tracking": "0.18em",
+        "--perch-text-transform": "uppercase",
+        "--perch-text-color": "#4c586b"
+      }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/cooler/0/fan/0",
+      "rect": {
+        "x": 970,
+        "y": 96,
+        "w": 214,
+        "h": 176
+      }
+    },
+    {
+      "kind": "text",
+      "text": "{#label}{sensors/cooler/0/fan/0 | label}{/label}\n{sensors/cooler/0/fan/0 | fit | hold}\n{sensors/cooler/0/fan/0 | note}",
+      "rect": {
+        "x": 1204,
+        "y": 96,
+        "w": 214,
+        "h": 176
+      },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-line-height": "1.25"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "readout",
+      "rect": {
+        "x": 1438,
+        "y": 70,
+        "w": 214,
+        "h": 20
+      },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-size": "0.75rem",
+        "--perch-text-tracking": "0.18em",
+        "--perch-text-transform": "uppercase",
+        "--perch-text-color": "#4c586b"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "template",
+      "rect": {
+        "x": 1672,
+        "y": 70,
+        "w": 214,
+        "h": 20
+      },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-size": "0.75rem",
+        "--perch-text-tracking": "0.18em",
+        "--perch-text-transform": "uppercase",
+        "--perch-text-color": "#4c586b"
+      }
+    },
+    {
+      "kind": "widget",
+      "widget": "readout",
+      "topic": "sensors/psu/0/voltage/0",
+      "rect": {
+        "x": 1438,
+        "y": 96,
+        "w": 214,
+        "h": 176
+      }
+    },
+    {
+      "kind": "text",
+      "text": "{#label}{sensors/psu/0/voltage/0 | label}{/label}\n{sensors/psu/0/voltage/0 | fit | hold}\n{sensors/psu/0/voltage/0 | note}",
+      "rect": {
+        "x": 1672,
+        "y": 96,
+        "w": 214,
+        "h": 176
+      },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-line-height": "1.25"
+      }
+    },
+    {
+      "kind": "text",
+      "text": "inline: gpu {#value}{sensors/gpu/0/temperature/0 | value | hold}{/value}{#unit} °C{/unit} · cpu {sensors/cpu/0/load/0 | hold} {sensors/cpu/0/load/0 | note}\neach template is what the editor's Style tab writes for readout: label, fit with hold, note. cooler fan reports nothing; psu voltage is never published, so both wait",
+      "rect": {
+        "x": 34,
+        "y": 296,
+        "w": 1852,
+        "h": 80
+      },
+      "style": {
+        "--perch-text-anchor": "flex-start",
+        "--perch-text-size": "0.8125rem",
+        "--perch-text-line-height": "1.6",
+        "--perch-text-color": "#5b687c"
+      }
+    }
+  ]
+}

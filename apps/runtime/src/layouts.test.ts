@@ -26,6 +26,7 @@ import { describe, expect, it } from 'vitest';
 import {
   LAYOUT_SCHEMA_VERSION,
   loadLayoutJson,
+  readoutTemplate,
   type Layout,
   type TextElement,
   type WidgetElement,
@@ -209,6 +210,33 @@ describe('the two layouts against each other', () => {
   it('differ in density, not only in size', () => {
     // The desk panel is a dense strip of small tiles; the tower is a sparse column of large ones.
     expect(meanTileArea(tower)).toBeGreaterThan(meanTileArea(desk) * 2);
+  });
+});
+
+describe('layouts/template-readout-compare-1920x400.json', () => {
+  const compare = loadShipped('template-readout-compare-1920x400');
+
+  it('sets each readout beside the template the converter writes for it, in a same-sized box', () => {
+    const texts = compare.elements.filter(
+      (element): element is TextElement => element.kind === 'text',
+    );
+    const readouts = widgets(compare);
+
+    expect(readouts.length).toBeGreaterThanOrEqual(3);
+    for (const readout of readouts) {
+      const twin = texts.find((text) => text.text === readoutTemplate(readout.topic));
+      expect(twin, `a template for ${readout.topic}`).toBeDefined();
+      expect(twin?.rect.y).toBe(readout.rect.y);
+      expect(twin?.rect.w).toBe(readout.rect.w);
+      expect(twin?.rect.h).toBe(readout.rect.h);
+    }
+  });
+
+  it('shows a waiting pair and a no-reading pair, not only live ones', () => {
+    const topics = widgets(compare).map((readout) => normalizeSensorTopic(readout.topic) ?? '');
+
+    expect(topics.some((topic) => !MOCK_TOPICS.has(topic))).toBe(true);
+    expect(topics).toContain(sensorTopic('cooler', 'fan'));
   });
 });
 

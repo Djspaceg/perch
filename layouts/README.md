@@ -12,6 +12,7 @@ layouts/
   desk-1920x400.assets/       # rails.svg — the backdrop that layout references
   tower-720x1280.json         # a tall warm-paper column of six deep tiles
   tower-720x1280.assets/      # weave.svg — the backdrop that layout references
+  template-readout-compare-1920x400.json  # four readouts, each beside its text-template twin
   invalid/                    # documents that are deliberately NOT layouts
     broken-desk.json
 ```
@@ -27,6 +28,11 @@ background nobody will ever review.
 A layout that will not validate is not a layout. The editor validates before
 saving and the runtime validates before rendering, so a file here that fails
 either is a bug in whichever wrote it.
+
+`template-readout-compare-1920x400.json` is a review aid rather than a dashboard: each readout
+widget sits beside a text element holding the template `readoutTemplate` writes for its topic
+(`docs/template-annotations.md`), live, no reading and waiting, so the two can be compared in the
+editor before any readout is folded into text.
 
 ## `invalid/`
 
