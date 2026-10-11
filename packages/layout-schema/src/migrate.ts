@@ -16,7 +16,7 @@
  * tables: chaining, ordering, an unreachable old version, a future version, a step that throws,
  * and the no-op at the target.
  *
- * `LAYOUT_MIGRATIONS` now carries three real entries, and the synthetic tables are still there. They
+ * `LAYOUT_MIGRATIONS` now carries four real entries, and the synthetic tables are still there. They
  * are not redundant: only a synthetic table can exercise a step that throws, a step that forgets the
  * version, or a table that does not reach the target.
  *
@@ -31,6 +31,7 @@ import { asRecord, describeValue, readField } from './checks.js';
 import { createIssueCollector, type IssueCollector, type LayoutIssue } from './issues.js';
 import { LAYOUT_SCHEMA_VERSION, parseJson, validateLayout, type Layout } from './layout.js';
 import type { ValidateLayoutOptions } from './options.js';
+import { escapeTemplateText } from './template.js';
 
 /**
  * One step forward, by exactly one version.
@@ -168,6 +169,34 @@ const ADD_LAYOUT_BACKGROUND: LayoutMigration = {
 };
 
 /**
+ * Version 4 to version 5: a text element's `text` is a template (`template.ts`).
+ *
+ * The one step whose rewrite is about meaning rather than shape. A version 4 caption says exactly its
+ * characters, braces included; in version 5 a brace opens a placeholder. So every brace in every text
+ * element's `text` is doubled, which version 5 reads as the brace it was, and the caption paints the
+ * same. The layout's `locale` and `timeZone` are new and optional, so nothing else moves. A `text`
+ * that is not a string is left for the validator to name: a step is not a repair.
+ *
+ * Breaking, as 2 -> 3 is: a version 4 build handed a template would paint `{time}` literally.
+ */
+const TEXT_TEMPLATES: LayoutMigration = {
+  from: 4,
+  to: 5,
+  description:
+    'text becomes a template: every brace already in a caption is doubled so it still reads as itself',
+  migrate: (document) => {
+    if (!Array.isArray(document['elements'])) return { ...document };
+    const elements = document['elements'].map((candidate: unknown) => {
+      const element = asRecord(candidate);
+      const text = element?.['text'];
+      if (element?.['kind'] !== 'text' || typeof text !== 'string') return candidate;
+      return { ...element, text: escapeTemplateText(text) };
+    });
+    return { ...document, elements };
+  },
+};
+
+/**
  * Every migration this build knows, in ascending order, contiguous, ending at
  * `LAYOUT_SCHEMA_VERSION`.
  */
@@ -175,6 +204,7 @@ export const LAYOUT_MIGRATIONS: readonly LayoutMigration[] = Object.freeze([
   ADD_CHART_ELEMENT,
   RETIRE_MEDIA_OPACITY,
   ADD_LAYOUT_BACKGROUND,
+  TEXT_TEMPLATES,
 ]);
 
 /** Options for the migration runner. */

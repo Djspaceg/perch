@@ -28,12 +28,14 @@ type Layout = {
   background?: {                  // under every element, the whole canvas (version 4)
     src: string; fit?: 'cover' | 'contain'; opacity?: number; hidden?: boolean
   }
+  locale?: string                 // BCP 47, canonical: clock tokens' language (version 5)
+  timeZone?: string               // IANA: the clock's zone (version 5)
   elements: Element[]             // paint order = array order
 }
 
 type Element = (
   | { kind: 'widget'; widget: string; topic: string; rect: Rect; style?: Style; range?: [number, number] }
-  | { kind: 'text';   text: string;   rect: Rect; style?: Style }
+  | { kind: 'text';   text: string;   rect: Rect; style?: Style }  // text: a template (version 5)
   | { kind: 'media';  src: string;    rect: Rect; fit?: 'cover' | 'contain' }  // src: a path, or thermalright:<id>
   | { kind: 'chart';  widget: string; topic: string; rect: Rect; style?: Style; range?: [number, number];
       windowMs: number; gap?: 'break' | 'span' }
@@ -122,7 +124,15 @@ migrated forward and the result reported; a layout from the future is rejected
 with its version named. There is no "best effort" path — silently ignoring an
 unknown field is how authored work gets destroyed.
 
-**Current version: 4.** Version 4 adds the layout's own `background`, one image or
+**Current version: 5.** Version 5 makes a text element's `text` a template
+(`src/template.ts`): `{sensors/...}` is a live value and unit, with `| fixed:N`, `| value`,
+`| unit` or `| label` filters and `|| text` for what shows with no reading to believe (`--`
+by default); any other name is a localized clock token (`{time}`, `{date:long}`,
+`{weekday:short}`), formatted in the layout's optional `locale` and `timeZone`. `{{` and `}}`
+are literal braces. The `4 -> 5` step doubles every brace already in a caption, so it paints
+as it did, and a version 4 build refuses a version 5 file rather than painting `{time}`.
+
+**Version 4.** Version 4 adds the layout's own `background`, one image or
 video painted first across the whole canvas, and a `hidden` flag on it and on every element
 (the editor's layer eye; a hidden layer paints nowhere). The background is a field of the
 layout rather than an element so that nothing can be reordered beneath it. Absent, there is no

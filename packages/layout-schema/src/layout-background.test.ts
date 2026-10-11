@@ -157,8 +157,8 @@ describe('hidden on every element kind', () => {
 });
 
 describe('the version 3 to version 4 boundary', () => {
-  it('is the current version', () => {
-    expect(LAYOUT_SCHEMA_VERSION).toBe(4);
+  it('is a step every later version builds on', () => {
+    expect(LAYOUT_SCHEMA_VERSION).toBeGreaterThanOrEqual(4);
   });
 
   it('opens a version 3 file with no background, every layer shown, and its backdrop still an element', () => {
@@ -168,7 +168,7 @@ describe('the version 3 to version 4 boundary', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.fromVersion).toBe(3);
-    expect(result.migrations.map((step) => `${step.from}->${step.to}`)).toEqual(['3->4']);
+    expect(result.migrations.map((step) => `${step.from}->${step.to}`)).toEqual(['3->4', '4->5']);
     expect(result.layout.background).toBeUndefined();
     expect(result.layout.elements.every((element) => element.hidden === undefined)).toBe(true);
     expect(result.layout.elements[0]?.kind).toBe('media');

@@ -42,7 +42,7 @@ import { validateTokenMap, type ThemeTokens } from './theme.js';
  * Bumped in the same change that adds the migration carrying the previous version forward, never
  * separately — a version with no migration into it is a version that can strand files.
  */
-export const LAYOUT_SCHEMA_VERSION = 4;
+export const LAYOUT_SCHEMA_VERSION = 5;
 
 /**
  * Largest canvas dimension accepted, in pixels.
@@ -89,11 +89,27 @@ export interface Layout {
    * none and the theme's canvas colour shows. Painted before `elements[0]`, always.
    */
   background?: LayoutBackground;
+  /**
+   * The BCP 47 locale every clock token in a text template is written in, `en-GB`, in its one
+   * canonical spelling. Absent, the panel's own. In the layout rather than taken from the host so the
+   * panel shows what was authored, whatever machine drives it.
+   */
+  locale?: string;
+  /** The IANA time zone the clock reads, `Europe/London`. Absent, the panel's own. */
+  timeZone?: string;
   /** Paint order is array order: later elements paint over earlier ones. */
   elements: LayoutElement[];
 }
 
-const LAYOUT_FIELDS = ['schemaVersion', 'target', 'theme', 'background', 'elements'] as const;
+const LAYOUT_FIELDS = [
+  'schemaVersion',
+  'target',
+  'theme',
+  'background',
+  'locale',
+  'timeZone',
+  'elements',
+] as const;
 const TARGET_FIELDS = ['width', 'height', 'frameRate'] as const;
 
 /** A validation outcome. Either a layout, or every reason it is not one. */
@@ -127,6 +143,8 @@ export function validateLayout(
   const target = validateTarget(record, collect);
   const theme = validateTheme(record, collect);
   const background = validateLayoutBackground(record, collect);
+  const locale = validateLocale(record, collect);
+  const timeZone = validateTimeZone(record, collect);
 
   const context: LayoutValidationContext = {
     widgets: options.widgets,
@@ -141,6 +159,8 @@ export function validateLayout(
     target === null ||
     theme === null ||
     background === null ||
+    locale === null ||
+    timeZone === null ||
     elements === null
   ) {
     return { ok: false, issues: collect.issues };
@@ -153,6 +173,8 @@ export function validateLayout(
       target,
       theme,
       ...(background === undefined ? {} : { background }),
+      ...(locale === undefined ? {} : { locale }),
+      ...(timeZone === undefined ? {} : { timeZone }),
       elements,
     },
   };
@@ -318,6 +340,78 @@ function validateTheme(
   }
 
   return validateTokenMap(value, 'theme', 'theme', collect);
+}
+
+/**
+ * The layout's `locale`: one `Intl` knows, in its canonical spelling (`en-GB`, not `en-gb`), since a
+ * locale is an identity and a second spelling is a diff nobody meant. `undefined` absent, `null`
+ * having reported why not.
+ */
+function validateLocale(
+  record: Readonly<Record<string, unknown>>,
+  collect: IssueCollector,
+): string | undefined | null {
+  const value = readField(record, 'locale');
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value === '') {
+    collect.add(
+      'wrong-type',
+      'locale',
+      `expected a locale like "en-GB", got ${describeValue(value)}`,
+    );
+    return null;
+  }
+  let canonical: string | undefined;
+  try {
+    canonical = Intl.getCanonicalLocales(value)[0];
+  } catch {
+    canonical = undefined;
+  }
+  if (canonical === undefined) {
+    collect.add(
+      'malformed-locale',
+      'locale',
+      `not a locale: ${JSON.stringify(value)}; write one like "en-GB" or "de-DE"`,
+    );
+    return null;
+  }
+  if (canonical !== value) {
+    collect.add(
+      'malformed-locale',
+      'locale',
+      `write the locale as ${JSON.stringify(canonical)}, its one spelling, not ${JSON.stringify(value)}`,
+    );
+    return null;
+  }
+  return value;
+}
+
+/** The layout's `timeZone`: an IANA zone `Intl` knows, `Europe/London` or `UTC`. */
+function validateTimeZone(
+  record: Readonly<Record<string, unknown>>,
+  collect: IssueCollector,
+): string | undefined | null {
+  const value = readField(record, 'timeZone');
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value === '') {
+    collect.add(
+      'wrong-type',
+      'timeZone',
+      `expected a time zone like "Europe/London", got ${describeValue(value)}`,
+    );
+    return null;
+  }
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: value });
+  } catch {
+    collect.add(
+      'malformed-locale',
+      'timeZone',
+      `not a time zone: ${JSON.stringify(value)}; write an IANA name like "Europe/London" or "UTC"`,
+    );
+    return null;
+  }
+  return value;
 }
 
 function validateElements(

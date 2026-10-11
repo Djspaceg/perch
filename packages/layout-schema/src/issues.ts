@@ -69,6 +69,10 @@ export const LAYOUT_ISSUE_CODES = [
   'malformed-background-ref',
   /** A rect that cannot paint a pixel on this layout's canvas. */
   'off-canvas',
+  /** A text element's `text` that is not a well-formed template (`template.ts`). */
+  'malformed-template',
+  /** A layout `locale` or `timeZone` that `Intl` does not know, or a second spelling of one. */
+  'malformed-locale',
 ] as const;
 
 export type LayoutIssueCode = (typeof LAYOUT_ISSUE_CODES)[number];

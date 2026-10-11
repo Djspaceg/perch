@@ -59,6 +59,23 @@ export {
 
 export { backgroundAsElement, type LayoutBackground } from './layout-background.js';
 
+export {
+  CLOCK_TOKENS,
+  TEMPLATE_DEFAULT_FALLBACK,
+  TEMPLATE_FILTERS,
+  TEMPLATE_MAX_DECIMALS,
+  escapeTemplateText,
+  isPlainTemplate,
+  parseTextTemplate,
+  templateHasClock,
+  type ClockToken,
+  type ClockVariant,
+  type ParseTemplateResult,
+  type TemplateError,
+  type TemplateFilter,
+  type TemplatePart,
+} from './template.js';
+
 export { rectIntersectsCanvas, type Rect } from './geometry.js';
 
 export { MEDIA_FITS, type MediaFit } from './media.js';

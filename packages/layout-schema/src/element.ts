@@ -33,6 +33,7 @@ import { fieldPath, indexPath, type IssueCollector } from './issues.js';
 import { MEDIA_FITS, validateMediaPath, type MediaFit } from './media.js';
 import type { LayoutValidationContext } from './options.js';
 import { isWidgetName } from './registry.js';
+import { parseTextTemplate } from './template.js';
 import { validateTokenMap, type Style } from './theme.js';
 
 export const ELEMENT_KINDS = ['widget', 'text', 'media', 'chart'] as const;
@@ -87,9 +88,10 @@ export interface WidgetElement {
   hidden?: Hidden;
 }
 
-/** A literal string painted at a rect. */
+/** A string painted at a rect: a template (`template.ts`) since schema version 5. */
 export interface TextElement {
   kind: 'text';
+  /** Literal text with `{placeholders}` for sensors and the clock; `{{` and `}}` are braces. */
   text: string;
   rect: Rect;
   style?: Style;
@@ -384,7 +386,9 @@ function validateTextElement(
   // a panel is indistinguishable from a broken binding. An element with nothing to say should be
   // deleted, and the editor validates before saving, so this is caught while it is still a GUI
   // state rather than after it has shipped to the wall.
-  const text = requireNonEmptyString(record, path, 'text', collect, index);
+  const raw = requireNonEmptyString(record, path, 'text', collect, index);
+  const text =
+    raw === null ? null : validateTemplate(raw, fieldPath(path, 'text'), index, context, collect);
   const rect = validateRect(record, path, context.canvas, collect, index);
   const style = validateOptionalStyle(record, path, index, collect);
   const opacity = validateOptionalOpacity(record, path, index, collect);
@@ -465,6 +469,44 @@ function validateWidgetIdentity(
   }
 
   return widget;
+}
+
+/**
+ * A text element's template: well-formed (`template.ts`), and every sensor it names a topic the
+ * injected validator accepts, by the same rule as a widget's `topic`. The message says at which
+ * character, since a template can hold several placeholders and the path names only the field.
+ */
+function validateTemplate(
+  text: string,
+  path: string,
+  index: number,
+  context: LayoutValidationContext,
+  collect: IssueCollector,
+): string | null {
+  const parsed = parseTextTemplate(text);
+  if (!parsed.ok) {
+    collect.add(
+      'malformed-template',
+      path,
+      `at character ${String(parsed.error.offset + 1)}: ${parsed.error.message}`,
+      index,
+    );
+    return null;
+  }
+
+  let ok = true;
+  for (const part of parsed.parts) {
+    if (part.kind !== 'sensor' || context.isTopic(part.topic)) continue;
+    collect.add(
+      'malformed-topic',
+      path,
+      `not a valid sensor topic: ${JSON.stringify(part.topic)}`,
+      index,
+    );
+    ok = false;
+  }
+
+  return ok ? text : null;
 }
 
 function validateTopic(
