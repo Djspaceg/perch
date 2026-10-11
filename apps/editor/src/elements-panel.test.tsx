@@ -327,8 +327,10 @@ describe('the panel options menu', () => {
 describe('the row height', () => {
   const css = (sheet: string): string => sheet.replace(/\s+/g, ' ');
 
-  it('is one variable, half again the base row, at either density', () => {
-    expect(css(CHROME_STYLES)).toMatch(/--ed-element-row-h: calc\(var\(--ed-row-h\) \* 1\.5\);/);
+  it('is one variable: 28px from the 22px base row, scaled the same under a coarse pointer, never below 24px', () => {
+    expect(css(CHROME_STYLES)).toMatch(
+      /--ed-element-row-h: max\(24px, calc\(var\(--ed-row-h\) \* 14 \/ 11\)\);/,
+    );
     // Declared once, at the root: the coarse pointer's taller --ed-row-h scales it the same way.
     expect(css(CHROME_STYLES).match(/--ed-element-row-h:/g)).toHaveLength(1);
   });
@@ -349,5 +351,48 @@ describe('the row height', () => {
       /--ed-element-thumb: calc\(var\(--ed-element-row-h\) \* 2 \/ 3\);/,
     );
     expect(sheet).not.toMatch(/\.perch-editor-element \{[^}]*--ed-list-row-h/);
+  });
+});
+
+describe('the separators between rows', () => {
+  const sheet = (): string => INSPECTOR_STYLES.replace(/\s+/g, ' ');
+  const rule = (selector: string): string => {
+    const css = sheet();
+    const at = css.indexOf(`${selector} {`);
+    if (at === -1) throw new Error(`no rule for ${selector}`);
+    return css.slice(at, css.indexOf('}', at));
+  };
+  const separator = '.perch-editor-layer:not(.perch-editor-layer--background)::after';
+
+  it('are a 1px line in the divider token under every element row, the background row last without one', () => {
+    const line = rule(separator);
+
+    expect(line).toMatch(/height: 1px/);
+    expect(line).toMatch(/bottom: 0/);
+    expect(line).toMatch(/background: var\(--ed-group-divider\)/);
+    expect(line).toMatch(/pointer-events: none/);
+  });
+
+  it('are drawn inside the row, so a row is still the row height', () => {
+    expect(rule(separator)).toMatch(/position: absolute/);
+    expect(rule('.perch-editor-layer')).toMatch(/position: relative/);
+  });
+
+  it('stay under the drag insertion line', () => {
+    const z = (text: string): number => Number(/z-index: (\d+)/.exec(text)?.[1] ?? 'NaN');
+
+    expect(z(rule('.perch-editor-element[data-perch-drop]::after'))).toBeGreaterThan(
+      z(rule(separator)),
+    );
+  });
+
+  it('are drawn on every element row', () => {
+    const result = renderEditor();
+    const layers = [...list(result).querySelectorAll('.perch-editor-layer')];
+
+    expect(layers.at(-1)).toHaveClass('perch-editor-layer--background');
+    expect(
+      layers.slice(0, -1).every((row) => !row.classList.contains('perch-editor-layer--background')),
+    ).toBe(true);
   });
 });

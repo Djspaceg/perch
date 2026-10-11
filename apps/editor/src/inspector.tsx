@@ -1271,6 +1271,8 @@ ${TRANSFORM_STYLES}
   border-radius: 1px;
   background: var(--ed-accent);
   pointer-events: none;
+  /* Over the separators between rows, which it lands on. */
+  z-index: 2;
 }
 .perch-editor-element[data-perch-drop='above']::after { top: -1px; }
 .perch-editor-element[data-perch-drop='below']::after { bottom: -1px; }
@@ -1285,6 +1287,20 @@ body.perch-dragging, body.perch-dragging * { cursor: grabbing !important; user-s
 .perch-editor-element__lock { flex: none; display: inline-flex; align-items: center; color: var(--ed-faint); }
 /* Positioned: a row's delete confirm floats over the row, right-aligned, as it does over any row. */
 .perch-editor-layer { position: relative; display: flex; align-items: center; min-width: 0; }
+/* A hairline under every element row, as Photoshop's Layers palette draws them: inside the row, so a
+   row is still its height, over its selected or hover fill, and under the drop line. The background
+   row is always last, so the lines are only ever between rows. */
+.perch-editor-layer:not(.perch-editor-layer--background)::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  height: 1px;
+  background: var(--ed-group-divider);
+  pointer-events: none;
+}
 .perch-editor-layer > .perch-editor-element { flex: 1 1 auto; min-width: 0; }
 .perch-editor-layer[data-perch-hidden='true'] > .perch-editor-element { color: var(--ed-faint); }
 .perch-editor-eye {

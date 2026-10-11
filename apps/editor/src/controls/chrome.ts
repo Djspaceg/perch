@@ -242,8 +242,9 @@ export const CHROME_STYLES = `
   --ed-control: 18px;
   /* A list row: a sensor, a menu entry, a folded Advanced bar. */
   --ed-list-row-h: 20px;
-  /* An Elements list row: half again the base row, at either density, for room and a larger target. */
-  --ed-element-row-h: calc(var(--ed-row-h) * 1.5);
+  /* An Elements list row: 28px from the 22px base row, scaled the same under a coarse pointer, and
+     never under the 24px touch target. */
+  --ed-element-row-h: max(24px, calc(var(--ed-row-h) * 14 / 11));
   /* Its kind glyph or thumbnail: two thirds of the row, so it grows with the row. */
   --ed-element-thumb: calc(var(--ed-element-row-h) * 2 / 3);
   /* The least a text button may be: nothing extra under a mouse. */
